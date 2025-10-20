@@ -1,3 +1,5 @@
+This is a modification of
+
 CLASS: Cosmic Linear Anisotropy Solving System  {#mainpage}
 ==============================================
 
@@ -8,6 +10,9 @@ Audren, Simon Prunet, Jesus Torrado, Miguel Zumalacarregui, Francesco
 Montanari, Deanna Hooper, Samuel Brieden, Daniel Meinert, Matteo Lucca, etc.
 
 For download and information, see http://class-code.net
+
+THis is a test modification
+
 
 
 Compiling CLASS and getting started
