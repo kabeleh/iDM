@@ -13,6 +13,8 @@ For download and information, see http://class-code.net
 
 THis is a test modification
 
+Another test commit, this time from MacOS. Let's see how that goes.
+
 
 
 Compiling CLASS and getting started
