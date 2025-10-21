@@ -35,10 +35,10 @@ AR        = ar rv
 PYTHON ?= python
 
 # your optimization flag
-#OPTFLAG = -O3
-#OPTFLAG = -Ofast -ffast-math #-march=native
-#OPTFLAG = -fast
-OPTFLAG = -O3 -funroll-loops -ftree-vectorize -ftree-slp-vectorize -flto=auto -fPIC
+OPTFLAG = -O3
+OPTFLAG += -funroll-loops -ftree-vectorize -ftree-slp-vectorize -flto=auto -fPIC
+OPTFLAG += -march=native -mtune=native
+OPTFLAG += -ffpe-trap=invalid,zero,overflow # to catch floating point exceptions during development
 
 # your openmp flag (comment for compiling without openmp)
 OMPFLAG   = -pthread #-fopenmp
@@ -47,6 +47,7 @@ OMPFLAG   = -pthread #-fopenmp
 
 # all other compilation flags
 CCFLAG = -g -fPIC
+CCFLAG += -Wall -Wextra -Wpedantic #for developing only
 LDFLAG = -g -fPIC
 
 # leave blank to compile without HyRec, or put path to HyRec directory
