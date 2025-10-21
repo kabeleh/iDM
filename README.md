@@ -15,7 +15,7 @@ This repository contains the CLASS[^1], MontePython[^2], and Mathematica [^3] fi
 The source code in this repository is a fork of the Cosmic Linear Anisotropy Solving System (CLASS) v3.3.3 by Julien Lesgourgues, Thomas Tram, Nils Schoeneberg et al., which can be pulled from https://github.com/lesgourg/class_public.
 
 <details>
-<summary>Technical implementation of the cosmological model</summary>
+<summary>### Technical implementation of the cosmological model</summary>
 
 ### Notable changes
 To implement 
@@ -36,7 +36,7 @@ To implement
 If you want to use this code, please cite [CLASS II: Approximation schemes](http://arxiv.org/abs/1104.2933) as well as `my thesis`.
 
 ## MontePython
-The Markov chain Monte Carlo (MCMC) runs to find the best-fit parameters of the model and compare it to $\Lambda$CDM were performed using [MontePython](https://github.com/brinckmann/montepython_public) v3.6.1 by Thejs Brinckmann, Benjamin Audren, et al.
+The Markov chain Monte Carlo (MCMC) runs to find the best-fit parameters of the model and compare it to $`\Lambda`$CDM were performed using [MontePython](https://github.com/brinckmann/montepython_public) v3.6.1 by Thejs Brinckmann, Benjamin Audren, et al.
 
 This repository contains
 - parameter-files
