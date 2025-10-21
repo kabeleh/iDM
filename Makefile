@@ -38,7 +38,7 @@ PYTHON ?= python
 #OPTFLAG = -O3
 #OPTFLAG = -Ofast -ffast-math #-march=native
 #OPTFLAG = -fast
-OPTFLAG = -O3 -funroll-loops -ftree-vectorize -ftree-slp-vectorize -flto -fPIC
+OPTFLAG = -O3 -funroll-loops -ftree-vectorize -ftree-slp-vectorize -flto=auto -fPIC
 
 # your openmp flag (comment for compiling without openmp)
 OMPFLAG   = -pthread #-fopenmp
