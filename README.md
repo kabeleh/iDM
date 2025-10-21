@@ -1,130 +1,46 @@
-This is a modification of
+# Dark Energy–Dark Matter Interactions
+- Author: Kay Lehnert
+- Publications: 
+    - [Hitchhiker's Guide to the Swampland: The Cosmologist's Handbook to the string-theoretical Swampland Programme](https://arxiv.org/abs/2509.02632)
+    - [PhD Thesis](url.com)
 
-CLASS: Cosmic Linear Anisotropy Solving System  {#mainpage}
-==============================================
+This repository contains the CLASS[^1], MontePython[^2], and Mathematica [^3] files for a swampland-inspired model of dark energy in the form of quintessence as a scalar field that is interacting with dynamical dark matter. The interactions and and mathematical details of the model are all explained in my PhD thesis.
 
-Authors: Julien Lesgourgues, Thomas Tram, Nils Schoeneberg
+[^1]: https://github.com/lesgourg/class_public
+[^2]: https://github.com/brinckmann/montepython_public
+[^3]: https://www.wolfram.com/mathematica/
 
-with several major inputs from other people, especially Benjamin
-Audren, Simon Prunet, Jesus Torrado, Miguel Zumalacarregui, Francesco
-Montanari, Deanna Hooper, Samuel Brieden, Daniel Meinert, Matteo Lucca, etc.
+## CLASS
+The source code in this repository is a fork of the Cosmic Linear Anisotropy Solving System (CLASS) v3.3.3 by Julien Lesgourgues, Thomas Tram, Nils Schoeneberg at al., which can be pulled from https://github.com/lesgourg/class_public.
 
-For download and information, see http://class-code.net
+<details>
+<summary>Technical implementation of the cosmological model</summary>
 
-THis is a test modification
+### Notable changes
+To implement 
 
-Another test commit, this time from MacOS. Let's see how that goes.
+</details>
 
-## TEST
-TEST
+<details>
+<summary>How to compile and run the code</summary>
+
+1. Either download the archive of the source code or `git pull` this repository to make a local copy.
+2. Navigate to the folder that contains the root of the CLASS source code (the one that contains the *.ini-files as well as the `Makefile`).
+3. `make clean; make class -j` to compile the code.
+4. Run the cosmological simulation with `./class iDM.ini`
+
+</details>
+
+If you want to use this code, please cite `CLASS II: Approximation schemes <http://arxiv.org/abs/1104.2933>` as well as `my thesis`.
+
+## MontePython
+The Markov chain Monte Carlo (MCMC) runs to find the best-fit parameters of the model and compare it to $\Lambda$ CDM were performed using [MontePython](https://github.com/brinckmann/montepython_public) v3.6.1 by Thejs Brinckmann, Benjamin Audren, et al.
+
+This repository contains
+- parameter-files
+- best-fit values 
+- covariance matrices
+
+## Mathematica
 
 
-
-Compiling CLASS and getting started
------------------------------------
-
-(the information below can also be found on the webpage, just below
-the download button)
-
-Download the code from the webpage and unpack the archive (tar -zxvf
-class_vx.y.z.tar.gz), or clone it from
-https://github.com/lesgourg/class_public. Go to the class directory
-(cd class/ or class_public/ or class_vx.y.z/) and compile (make clean;
-make class). You can usually speed up compilation with the option -j:
-make -j class. If the first compilation attempt fails, you may need to
-open the Makefile and adapt the name of the compiler (default: gcc),
-of the optimization flag (default: -O4 -ffast-math) and of the OpenMP
-flag (default: -fopenmp; this flag is facultative, you are free to
-compile without OpenMP if you don't want parallel execution; note that
-you need the version 4.2 or higher of gcc to be able to compile with
--fopenmp). Many more details on the CLASS compilation are given on the
-wiki page
-
-https://github.com/lesgourg/class_public/wiki/Installation
-
-(in particular, for compiling on Mac >= 10.9 despite of the clang
-incompatibility with OpenMP).
-
-To check that the code runs, type:
-
-    ./class explanatory.ini
-
-The explanatory.ini file is THE reference input file, containing and
-explaining the use of all possible input parameters. We recommend to
-read it, to keep it unchanged (for future reference), and to create
-for your own purposes some shorter input files, containing only the
-input lines which are useful for you. Input files must have a *.ini
-extension. We provide an example of an input file containing a
-selection of the most used parameters, default.ini, that you may use as a
-starting point.
-
-If you want to play with the precision/speed of the code, you can use
-one of the provided precision files (e.g. cl_permille.pre) or modify
-one of them, and run with two input files, for instance:
-
-    ./class test.ini cl_permille.pre
-
-The files *.pre are suppposed to specify the precision parameters for
-which you don't want to keep default values. If you find it more
-convenient, you can pass these precision parameter values in your *.ini
-file instead of an additional *.pre file.
-
-The automatically-generated documentation is located in
-
-    doc/manual/html/index.html
-    doc/manual/CLASS_manual.pdf
-
-On top of that, if you wish to modify the code, you will find lots of
-comments directly in the files.
-
-Python
-------
-
-To use CLASS from python, or ipython notebooks, or from the Monte
-Python parameter extraction code, you need to compile not only the
-code, but also its python wrapper. This can be done by typing just
-'make' instead of 'make class' (or for speeding up: 'make -j'). More
-details on the wrapper and its compilation are found on the wiki page
-
-https://github.com/lesgourg/class_public/wiki
-
-Plotting utility
-----------------
-
-Since version 2.3, the package includes an improved plotting script
-called CPU.py (Class Plotting Utility), written by Benjamin Audren and
-Jesus Torrado. It can plot the Cl's, the P(k) or any other CLASS
-output, for one or several models, as well as their ratio or percentage
-difference. The syntax and list of available options is obtained by
-typing 'pyhton CPU.py -h'. There is a similar script for MATLAB,
-written by Thomas Tram. To use it, once in MATLAB, type 'help
-plot_CLASS_output.m'
-
-Developing the code
---------------------
-
-If you want to develop the code, we suggest that you download it from
-the github webpage
-
-https://github.com/lesgourg/class_public
-
-rather than from class-code.net. Then you will enjoy all the feature
-of git repositories. You can even develop your own branch and get it
-merged to the public distribution. For related instructions, check
-
-https://github.com/lesgourg/class_public/wiki/Public-Contributing
-
-Using the code
---------------
-
-You can use CLASS freely, provided that in your publications, you cite
-at least the paper `CLASS II: Approximation schemes <http://arxiv.org/abs/1104.2933>`. Feel free to cite more CLASS papers!
-
-Support
--------
-
-To get support, please open a new issue on the
-
-https://github.com/lesgourg/class_public
-
-webpage!
