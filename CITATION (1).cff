@@ -1,0 +1,42 @@
+# This CITATION.cff file was generated with cffinit.
+# Visit https://bit.ly/cffinit to generate yours today!
+
+cff-version: 1.2.0
+title: Dark Matter–Dark Energy Interactions in CLASS
+message: >-
+  If you use this software, please also cite the following
+  papers: arXiv:1104.2933 [astro-ph.CO], arXiv:1804.07261
+  [astro-ph.CO], arXiv:2509.02632 [hep-th]
+type: software
+authors:
+  - given-names: Kay
+    family-names: Lehnert
+    email: k.lehnert@protonmail.com
+    affiliation: 'National University of Ireland, Maynooth'
+    orcid: 'https://orcid.org/0000-0002-2908-8638'
+identifiers:
+  - type: url
+    value: 'https://arxiv.org/abs/2509.02632'
+    description: PLACEHOLDER FOR PHD THESIS ARXIV LINK
+repository-code: 'https://github.com/kabeleh/iDM'
+abstract: >-
+  This fork of the Cosmic Linear Anisotropy Solving System
+  (CLASS) is based on a string theory–inspired model of
+  interacting dark matter and dark energy. The model is
+  compatible with swampland conjectures. The dark matter in
+  the model is coupled to dark energy in the form of
+  quintessence (a scalar field) and its mass is dynamic. The
+  repository contains the CLASS source code, as well as the
+  output of the Markov chain Monte Carlo (MCMC) MontePython
+  runs and Mathematica notebooks.
+keywords:
+  - cosmology
+  - dark matter
+  - dark energy
+  - string theory
+  - swampland
+  - CLASS
+  - MontePython
+  - MCMC
+license: MIT
+version: 3.3.3
