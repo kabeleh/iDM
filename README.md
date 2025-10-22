@@ -15,7 +15,7 @@ This repository contains the CLASS[^1], MontePython[^2], and Mathematica [^3] fi
 The source code in this repository is a fork of the Cosmic Linear Anisotropy Solving System (CLASS) v3.3.3 by Julien Lesgourgues, Thomas Tram, Nils Schoeneberg et al., which can be pulled from https://github.com/lesgourg/class_public.
 
 <details>
-<summary>### Technical implementation of the cosmological model</summary>
+<summary>Technical implementation of the cosmological model</summary>
 
 ### Notable changes
 To implement 
@@ -44,5 +44,5 @@ This repository contains
 - covariance matrices
 
 ## Mathematica
-
+The Mathematica notebooks contain the derivation of the governing equations, equations of motions, the potentials and their derivatives, as well as additional tests for swampland-compatibility.
 
