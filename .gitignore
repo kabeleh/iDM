@@ -15,3 +15,4 @@ doc/manual/html
 doc/manual/latex
 .embold/
 vscode-logs.log
+.vscode/
