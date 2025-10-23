@@ -16,3 +16,4 @@ doc/manual/latex
 .embold/
 vscode-logs.log
 .vscode/
+.github/copilot-instructions.md

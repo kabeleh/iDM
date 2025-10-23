@@ -445,7 +445,19 @@ int background_functions(
   /* cdm */
   if (pba->has_cdm == _TRUE_)
   {
-    pvecback[pba->index_bg_rho_cdm] = pba->Omega0_cdm * pow(pba->H0, 2) / pow(a, 3);
+    if (pba->model_cdm == 1) // Hubbleian DM model KBL
+    {
+      // Can only be computed after H is known, for which rho_tot is needed
+      // pvecback[pba->index_bg_rho_cdm] = pba->Omega0_cdm * pvecback[pba->index_bg_H] * pba->H0 / pow(a, 3);
+      pvecback[pba->index_bg_rho_cdm] = 0; // placeholder
+    }
+    else if (pba->model_cdm == 2) // Interacting DM model
+    {
+    }
+    else // Standard CDM model
+    {
+      pvecback[pba->index_bg_rho_cdm] = pba->Omega0_cdm * pow(pba->H0, 2) / pow(a, 3);
+    }
     rho_tot += pvecback[pba->index_bg_rho_cdm];
     p_tot += 0.;
     rho_m += pvecback[pba->index_bg_rho_cdm];
@@ -591,10 +603,43 @@ int background_functions(
     rho_r += pvecback[pba->index_bg_rho_idr];
   }
 
+  /* cdm */
+  if (pba->has_cdm == _TRUE_ && pba->model_cdm == 1)
+  {
+    /*
+     * rho_CDM can only be computed after H is known, for which rho_tot is needed
+     * Since H depends on rho_CDM and rho_CDM depends on H, we must find the correct value iteratively
+     */
+    const double tol = 1.0e-12; // in the synchronous gauge, the minimum CDM value is e-10, so we should at least be that precises
+    const int max_iter = 100;   // avoid infinite loops
+    int iter = 0;
+    double rho_other = rho_tot;
+    double rho_cdm_old = 0;
+    double rho_cdm_new = sqrt(3) * pba->Omega0_cdm * pvecback[pba->index_bg_H] * pba->H0 / pow(a, 3);
+    double temp_H = sqrt(max(0.0, rho_other));
+    if (temp_H <= 0.0)
+      temp_H = pba->H0;
+    double temp_rho_tot = rho_tot - pvecback[pba->index_bg_rho_cdm];
+    while (iter < max_iter && fabs(rho_cdm_new - rho_cdm_old) >= tol)
+    {
+      rho_cdm_old = sqrt(3) * pba->Omega0_cdm * temp_H * pba->H0 / pow(a, 3);
+      temp_rho_tot = temp_rho_tot - rho_cdm_old + rho_cdm_new;
+      temp_H = sqrt(temp_rho_tot - pba->K / a / a);
+      rho_cdm_new = sqrt(3) * pba->Omega0_cdm * temp_H * pba->H0 / pow(a, 3);
+      iter++;
+    }
+    // printf(" Converged for rho_cdm in %d iterations to %e while H=%e \n", iter, rho_cdm_new, temp_H);
+    rho_tot += rho_cdm_new;
+    pvecback[pba->index_bg_rho_cdm] = rho_cdm_new;
+    p_tot += 0.;
+    rho_m += pvecback[pba->index_bg_rho_cdm];
+    pvecback[pba->index_bg_H] = sqrt(rho_tot - pba->K / a / a);
+  }
+
   /** - compute expansion rate H from Friedmann equation: this is the
-      only place where the Friedmann equation is assumed. Remember
-      that densities are all expressed in units of \f$ [3c^2/8\pi G] \f$, ie
-      \f$ \rho_{class} = [8 \pi G \rho_{physical} / 3 c^2]\f$ */
+    only place where the Friedmann equation is assumed. Remember
+    that densities are all expressed in units of \f$ [3c^2/8\pi G] \f$, ie
+    \f$ \rho_{class} = [8 \pi G \rho_{physical} / 3 c^2]\f$ */
   pvecback[pba->index_bg_H] = sqrt(rho_tot - pba->K / a / a);
 
   /** - compute derivative of H with respect to conformal time */
