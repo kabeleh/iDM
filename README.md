@@ -46,3 +46,4 @@ This repository contains
 ## Mathematica
 The Mathematica notebooks contain the derivation of the governing equations, equations of motions, the potentials and their derivatives, as well as additional tests for swampland-compatibility.
 
+Please reach out to me if you would like to collaborate on a similar project, or if you find bugs in my code!
