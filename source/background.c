@@ -613,27 +613,27 @@ int background_functions(
     const double tol = 1.0e-12; // in the synchronous gauge, the minimum CDM value is e-10, so we should at least be that precises
     const int max_iter = 100;   // avoid infinite loops
     int iter = 0;
-    double rho_other = rho_tot;
     double rho_cdm_old = 0;
-    double rho_cdm_new = sqrt(3) * pba->Omega0_cdm * pvecback[pba->index_bg_H] * pba->H0 / pow(a, 3);
-    double temp_H = sqrt(max(0.0, rho_other));
+    double temp_H = sqrt(fmax(0.0, rho_tot - pba->K / a / a));
     if (temp_H <= 0.0)
+    {
       temp_H = pba->H0;
-    double temp_rho_tot = rho_tot - pvecback[pba->index_bg_rho_cdm];
+    }
+    double rho_cdm_new = sqrt(3) * pba->Omega0_cdm * temp_H * pba->H0 / pow(a, 3);
+    double temp_rho_tot = rho_tot;
     while (iter < max_iter && fabs(rho_cdm_new - rho_cdm_old) >= tol)
     {
-      rho_cdm_old = sqrt(3) * pba->Omega0_cdm * temp_H * pba->H0 / pow(a, 3);
       temp_rho_tot = temp_rho_tot - rho_cdm_old + rho_cdm_new;
+      rho_cdm_old = sqrt(3) * pba->Omega0_cdm * temp_H * pba->H0 / pow(a, 3);
       temp_H = sqrt(temp_rho_tot - pba->K / a / a);
       rho_cdm_new = sqrt(3) * pba->Omega0_cdm * temp_H * pba->H0 / pow(a, 3);
       iter++;
     }
-    // printf(" Converged for rho_cdm in %d iterations to %e while H=%e \n", iter, rho_cdm_new, temp_H);
     rho_tot += rho_cdm_new;
     pvecback[pba->index_bg_rho_cdm] = rho_cdm_new;
     p_tot += 0.;
     rho_m += pvecback[pba->index_bg_rho_cdm];
-    pvecback[pba->index_bg_H] = sqrt(rho_tot - pba->K / a / a);
+    printf(" Converged for rho_cdm in %d iterations to %e while H=%e \n", iter, rho_cdm_new, temp_H);
   }
 
   /** - compute expansion rate H from Friedmann equation: this is the
