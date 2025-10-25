@@ -606,7 +606,7 @@ int background_functions(
   /* cdm */
   if (pba->has_cdm == _TRUE_ && pba->model_cdm == 1)
   {
-    /*
+    /* KBL
      * rho_CDM can only be computed after H is known, for which rho_tot is needed
      * Since H depends on rho_CDM and rho_CDM depends on H, we must find the correct value iteratively
      */
