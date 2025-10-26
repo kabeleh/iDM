@@ -2535,6 +2535,7 @@ int input_read_parameters_species(struct file_content *pfc,
   int fileentries;
   int N_ncdm = 0, n, entries_read;
   int model_cdm; // CDM model (0:standard, 1: Hubbleian, 2: interacting with DE) //KBL
+  double cdm_c;  // constant in the hyperbolic CDM model //KBL
   double rho_ncdm;
   double scf_lambda;
   double fnu_factor;
@@ -2670,7 +2671,7 @@ int input_read_parameters_species(struct file_content *pfc,
     ppt->three_cvis2_ur = 3. * param2;
   }
 
-  /** 4 CDM Model (KBL) */
+  /** 4z CDM Model (KBL) */
   /* Read */
   class_call(parser_read_string(pfc,
                                 "model_cdm",
@@ -2689,9 +2690,13 @@ int input_read_parameters_species(struct file_content *pfc,
     else if (string_begins_with(string1, 'i') || string_begins_with(string1, 'I'))
     {
       pba->model_cdm = 2;
-      class_test(pba->scf_parameters == NULL,
+      class_call(parser_read_double(pfc, "cdm_c", &param2, &flag2, errmsg),
                  errmsg,
-                 "You cannot use an interacting CDM model if dark energy is not present.");
+                 errmsg);
+      if (flag2 == _TRUE_)
+      {
+        pba->cdm_c = param2;
+      }
     }
   }
 
@@ -3496,6 +3501,9 @@ int input_read_parameters_species(struct file_content *pfc,
   class_test(((flag1 == _FALSE_) || (flag2 == _FALSE_)) && ((flag3 == _TRUE_) && (param3 < 0.)),
              errmsg,
              "You have entered 'Omega_scf' < 0 , so you have to specify both 'Omega_lambda' and 'Omega_fld'.");
+  class_test((flag3 == _FALSE_) && (pba->model_cdm == 2), // KBL
+             errmsg,
+             "You cannot use an interacting DM model if DE is not present.\nChoose model_cdm = h or leave it blank, or set Omega_scf < 0.");
   /* Complete set of parameters
      Case of (flag3 == _FALSE_) || (param3 >= 0.) means that either we have not
      read Omega_scf so we are ignoring it (unlike lambda and fld!) OR we have
@@ -3627,7 +3635,7 @@ int input_read_parameters_species(struct file_content *pfc,
   if (pba->Omega0_scf != 0.)
   {
 
-    /** 8.b.1) Additional SCF parameters */
+    /** 8.b.1) Additional SCF parameters KBL*/
     /* Read */
     class_call(parser_read_list_of_doubles(pfc,
                                            "scf_parameters",
@@ -3636,6 +3644,10 @@ int input_read_parameters_species(struct file_content *pfc,
                                            &flag1,
                                            errmsg),
                errmsg, errmsg);
+
+    class_test((pba->model_cdm != 2) && (pba->scf_parameters[pba->scf_parameters_size - 5] != 0.0),
+               errmsg,
+               "The DM mass does not depend on the scalar field, therefore, there is no d rho_cdm / d phi to couple to. Set q4 = 0 in scf_parameters.");
 
     /** 8.b.2) SCF initial conditions from attractor solution */
     /* Read */
@@ -6361,9 +6373,10 @@ int input_default_params(struct background *pba,
   ppt->three_ceff2_ur = 1.;
   ppt->three_cvis2_ur = 1.;
 
-  /** 4) CDM density */
+  /** 4) CDM density KBL*/
   pba->model_cdm = 0;
   pba->Omega0_cdm = 0.1201075 / pow(pba->h, 2);
+  pba->cdm_c = 0.0;
 
   /** 5) ncdm sector */
   /** 5.a) Number of distinct species */

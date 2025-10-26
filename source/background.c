@@ -453,6 +453,7 @@ int background_functions(
     }
     else if (pba->model_cdm == 2) // Interacting DM model
     {
+      pvecback[pba->index_bg_rho_cdm] = pba->Omega0_cdm * pow(pba->H0, 2) / pow(a, 3) * (1 - tanh(pba->cdm_c * pvecback_B[pba->index_bi_phi_scf]));
     }
     else // Standard CDM model
     {
@@ -501,7 +502,7 @@ int background_functions(
     pvecback[pba->index_bg_phi_scf] = phi;                                                          // value of the scalar field phi
     pvecback[pba->index_bg_phi_prime_scf] = phi_prime;                                              // value of the scalar field phi derivative wrt conformal time
     pvecback[pba->index_bg_V_scf] = V_scf(pba, phi);                                                // V_scf(pba,phi); //write here potential as function of phi
-    pvecback[pba->index_bg_dV_scf] = dV_scf(pba, phi);                                              // dV_scf(pba,phi); //potential' as function of phi
+    pvecback[pba->index_bg_dV_scf] = dV_scf(pba, phi, pvecback);                                    // dV_scf(pba,phi); //potential' as function of phi // KBL: added pvecback to pass to dV_scf for coupling
     pvecback[pba->index_bg_ddV_scf] = ddV_scf(pba, phi);                                            // ddV_scf(pba,phi); //potential'' as function of phi
     pvecback[pba->index_bg_rho_scf] = (phi_prime * phi_prime / (2 * a * a) + V_scf(pba, phi)) / 3.; // energy of the scalar field. The field units are set automatically by setting the initial conditions
     pvecback[pba->index_bg_p_scf] = (phi_prime * phi_prime / (2 * a * a) - V_scf(pba, phi)) / 3.;   // pressure of the scalar field
@@ -633,7 +634,7 @@ int background_functions(
     pvecback[pba->index_bg_rho_cdm] = rho_cdm_new;
     p_tot += 0.;
     rho_m += pvecback[pba->index_bg_rho_cdm];
-    printf(" Converged for rho_cdm in %d iterations to %e while H=%e \n", iter, rho_cdm_new, temp_H);
+    // printf(" Converged for rho_cdm in %d iterations to %e while H=%e \n", iter, rho_cdm_new, temp_H);
   }
 
   /** - compute expansion rate H from Friedmann equation: this is the
@@ -641,6 +642,7 @@ int background_functions(
     that densities are all expressed in units of \f$ [3c^2/8\pi G] \f$, ie
     \f$ \rho_{class} = [8 \pi G \rho_{physical} / 3 c^2]\f$ */
   pvecback[pba->index_bg_H] = sqrt(rho_tot - pba->K / a / a);
+  // printf("rho_cdm is %e while H=%e \n", pvecback[pba->index_bg_rho_cdm], pvecback[pba->index_bg_H]);
 
   /** - compute derivative of H with respect to conformal time */
   pvecback[pba->index_bg_H_prime] = -(3. / 2.) * (rho_tot + p_tot) * a + pba->K / a;
@@ -2816,7 +2818,7 @@ int background_derivs(
     /** - Scalar field equation: \f$ \phi'' + 2 a H \phi' + a^2 dV = 0 \f$  (note H is wrt cosmological time)
         written as \f$ d\phi/dlna = phi' / (aH) \f$ and \f$ d\phi'/dlna = -2*phi' - (a/H) dV \f$ */
     dy[pba->index_bi_phi_scf] = y[pba->index_bi_phi_prime_scf] / a / H;
-    dy[pba->index_bi_phi_prime_scf] = -2 * y[pba->index_bi_phi_prime_scf] - a * dV_scf(pba, y[pba->index_bi_phi_scf]) / H;
+    dy[pba->index_bi_phi_prime_scf] = -2 * y[pba->index_bi_phi_prime_scf] - a * dV_scf(pba, y[pba->index_bi_phi_scf], pvecback) / H; // KBL: Added pvecback in dV_scf for coupling
   }
 
   return _SUCCESS_;
@@ -3074,6 +3076,56 @@ int background_output_budget(
  and \f$ \rho^{class} \f$ has the proper dimension \f$ Mpc^-2 \f$.
 */
 
+// KBL: Derivative of rho_cdm wrt scalar field phi
+double rho_cdm_prime(
+    struct background *pba,
+    double phi,
+    double *pvecback)
+{
+  if (pba->model_cdm == 2) // Interacting DM model
+  {
+    return -2 * pba->cdm_c * pvecback[pba->index_bg_rho_cdm] / (1 + exp(-2 * pba->cdm_c * phi));
+  }
+  // else if (pba->model_cdm == 1) // Hubbleian DM model: rho_cdm_prime is wrt the scalar field, since it's for the coupling. d rho / d H is not coupled to the scalar field.
+  // {
+  //   return 0.0; // pvecback[pba->index_bg_rho_cdm] / pvecback[pba->index_bg_H] * pvecback[pba->index_bg_H_prime];
+  // }
+  else
+    return 0.;
+}
+
+// KBL: General coupling function Xi/phi' that can be added to V' to get V'_eff including a general coupling between DE and DM
+double coupling_scf(
+    struct background *pba,
+    double rho_cdm_prime, // derivative of dark matter density wrt scalar field respectively H
+    double *pvecback)
+{
+  /*
+   * The scalar field parameters are given as a list of parameters with the following format:
+   * [0]     = c_1
+   * [1]     = c_2
+   * [2]     = c_3
+   * [3]     = c_4
+   * [4]     = q_1 (coupling)
+   * [5]     = q_2
+   * [6]     = q_3
+   * [7]     = q_4
+   * [8]     = coupling_exponent_1
+   * [9]     = coupling_exponent_2
+   * [10]    = phi_ini
+   * [11]    = phi_prime_ini
+   *
+   * This function returns Xi/phi' right away, and can be added to V' without dividing by phi' again.
+   */
+  double q1 = pba->scf_parameters[pba->scf_parameters_size - 8];
+  double q2 = pba->scf_parameters[pba->scf_parameters_size - 7];
+  double q3 = pba->scf_parameters[pba->scf_parameters_size - 6];
+  double q4 = pba->scf_parameters[pba->scf_parameters_size - 5];
+  double exp1 = pba->scf_parameters[pba->scf_parameters_size - 4];
+  double exp2 = pba->scf_parameters[pba->scf_parameters_size - 3];
+  return 3 * (pvecback[pba->index_bg_H] / pow(pvecback[pba->index_bg_rho_cdm] + pvecback[pba->index_bg_rho_scf], exp1 - 1)) * (q1 * pow(pvecback[pba->index_bg_rho_scf], exp1 - exp2) * pow(pvecback[pba->index_bg_rho_cdm], exp2) + q2 * pow(pvecback[pba->index_bg_rho_cdm], exp1 - exp2) * pow(pvecback[pba->index_bg_rho_scf], exp2)) / pvecback[pba->index_bg_phi_prime_scf] + q3 * pvecback[pba->index_bg_rho_cdm] + q4 * rho_cdm_prime;
+}
+
 double V_e_scf(struct background *pba,
                double phi)
 {
@@ -3164,11 +3216,13 @@ double V_scf(
   return V_e_scf(pba, phi) * V_p_scf(pba, phi);
 }
 
+// KBL: The generalised coupling X/phi' is added here to get V'_eff
 double dV_scf(
     struct background *pba,
-    double phi)
+    double phi,
+    double *pvecback)
 {
-  return dV_e_scf(pba, phi) * V_p_scf(pba, phi) + V_e_scf(pba, phi) * dV_p_scf(pba, phi);
+  return dV_e_scf(pba, phi) * V_p_scf(pba, phi) + V_e_scf(pba, phi) * dV_p_scf(pba, phi) + coupling_scf(pba, rho_cdm_prime(pba, phi, pvecback), pvecback);
 }
 
 double ddV_scf(

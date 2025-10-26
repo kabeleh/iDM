@@ -5956,6 +5956,9 @@ int perturbations_initial_conditions(struct precision *ppr,
         {
           delta_cdm += ppw->pvecback[pba->index_bg_rho_cdm] * ppw->pvecback[pba->index_bg_H_prime] / ppw->pvecback[pba->index_bg_H];
         }
+        else if (pba->model_cdm == 2) // interacting DM model
+        {
+        }
         rho_cdm += ppw->pvecback[pba->index_bg_rho_cdm];
       }
       if (pba->has_idm == _TRUE_)
@@ -6034,7 +6037,7 @@ int perturbations_initial_conditions(struct precision *ppr,
 
         ppw->pv->y[ppw->pv->index_pt_phi_scf] += alpha * ppw->pvecback[pba->index_bg_phi_prime_scf];
         ppw->pv->y[ppw->pv->index_pt_phi_prime_scf] +=
-            (-2. * a_prime_over_a * alpha * ppw->pvecback[pba->index_bg_phi_prime_scf] - a * a * dV_scf(pba, ppw->pvecback[pba->index_bg_phi_scf]) * alpha + ppw->pvecback[pba->index_bg_phi_prime_scf] * alpha_prime);
+            (-2. * a_prime_over_a * alpha * ppw->pvecback[pba->index_bg_phi_prime_scf] - a * a * dV_scf(pba, ppw->pvecback[pba->index_bg_phi_scf], ppw->pvecback) * alpha + ppw->pvecback[pba->index_bg_phi_prime_scf] * alpha_prime);
       }
 
       if ((pba->has_ur == _TRUE_) || (pba->has_ncdm == _TRUE_) || (pba->has_dr == _TRUE_) || (pba->has_idr == _TRUE_))
@@ -7303,6 +7306,9 @@ int perturbations_total_stress_energy(
       {
         ppw->delta_rho += ppw->pvecback[pba->index_bg_rho_cdm] * ppw->pvecback[pba->index_bg_H_prime] / ppw->pvecback[pba->index_bg_H];
       }
+      else if (pba->model_cdm == 2)
+      {
+      }
       /* else standard CDM */
       if (ppt->gauge == newtonian)
         ppw->rho_plus_p_theta = ppw->rho_plus_p_theta + ppw->pvecback[pba->index_bg_rho_cdm] * y[ppw->pv->index_pt_theta_cdm]; // contribution to total perturbed stress-energy
@@ -7315,6 +7321,9 @@ int perturbations_total_stress_energy(
         if (pba->model_cdm == 1)                                                              // Hubbleian DM model KBL
         {
           delta_rho_m += ppw->pvecback[pba->index_bg_rho_cdm] * ppw->pvecback[pba->index_bg_H_prime] / ppw->pvecback[pba->index_bg_H];
+        }
+        else if (pba->model_cdm == 2)
+        {
         }
         rho_m += ppw->pvecback[pba->index_bg_rho_cdm];
       }

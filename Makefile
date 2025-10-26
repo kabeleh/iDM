@@ -46,8 +46,11 @@ OMPFLAG   = -pthread #-fopenmp
 
 # all other compilation flags
 CCFLAG = -g -fPIC
-CCFLAG += -Wall -Wextra -Wpedantic #for developing only
-CCFLAG += -Wno-unused-parameter #for developing only
+# CCFLAG += -Wall #for developing only
+# CCFLAG += -Wextra #for developing only
+# CCFLAG += -Wpedantic #for developing only
+# CCFLAG += -Wno-unused-parameter #for developing only
+# CCFLAG += -Wno-variadic-macros # CLASS uses too many of them to fix this (pedantic) warning
 LDFLAG = -g -fPIC
 
 # leave blank to compile without HyRec, or put path to HyRec directory
