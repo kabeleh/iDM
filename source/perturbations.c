@@ -5958,6 +5958,7 @@ int perturbations_initial_conditions(struct precision *ppr,
         }
         else if (pba->model_cdm == 2) // interacting DM model
         {
+          delta_cdm += ppw->pvecback[pba->index_bg_rho_cdm] * (-pba->cdm_c * (1 + tanh(pba->cdm_c * ppw->pvecback[pba->index_bg_phi_scf]))) * ppw->pv->y[ppw->pv->index_pt_phi_scf];
         }
         rho_cdm += ppw->pvecback[pba->index_bg_rho_cdm];
       }
@@ -7308,6 +7309,7 @@ int perturbations_total_stress_energy(
       }
       else if (pba->model_cdm == 2)
       {
+        ppw->delta_rho += ppw->pvecback[pba->index_bg_rho_cdm] * (-pba->cdm_c * (1 + tanh(pba->cdm_c * ppw->pvecback[pba->index_bg_phi_scf]))) * ppw->pv->y[ppw->pv->index_pt_phi_scf];
       }
       /* else standard CDM */
       if (ppt->gauge == newtonian)
@@ -7324,6 +7326,7 @@ int perturbations_total_stress_energy(
         }
         else if (pba->model_cdm == 2)
         {
+          delta_rho_m += ppw->pvecback[pba->index_bg_rho_cdm] * (-pba->cdm_c * (1 + tanh(pba->cdm_c * ppw->pvecback[pba->index_bg_phi_scf]))) * ppw->pv->y[ppw->pv->index_pt_phi_scf];
         }
         rho_m += ppw->pvecback[pba->index_bg_rho_cdm];
       }
