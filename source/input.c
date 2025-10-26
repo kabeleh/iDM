@@ -3503,7 +3503,7 @@ int input_read_parameters_species(struct file_content *pfc,
              "You have entered 'Omega_scf' < 0 , so you have to specify both 'Omega_lambda' and 'Omega_fld'.");
   class_test((flag3 == _FALSE_) && (pba->model_cdm == 2), // KBL
              errmsg,
-             "You cannot use an interacting DM model if DE is not present.\nChoose model_cdm = h or leave it blank, or set Omega_scf < 0.");
+             "You cannot use an interacting DM model if DE is not present. Choose model_cdm = h or leave it blank, or set Omega_scf < 0.");
   /* Complete set of parameters
      Case of (flag3 == _FALSE_) || (param3 >= 0.) means that either we have not
      read Omega_scf so we are ignoring it (unlike lambda and fld!) OR we have

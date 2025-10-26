@@ -2819,7 +2819,7 @@ int background_derivs(
         written as \f$ d\phi/dlna = phi' / (aH) \f$ and \f$ d\phi'/dlna = -2*phi' - (a/H) dV \f$ */
     dy[pba->index_bi_phi_scf] = y[pba->index_bi_phi_prime_scf] / a / H;
     dy[pba->index_bi_phi_prime_scf] = -2 * y[pba->index_bi_phi_prime_scf] - a * dV_scf(pba, y[pba->index_bi_phi_scf], pvecback) / H; // KBL: Added pvecback in dV_scf for coupling
-  }
+  } // KBL: Check if phi'' actually depends on V'_eff or just V'
 
   return _SUCCESS_;
 }
