@@ -23,11 +23,11 @@ Please note the extensive [Wiki Page](https://github.com/kabeleh/iDM/wiki) that 
 
 <details>
 <summary>How to compile and run the code</summary>
+    
 1. Either download the archive of the source code or `git pull` this repository to make a local copy.
 2. Navigate to the folder that contains the root of the CLASS source code (the one that contains the *.ini-files as well as the `Makefile`).
 3. `make clean; make class -j` to compile the code.
 4. Run the cosmological simulation with `./class iDM.ini`
-    
 </details>
 
 If you want to use this code, please cite [CLASS II: Approximation schemes](http://arxiv.org/abs/1104.2933) as well as `my thesis`.
