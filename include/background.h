@@ -530,6 +530,17 @@ extern "C"
     int background_output_budget(
         struct background *pba);
 
+    /** DM–DE Interactions (KBL) **/
+    double rho_cdm_prime(
+        struct background *pba,
+        double phi,
+        double *pvecback);
+
+    double coupling_scf(
+        struct background *pba,
+        double rho_cdm_prime,
+        double *pvecback);
+
     /** Scalar field potential and its derivatives **/
     double V_scf(
         struct background *pba,

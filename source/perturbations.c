@@ -6038,7 +6038,7 @@ int perturbations_initial_conditions(struct precision *ppr,
 
         ppw->pv->y[ppw->pv->index_pt_phi_scf] += alpha * ppw->pvecback[pba->index_bg_phi_prime_scf];
         ppw->pv->y[ppw->pv->index_pt_phi_prime_scf] +=
-            (-2. * a_prime_over_a * alpha * ppw->pvecback[pba->index_bg_phi_prime_scf] - a * a * dV_scf(pba, ppw->pvecback[pba->index_bg_phi_scf], ppw->pvecback) * alpha + ppw->pvecback[pba->index_bg_phi_prime_scf] * alpha_prime);
+            (-2. * a_prime_over_a * alpha * ppw->pvecback[pba->index_bg_phi_prime_scf] - a * a * dV_scf(pba, ppw->pvecback[pba->index_bg_phi_scf], ppw->pvecback) * alpha + ppw->pvecback[pba->index_bg_phi_prime_scf] * alpha_prime); // KBL: added pvecback as an argument to dV_scf
       }
 
       if ((pba->has_ur == _TRUE_) || (pba->has_ncdm == _TRUE_) || (pba->has_dr == _TRUE_) || (pba->has_idr == _TRUE_))
@@ -7547,9 +7547,9 @@ int perturbations_total_stress_energy(
         psi = y[ppw->pv->index_pt_phi] - 4.5 * (a2 / k / k) * ppw->rho_plus_p_shear;
 
         delta_rho_scf = 1. / 3. *
-                        (1. / a2 * ppw->pvecback[pba->index_bg_phi_prime_scf] * y[ppw->pv->index_pt_phi_prime_scf] + ppw->pvecback[pba->index_bg_dV_scf] * y[ppw->pv->index_pt_phi_scf] - 1. / a2 * pow(ppw->pvecback[pba->index_bg_phi_prime_scf], 2) * psi);
+                        (1. / a2 * ppw->pvecback[pba->index_bg_phi_prime_scf] * y[ppw->pv->index_pt_phi_prime_scf] + ppw->pvecback[pba->index_bg_dV_scf] * y[ppw->pv->index_pt_phi_scf] - 1. / a2 * pow(ppw->pvecback[pba->index_bg_phi_prime_scf], 2) * psi); // KBL: This is the correct form also for interacting DM.
         delta_p_scf = 1. / 3. *
-                      (1. / a2 * ppw->pvecback[pba->index_bg_phi_prime_scf] * y[ppw->pv->index_pt_phi_prime_scf] - ppw->pvecback[pba->index_bg_dV_scf] * y[ppw->pv->index_pt_phi_scf] - 1. / a2 * pow(ppw->pvecback[pba->index_bg_phi_prime_scf], 2) * psi);
+                      (1. / a2 * ppw->pvecback[pba->index_bg_phi_prime_scf] * y[ppw->pv->index_pt_phi_prime_scf] - ppw->pvecback[pba->index_bg_dV_scf] * y[ppw->pv->index_pt_phi_scf] - 1. / a2 * pow(ppw->pvecback[pba->index_bg_phi_prime_scf], 2) * psi); // KBL: This is the correct form also for interacting DM.
       }
 
       ppw->delta_rho += delta_rho_scf;
@@ -8225,6 +8225,10 @@ int perturbations_sources(
     if (ppt->has_source_delta_cdm == _TRUE_)
     {
       _set_source_(ppt->index_tp_delta_cdm) = y[ppw->pv->index_pt_delta_cdm] + 3. * a_prime_over_a * theta_over_k2; // N-body gauge correction
+      if (pba->model_cdm == 2)                                                                                      // if decaying cold dark matter, add extra term KBL
+      {
+        _set_source_(ppt->index_tp_delta_cdm) += y[ppw->pv->index_pt_phi_scf] * (-pba->cdm_c * (1 + tanh(pba->cdm_c * ppw->pvecback[pba->index_bg_phi_scf])));
+      }
     }
 
     /* delta_idm */
@@ -9665,6 +9669,11 @@ int perturbations_derivs(double tau,
         dy[pv->index_pt_delta_cdm] = -(y[pv->index_pt_theta_cdm] + metric_continuity); /* cdm density */
 
         dy[pv->index_pt_theta_cdm] = -a_prime_over_a * y[pv->index_pt_theta_cdm] + metric_euler; /* cdm velocity */
+        // KBL add scalar field contribution
+        if (pba->model_cdm == 2)
+        {
+          dy[pv->index_pt_theta_cdm] += k2 * y[pv->index_pt_phi_scf] * (-pba->cdm_c * (1 + tanh(pba->cdm_c * ppw->pvecback[pba->index_bg_phi_scf]))) - y[pv->index_pt_theta_cdm] * (-pba->cdm_c * (1 + tanh(pba->cdm_c * ppw->pvecback[pba->index_bg_phi_scf]))) * pvecback[pba->index_bg_phi_prime_scf];
+        }
       }
 
       /** - ----> synchronous gauge: cdm density only (velocity set to zero by definition of the gauge) */

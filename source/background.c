@@ -2213,8 +2213,8 @@ int background_solve(
         printf("     -> Omega_Lambda = %g, wished %g\n",
                pba->background_table[(pba->bt_size - 1) * pba->bg_size + pba->index_bg_rho_lambda] / pba->background_table[(pba->bt_size - 1) * pba->bg_size + pba->index_bg_rho_crit], pba->Omega0_lambda);
       }
-      printf("     -> parameters: [lambda, alpha, A, B] = \n");
-      printf("                    [");
+      printf("     -> parameters: [c1,    c2,    c3,    c4,    q1,    q2,    q3,    q4,    e1,    e2,    phi_i,   phi_prime_i] = \n"); // KBL
+      printf("                    [ ");
       for (index_scf = 0; index_scf < pba->scf_parameters_size - 1; index_scf++)
       {
         printf("%.3f, ", pba->scf_parameters[index_scf]);
@@ -2818,7 +2818,15 @@ int background_derivs(
     /** - Scalar field equation: \f$ \phi'' + 2 a H \phi' + a^2 dV = 0 \f$  (note H is wrt cosmological time)
         written as \f$ d\phi/dlna = phi' / (aH) \f$ and \f$ d\phi'/dlna = -2*phi' - (a/H) dV \f$ */
     dy[pba->index_bi_phi_scf] = y[pba->index_bi_phi_prime_scf] / a / H;
-    dy[pba->index_bi_phi_prime_scf] = -2 * y[pba->index_bi_phi_prime_scf] - a * dV_scf(pba, y[pba->index_bi_phi_scf], pvecback) / H; // KBL: Added pvecback in dV_scf for coupling
+    if (pba->model_cdm == 2)
+    {
+      dy[pba->index_bi_phi_prime_scf] = -2 * y[pba->index_bi_phi_prime_scf] - a * dV_scf(pba, y[pba->index_bi_phi_scf], pvecback) / H // KBL: Added pvecback in dV_scf for coupling
+                                        - a * rho_cdm_prime(pba, y[pba->index_bi_phi_scf], pvecback) / H;                             // rho_cdm_prime is part of the Klein–Gordon equation
+    }
+    else
+    {
+      dy[pba->index_bi_phi_prime_scf] = -2 * y[pba->index_bi_phi_prime_scf] - a * dV_scf(pba, y[pba->index_bi_phi_scf], pvecback) / H;
+    }
   } // KBL: Check if phi'' actually depends on V'_eff or just V'
 
   return _SUCCESS_;
