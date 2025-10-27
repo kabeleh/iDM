@@ -6,7 +6,7 @@
 
 This repository contains the CLASS[^1], MontePython[^2], and Mathematica [^3] files for a swampland-inspired model of dark energy in the form of quintessence as a scalar field that is interacting with dynamical dark matter. The interactions and mathematical details of the model are all explained in my PhD thesis [^4].
 
-Please note the extensive (Wiki Page)[https://github.com/kabeleh/iDM/wiki] that documents the code and explains the physical and mathematical considerations that motivate the code changes. The source code itself is commented and changes by us are indicated by the initials `KBL` as a comment.
+Please note the extensive [Wiki Page](https://github.com/kabeleh/iDM/wiki) that documents the code and explains the physical and mathematical considerations that motivate the code changes. The source code itself is commented and changes by us are indicated by the initials `KBL` as a comment.
 
 [^1]: https://github.com/lesgourg/class_public
 [^2]: https://github.com/brinckmann/montepython_public
