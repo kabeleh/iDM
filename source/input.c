@@ -2697,6 +2697,9 @@ int input_read_parameters_species(struct file_content *pfc,
       {
         pba->cdm_c = param2;
       }
+      class_test((ppt->gauge != newtonian) && (pba->model_cdm == 2), // KBL
+                 errmsg,
+                 "The interactive DM model is only implemented for the Newtonian gauge. Please set gauge = newtonian in your input file.");
     }
   }
 
