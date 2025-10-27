@@ -3092,7 +3092,7 @@ double rho_cdm_prime(
 {
   if (pba->model_cdm == 2) // Interacting DM model
   {
-    return -2 * pba->cdm_c * pvecback[pba->index_bg_rho_cdm] / (1 + exp(-2 * pba->cdm_c * phi));
+    return -pba->cdm_c * (1 + tanh(pba->cdm_c * phi)) * pvecback[pba->index_bg_rho_cdm];
   }
   // else if (pba->model_cdm == 1) // Hubbleian DM model: rho_cdm_prime is wrt the scalar field, since it's for the coupling. d rho / d H is not coupled to the scalar field.
   // {
