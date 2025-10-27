@@ -43,5 +43,8 @@ This repository contains
 ## Mathematica
 The Mathematica notebooks contain the derivation of the governing equations, equations of motions, the potentials and their derivatives, as well as additional tests for swampland-compatibility.
 
+- `xPert.nb` uses the [xAct](https://xact.es) package [xPert](https://xact.es/xPert/index.html) to derive metric-independent equations of motions, the Einstein source equations, the stress–energy tensor, and the first-order perturbations of these.
+- `xPand.nb` takes those equations and expresses them with respect to a metric and simplifies the equations using the Newtonian gauge. This notebook uses the [xPand](https://www2.iap.fr/users/pitrou/xpand.htm) plugin.
+
 # Collaboration
 Please reach out to me if you would like to collaborate on a similar project, or if you find bugs in my code!
