@@ -9666,13 +9666,13 @@ int perturbations_derivs(double tau,
 
       if (ppt->gauge == newtonian)
       {
-        dy[pv->index_pt_delta_cdm] = -(y[pv->index_pt_theta_cdm] + metric_continuity); /* cdm density */
+        dy[pv->index_pt_delta_cdm] = -(y[pv->index_pt_theta_cdm] + metric_continuity); /* cdm density KBL: correct also for interacting DM*/
 
         dy[pv->index_pt_theta_cdm] = -a_prime_over_a * y[pv->index_pt_theta_cdm] + metric_euler; /* cdm velocity */
-        // KBL add scalar field contribution
+        // KBL scalar field interaction contribution
         if (pba->model_cdm == 2)
         {
-          dy[pv->index_pt_theta_cdm] += k2 * y[pv->index_pt_phi_scf] * (-pba->cdm_c * (1 + tanh(pba->cdm_c * ppw->pvecback[pba->index_bg_phi_scf]))) - y[pv->index_pt_theta_cdm] * (-pba->cdm_c * (1 + tanh(pba->cdm_c * ppw->pvecback[pba->index_bg_phi_scf]))) * pvecback[pba->index_bg_phi_prime_scf];
+          dy[pv->index_pt_theta_cdm] += (-pba->cdm_c * (1 + tanh(pba->cdm_c * ppw->pvecback[pba->index_bg_phi_scf]))) * (k2 * y[pv->index_pt_phi_scf] * -y[pv->index_pt_theta_cdm] * pvecback[pba->index_bg_phi_prime_scf]);
         }
       }
 
@@ -9854,6 +9854,12 @@ int perturbations_derivs(double tau,
 
       dy[pv->index_pt_phi_prime_scf] = -2. * a_prime_over_a * y[pv->index_pt_phi_prime_scf] - metric_continuity * pvecback[pba->index_bg_phi_prime_scf] //  metric_continuity = h'/2
                                        - (k2 + a2 * pvecback[pba->index_bg_ddV_scf]) * y[pv->index_pt_phi_scf];                                         // checked
+      if (pba->model_cdm == 2)                                                                                                                          // KBL: for interacting DM, additional terms appear in the KG perturbation equation
+      {
+        dy[pv->index_pt_phi_prime_scf] += -a2 * (8 * pba->cdm_c * pba->cdm_c * sinh(pba->cdm_c * pvecback[pba->index_bg_phi_scf]) / (3 * cosh(pba->cdm_c * pvecback[pba->index_bg_phi_scf]) + cosh(3 * pba->cdm_c * pvecback[pba->index_bg_phi_scf])) * y[pv->index_pt_phi_scf] // -a^2 m'' n delta_phi
+                                                 - 2 * pba->cdm_c / (1 + cosh(2 * pba->cdm_c * pvecback[pba->index_bg_phi_scf])) * y[pv->index_pt_delta_cdm]                                                                                                                    // -a^2 m' delta_n);
+                                                 + 2 * pvecmetric[ppw->index_mt_psi] * (pvecback[pba->index_bg_dV_scf] - 2 * pba->cdm_c / (1 + cosh(2 * pba->cdm_c * pvecback[pba->index_bg_phi_scf]))));                                                                       //-2a^2 alpha * (V' + m' n), alpha in my notation is Psi in CLASS
+      }
     }
 
     /** - ---> ultra-relativistic neutrino/relics (ur) */
