@@ -6,21 +6,20 @@
 
 This repository contains the CLASS[^1], MontePython[^2], and Mathematica [^3] files for a swampland-inspired model of dark energy in the form of quintessence as a scalar field that is interacting with dynamical dark matter. The interactions and mathematical details of the model are all explained in my PhD thesis [^4].
 
-Please note the extensive [Wiki Page](https://github.com/kabeleh/iDM/wiki) that documents the code and explains the physical and mathematical considerations that motivate the code changes. The source code itself is commented and changes by us are indicated by the initials `KBL` as a comment.
-
 [^1]: https://github.com/lesgourg/class_public
 [^2]: https://github.com/brinckmann/montepython_public
 [^3]: https://www.wolfram.com/mathematica/
 [^4]: TBA
 
 ## CLASS
-The source code in this repository is a fork of the Cosmic Linear Anisotropy Solving System (CLASS) v3.3.3 by Julien Lesgourgues, Thomas Tram, Nils Schoeneberg et al., which can be pulled from https://github.com/lesgourg/class_public.
+The source code in this repository is a fork of the Cosmic Linear Anisotropy Solving System ([CLASS](https://github.com/lesgourg/class_public)) v3.3.3 by Julien Lesgourgues, Thomas Tram, Nils Schoeneberg et al.
 
 <details>
 <summary>Technical implementation of the cosmological model</summary>
 
 ### Notable changes
-To implement 
+The source code itself is commented and changes by us are indicated by the initials `KBL` as a comment.
+Please note the extensive [Wiki Page](https://github.com/kabeleh/iDM/wiki) that documents the notable code changes and explains the physical and mathematical considerations behind those changes. 
 
 </details>
 
@@ -48,4 +47,5 @@ This repository contains
 ## Mathematica
 The Mathematica notebooks contain the derivation of the governing equations, equations of motions, the potentials and their derivatives, as well as additional tests for swampland-compatibility.
 
+# Collaboration
 Please reach out to me if you would like to collaborate on a similar project, or if you find bugs in my code!
