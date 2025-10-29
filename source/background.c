@@ -2827,7 +2827,7 @@ int background_derivs(
     {
       dy[pba->index_bi_phi_prime_scf] = -2 * y[pba->index_bi_phi_prime_scf] - a * dV_scf(pba, y[pba->index_bi_phi_scf], pvecback) / H;
     }
-  } // KBL: Check if phi'' actually depends on V'_eff or just V'
+  }
 
   return _SUCCESS_;
 }
