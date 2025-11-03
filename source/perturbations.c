@@ -4081,8 +4081,9 @@ int perturbations_vector_init(
 
     /* scalar field */
 
-    class_define_index(ppv->index_pt_phi_scf, pba->has_scf, index_pt, 1);       /* scalar field density */
-    class_define_index(ppv->index_pt_phi_prime_scf, pba->has_scf, index_pt, 1); /* scalar field velocity */
+    class_define_index(ppv->index_pt_phi_scf, pba->has_scf, index_pt, 1); /* scalar field density */
+    // class_define_index(ppv->index_pt_phi_prime_scf, pba->has_scf, index_pt, 1); /* scalar field velocity is replaced by mometum, since we change the Klein–Gordon equation (KBL) */
+    class_define_index(ppv->index_pt_mom_scf, pba->has_scf, index_pt, 1); /* scalar field momentum (KBL) */
 
     /* perturbed recombination: the indices are defined once tca is off. */
     if ((ppt->has_perturbed_recombination == _TRUE_) && (ppw->approx[ppw->index_ap_tca] == (int)tca_off))
@@ -4595,8 +4596,12 @@ int perturbations_vector_init(
         ppv->y[ppv->index_pt_phi_scf] =
             ppw->pv->y[ppw->pv->index_pt_phi_scf];
 
-        ppv->y[ppv->index_pt_phi_prime_scf] =
-            ppw->pv->y[ppw->pv->index_pt_phi_prime_scf];
+        /* ppv->y[ppv->index_pt_phi_prime_scf] =
+            ppw->pv->y[ppw->pv->index_pt_phi_prime_scf]; */
+        // KBL: replaced by momentum
+
+        ppv->y[ppv->index_pt_mom_scf] =
+            ppw->pv->y[ppw->pv->index_pt_mom_scf];
       }
 
       if (ppt->gauge == synchronous)
@@ -5746,7 +5751,8 @@ int perturbations_initial_conditions(struct precision *ppr,
         ppw->pv->y[ppw->pv->index_pt_phi_scf] = 0.;
         /*  a*a/k/k/ppw->pvecback[pba->index_bg_phi_prime_scf]*k*ktau_three/4.*1./(4.-6.*(1./3.)+3.*1.) * (ppw->pvecback[pba->index_bg_rho_scf] + ppw->pvecback[pba->index_bg_p_scf])* ppr->curvature_ini * s2_squared; */
 
-        ppw->pv->y[ppw->pv->index_pt_phi_prime_scf] = 0.;
+        /* ppw->pv->y[ppw->pv->index_pt_phi_prime_scf] = 0.; Replaced by momentum (KBL) */
+        ppw->pv->y[ppw->pv->index_pt_mom_scf] = 0.;
         /* delta_fld expression * rho_scf with the w = 1/3, c_s = 1
            a*a/ppw->pvecback[pba->index_bg_phi_prime_scf]*( - ktau_two/4.*(1.+1./3.)*(4.-3.*1.)/(4.-6.*(1/3.)+3.*1.)*ppw->pvecback[pba->index_bg_rho_scf] - ppw->pvecback[pba->index_bg_dV_scf]*ppw->pv->y[ppw->pv->index_pt_phi_scf])* ppr->curvature_ini * s2_squared; */
       }
@@ -6037,9 +6043,12 @@ int perturbations_initial_conditions(struct precision *ppr,
            - 4.5 * (a2/k2) * ppw->rho_plus_p_shear; */
 
         ppw->pv->y[ppw->pv->index_pt_phi_scf] += alpha * ppw->pvecback[pba->index_bg_phi_prime_scf];
-        ppw->pv->y[ppw->pv->index_pt_phi_prime_scf] +=
+        /*ppw->pv->y[ppw->pv->index_pt_phi_prime_scf] +=
+            (-2. * a_prime_over_a * alpha * ppw->pvecback[pba->index_bg_phi_prime_scf] - a * a * dV_scf(pba, ppw->pvecback[pba->index_bg_phi_scf], ppw->pvecback) * alpha + ppw->pvecback[pba->index_bg_phi_prime_scf] * alpha_prime); // KBL: added pvecback as an argument to dV_scf*/
+        ppw->pv->y[ppw->pv->index_pt_mom_scf] +=
             (-2. * a_prime_over_a * alpha * ppw->pvecback[pba->index_bg_phi_prime_scf] - a * a * dV_scf(pba, ppw->pvecback[pba->index_bg_phi_scf], ppw->pvecback) * alpha + ppw->pvecback[pba->index_bg_phi_prime_scf] * alpha_prime); // KBL: added pvecback as an argument to dV_scf
-      }
+
+      } // KBL: Since this is a contribution to scalar field velocity, it should contribute equally to the scalar field momentum, as the two only differ by Psi*phi_prime.
 
       if ((pba->has_ur == _TRUE_) || (pba->has_ncdm == _TRUE_) || (pba->has_dr == _TRUE_) || (pba->has_idr == _TRUE_))
       {
@@ -7536,20 +7545,27 @@ int perturbations_total_stress_energy(
 
       if (ppt->gauge == synchronous)
       {
-        delta_rho_scf = 1. / 3. *
+        /*delta_rho_scf = 1. / 3. *
                         (1. / a2 * ppw->pvecback[pba->index_bg_phi_prime_scf] * y[ppw->pv->index_pt_phi_prime_scf] + ppw->pvecback[pba->index_bg_dV_scf] * y[ppw->pv->index_pt_phi_scf]);
         delta_p_scf = 1. / 3. *
-                      (1. / a2 * ppw->pvecback[pba->index_bg_phi_prime_scf] * y[ppw->pv->index_pt_phi_prime_scf] - ppw->pvecback[pba->index_bg_dV_scf] * y[ppw->pv->index_pt_phi_scf]);
+                      (1. / a2 * ppw->pvecback[pba->index_bg_phi_prime_scf] * y[ppw->pv->index_pt_phi_prime_scf] - ppw->pvecback[pba->index_bg_dV_scf] * y[ppw->pv->index_pt_phi_scf]);*/
+        printf("Error: scalar field perturbations not implemented in synchronous gauge yet.\n");
       }
       else
       {
         /* equation for psi */
         psi = y[ppw->pv->index_pt_phi] - 4.5 * (a2 / k / k) * ppw->rho_plus_p_shear;
 
-        delta_rho_scf = 1. / 3. *
+        /* delta_rho_scf = 1. / 3. *
                         (1. / a2 * ppw->pvecback[pba->index_bg_phi_prime_scf] * y[ppw->pv->index_pt_phi_prime_scf] + ppw->pvecback[pba->index_bg_dV_scf] * y[ppw->pv->index_pt_phi_scf] - 1. / a2 * pow(ppw->pvecback[pba->index_bg_phi_prime_scf], 2) * psi); // KBL: This is the correct form also for interacting DM.
         delta_p_scf = 1. / 3. *
-                      (1. / a2 * ppw->pvecback[pba->index_bg_phi_prime_scf] * y[ppw->pv->index_pt_phi_prime_scf] - ppw->pvecback[pba->index_bg_dV_scf] * y[ppw->pv->index_pt_phi_scf] - 1. / a2 * pow(ppw->pvecback[pba->index_bg_phi_prime_scf], 2) * psi); // KBL: This is the correct form also for interacting DM.
+                      (1. / a2 * ppw->pvecback[pba->index_bg_phi_prime_scf] * y[ppw->pv->index_pt_phi_prime_scf] - ppw->pvecback[pba->index_bg_dV_scf] * y[ppw->pv->index_pt_phi_scf] - 1. / a2 * pow(ppw->pvecback[pba->index_bg_phi_prime_scf], 2) * psi); // KBL: This is the correct form also for interacting DM. */
+
+        /* The scalar field momentum is p = delta_phi_prime - Psi * phi_prime. The additional Psi * phi_prime term cancels the last term in the equation in terms of the scalar field velocity. */
+        delta_rho_scf = 1. / 3. *
+                        (1. / a2 * ppw->pvecback[pba->index_bg_phi_prime_scf] * y[ppw->pv->index_pt_mom_scf] + ppw->pvecback[pba->index_bg_dV_scf] * y[ppw->pv->index_pt_phi_scf]); // KBL: This is the correct form also for interacting DM.
+        delta_p_scf = 1. / 3. *
+                      (1. / a2 * ppw->pvecback[pba->index_bg_phi_prime_scf] * y[ppw->pv->index_pt_mom_scf] - ppw->pvecback[pba->index_bg_dV_scf] * y[ppw->pv->index_pt_phi_scf]); // KBL: This is the correct form also for interacting DM.
       }
 
       ppw->delta_rho += delta_rho_scf;
@@ -8254,16 +8270,20 @@ int perturbations_sources(
     {
       if (ppt->gauge == synchronous)
       {
-        delta_rho_scf = 1. / 3. *
+        /*delta_rho_scf = 1. / 3. *
                             (1. / a2 * ppw->pvecback[pba->index_bg_phi_prime_scf] * y[ppw->pv->index_pt_phi_prime_scf] + ppw->pvecback[pba->index_bg_dV_scf] * y[ppw->pv->index_pt_phi_scf]) +
-                        3. * a_prime_over_a * (1. + pvecback[pba->index_bg_p_scf] / pvecback[pba->index_bg_rho_scf]) * theta_over_k2; // N-body gauge correction
+                        3. * a_prime_over_a * (1. + pvecback[pba->index_bg_p_scf] / pvecback[pba->index_bg_rho_scf]) * theta_over_k2; // N-body gauge correction */
+        printf("Warning: delta_scf is not implemented in synchronous gauge.\n"); // KBL
       }
       else
       {
-        delta_rho_scf = 1. / 3. *
+        /* delta_rho_scf = 1. / 3. *
                             (1. / a2 * ppw->pvecback[pba->index_bg_phi_prime_scf] * y[ppw->pv->index_pt_phi_prime_scf] + ppw->pvecback[pba->index_bg_dV_scf] * y[ppw->pv->index_pt_phi_scf] - 1. / a2 * pow(ppw->pvecback[pba->index_bg_phi_prime_scf], 2) * ppw->pvecmetric[ppw->index_mt_psi]) +
+                        3. * a_prime_over_a * (1. + pvecback[pba->index_bg_p_scf] / pvecback[pba->index_bg_rho_scf]) * theta_over_k2; // N-body gauge correction */
+        delta_rho_scf = 1. / 3. *
+                            (1. / a2 * ppw->pvecback[pba->index_bg_phi_prime_scf] * y[ppw->pv->index_pt_mom_scf] + ppw->pvecback[pba->index_bg_dV_scf] * y[ppw->pv->index_pt_phi_scf]) +
                         3. * a_prime_over_a * (1. + pvecback[pba->index_bg_p_scf] / pvecback[pba->index_bg_rho_scf]) * theta_over_k2; // N-body gauge correction
-      }
+      } // KBL: expressed in terms of scf momentum instead of velocity
       _set_source_(ppt->index_tp_delta_scf) = delta_rho_scf / pvecback[pba->index_bg_rho_scf];
     }
 
@@ -8815,14 +8835,17 @@ int perturbations_print_variables(double tau,
     {
       if (ppt->gauge == synchronous)
       {
-        delta_rho_scf = 1. / 3. *
-                        (1. / a2 * ppw->pvecback[pba->index_bg_phi_prime_scf] * y[ppw->pv->index_pt_phi_prime_scf] + ppw->pvecback[pba->index_bg_dV_scf] * y[ppw->pv->index_pt_phi_scf]);
+        /*delta_rho_scf = 1. / 3. *
+                        (1. / a2 * ppw->pvecback[pba->index_bg_phi_prime_scf] * y[ppw->pv->index_pt_phi_prime_scf] + ppw->pvecback[pba->index_bg_dV_scf] * y[ppw->pv->index_pt_phi_scf]); */
+        printf("delto_rho_scf is not yet implemented in synchronous gauge\n"); // KBL
       }
       else
       {
+        /* delta_rho_scf = 1. / 3. *
+                        (1. / a2 * ppw->pvecback[pba->index_bg_phi_prime_scf] * y[ppw->pv->index_pt_phi_prime_scf] + ppw->pvecback[pba->index_bg_dV_scf] * y[ppw->pv->index_pt_phi_scf] - 1. / a2 * pow(ppw->pvecback[pba->index_bg_phi_prime_scf], 2) * ppw->pvecmetric[ppw->index_mt_psi]); */
         delta_rho_scf = 1. / 3. *
-                        (1. / a2 * ppw->pvecback[pba->index_bg_phi_prime_scf] * y[ppw->pv->index_pt_phi_prime_scf] + ppw->pvecback[pba->index_bg_dV_scf] * y[ppw->pv->index_pt_phi_scf] - 1. / a2 * pow(ppw->pvecback[pba->index_bg_phi_prime_scf], 2) * ppw->pvecmetric[ppw->index_mt_psi]);
-      }
+                        (1. / a2 * ppw->pvecback[pba->index_bg_phi_prime_scf] * y[ppw->pv->index_pt_mom_scf] + ppw->pvecback[pba->index_bg_dV_scf] * y[ppw->pv->index_pt_phi_scf]);
+      } // KBL expressed for scalar field momentum instead of velocity
 
       rho_plus_p_theta_scf = 1. / 3. *
                              k * k / a2 * ppw->pvecback[pba->index_bg_phi_prime_scf] * y[ppw->pv->index_pt_phi_scf];
@@ -9848,17 +9871,23 @@ int perturbations_derivs(double tau,
 
       /** - ----> field value */
 
-      dy[pv->index_pt_phi_scf] = y[pv->index_pt_phi_prime_scf];
+      /*dy[pv->index_pt_phi_scf] = y[pv->index_pt_phi_prime_scf]; // KBL: replaced by scalar field mometum */
+      dy[pv->index_pt_phi_scf] = y[pv->index_pt_mom_scf] + pvecback[pba->index_bg_phi_prime_scf] * pvecmetric[ppw->index_mt_psi];
 
       /** - ----> Klein Gordon equation KBL: There is a mistake in this equation. Check with xPand. The EoM0 is not cancelled. THere shouldn't be a dV term.*/
 
-      dy[pv->index_pt_phi_prime_scf] = -2. * a_prime_over_a * y[pv->index_pt_phi_prime_scf] - metric_continuity * pvecback[pba->index_bg_phi_prime_scf] //  metric_continuity = h'/2
-                                       - (k2 + a2 * pvecback[pba->index_bg_ddV_scf]) * y[pv->index_pt_phi_scf];                                         // checked
-      if (pba->model_cdm == 2)                                                                                                                          // KBL: for interacting DM, additional terms appear in the KG perturbation equation
+      /*dy[pv->index_pt_phi_prime_scf] = -2. * a_prime_over_a * y[pv->index_pt_phi_prime_scf] - metric_continuity * pvecback[pba->index_bg_phi_prime_scf] //  metric_continuity = h'/2
+                                       - (k2 + a2 * pvecback[pba->index_bg_ddV_scf]) * y[pv->index_pt_phi_scf];                                         // */
+
+      dy[pv->index_pt_mom_scf] = -2. * a_prime_over_a * y[pv->index_pt_mom_scf]                          //-2Hp
+                                 - y[pv->index_pt_phi_scf] * (k2 + a2 * pvecback[pba->index_bg_ddV_scf]) // -(k^2 + a^2 d^2V) delta_phi
+                                 - metric_continuity * pvecback[pba->index_bg_phi_prime_scf]             // +3 Psi * phi_prime (Psi in xPand = phi in CLASS)
+                                 - a2 * pvecmetric[ppw->index_mt_psi] * pvecback[pba->index_bg_dV_scf];  // -a^2 Psi V' (phi in xPand = psi in CLASS)
+      if (pba->model_cdm == 2)                                                                           // KBL: for interacting DM, additional terms appear in the KG perturbation equation
       {
-        dy[pv->index_pt_phi_prime_scf] += -a2 * (8 * pba->cdm_c * pba->cdm_c * sinh(pba->cdm_c * pvecback[pba->index_bg_phi_scf]) / (3 * cosh(pba->cdm_c * pvecback[pba->index_bg_phi_scf]) + cosh(3 * pba->cdm_c * pvecback[pba->index_bg_phi_scf])) * y[pv->index_pt_phi_scf] // -a^2 m'' n delta_phi
-                                                 - 2 * pba->cdm_c / (1 + cosh(2 * pba->cdm_c * pvecback[pba->index_bg_phi_scf])) * y[pv->index_pt_delta_cdm]                                                                                                                    // -a^2 m' delta_n);
-                                                 + 2 * pvecmetric[ppw->index_mt_psi] * (pvecback[pba->index_bg_dV_scf] - 2 * pba->cdm_c / (1 + cosh(2 * pba->cdm_c * pvecback[pba->index_bg_phi_scf]))));                                                                       //-2a^2 alpha * (V' + m' n), alpha in my notation is Psi in CLASS
+        dy[pv->index_pt_mom_scf] += -a2 * (pvecback[pba->index_bg_rho_cdm] * ((16 * pba->cdm_c * pba->cdm_c * cosh(pba->cdm_c * pvecback[pba->index_bg_phi_scf]) * sinh(pba->cdm_c * pvecback[pba->index_bg_phi_scf])) / (6 * cosh(pba->cdm_c * pvecback[pba->index_bg_phi_scf]) * cos(pba->cdm_c * pvecback[pba->index_bg_phi_scf]) + 2 * cosh(pba->cdm_c * pvecback[pba->index_bg_phi_scf]) * cos(3 * pba->cdm_c * pvecback[pba->index_bg_phi_scf]) - 2 * sinh(2 * pba->cdm_c * pvecback[pba->index_bg_phi_scf]) - sinh(4 * pba->cdm_c * pvecback[pba->index_bg_phi_scf]))) * y[pv->index_pt_phi_scf] // -a^2 m'' n delta_phi
+                                           - 2 * pba->cdm_c / (1 + cosh(2 * pba->cdm_c * pvecback[pba->index_bg_phi_scf])) * y[pv->index_pt_delta_cdm]                                                                                                                                                                                                                                                                                                                                                                                                                                                  // -a^2 m' delta_n);
+                                           + 2 * pvecmetric[ppw->index_mt_psi] * pvecback[pba->index_bg_rho_cdm] * (-pba->cdm_c * (1 + tanh(pba->cdm_c * pvecback[pba->index_bg_phi_scf]))));                                                                                                                                                                                                                                                                                                                                                                                                           //-2a^2 psi * (V' + m' n), Psi in CLASS = phi in xPand
       }
     }
 
