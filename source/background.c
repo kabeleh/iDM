@@ -2815,8 +2815,8 @@ int background_derivs(
 
   if (pba->has_scf == _TRUE_)
   {
-    /** - Scalar field equation: \f$ \phi'' + 2 a H \phi' + a^2 dV = 0 \f$  (note H is wrt cosmological time)
-        written as \f$ d\phi/dlna = phi' / (aH) \f$ and \f$ d\phi'/dlna = -2*phi' - (a/H) dV \f$ */
+    /** - Scalar field equation: \f$ \phi'' + 2 a H \phi' + a^2 (dV + rho') = 0 \f$  (note H is wrt cosmological time)
+        written as \f$ d\phi/dlna = phi' / (aH) \f$ and \f$ d\phi'/dlna = -2*phi' - (a/H) (dV + rho_prime) \f$ */
     dy[pba->index_bi_phi_scf] = y[pba->index_bi_phi_prime_scf] / a / H;
     if (pba->model_cdm == 2)
     {
