@@ -9874,7 +9874,7 @@ int perturbations_derivs(double tau,
       /*dy[pv->index_pt_phi_scf] = y[pv->index_pt_phi_prime_scf]; // KBL: replaced by scalar field mometum */
       dy[pv->index_pt_phi_scf] = y[pv->index_pt_mom_scf] + pvecback[pba->index_bg_phi_prime_scf] * pvecmetric[ppw->index_mt_psi];
 
-      /** - ----> Klein Gordon equation KBL: There is a mistake in this equation. Check with xPand. The EoM0 is not cancelled. THere shouldn't be a dV term.*/
+      /** - ----> Klein Gordon equation **/
 
       /*dy[pv->index_pt_phi_prime_scf] = -2. * a_prime_over_a * y[pv->index_pt_phi_prime_scf] - metric_continuity * pvecback[pba->index_bg_phi_prime_scf] //  metric_continuity = h'/2
                                        - (k2 + a2 * pvecback[pba->index_bg_ddV_scf]) * y[pv->index_pt_phi_scf];                                         // */
