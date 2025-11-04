@@ -8392,7 +8392,7 @@ int perturbations_sources(
     {
 
       rho_plus_p_theta_scf = 1. / 3. *
-                             k * k / a2 * ppw->pvecback[pba->index_bg_phi_prime_scf] * y[ppw->pv->index_pt_phi_scf];
+                             k * k / a2 * ppw->pvecback[pba->index_bg_phi_prime_scf] * y[ppw->pv->index_pt_phi_scf]; // KBL: Checked with Mathematica: does not depend on CDM in the coupled case
 
       _set_source_(ppt->index_tp_theta_scf) = rho_plus_p_theta_scf / (pvecback[pba->index_bg_rho_scf] + pvecback[pba->index_bg_p_scf]) + theta_shift; // N-body gauge correction
     }
@@ -8848,7 +8848,7 @@ int perturbations_print_variables(double tau,
       } // KBL expressed for scalar field momentum instead of velocity
 
       rho_plus_p_theta_scf = 1. / 3. *
-                             k * k / a2 * ppw->pvecback[pba->index_bg_phi_prime_scf] * y[ppw->pv->index_pt_phi_scf];
+                             k * k / a2 * ppw->pvecback[pba->index_bg_phi_prime_scf] * y[ppw->pv->index_pt_phi_scf]; // KBL: Checked with Mathematica: does not depend on CDM in the coupled case
 
       delta_scf = delta_rho_scf / pvecback[pba->index_bg_rho_scf];
       theta_scf = rho_plus_p_theta_scf / (pvecback[pba->index_bg_rho_scf] + pvecback[pba->index_bg_p_scf]);
@@ -9695,7 +9695,7 @@ int perturbations_derivs(double tau,
         // KBL scalar field interaction contribution
         if (pba->model_cdm == 2)
         {
-          dy[pv->index_pt_theta_cdm] += (-pba->cdm_c * (1 + tanh(pba->cdm_c * ppw->pvecback[pba->index_bg_phi_scf]))) * (k2 * y[pv->index_pt_phi_scf] * -y[pv->index_pt_theta_cdm] * pvecback[pba->index_bg_phi_prime_scf]);
+          dy[pv->index_pt_theta_cdm] += (pba->cdm_c * (1 + tanh(pba->cdm_c * ppw->pvecback[pba->index_bg_phi_scf]))) * (k2 * y[pv->index_pt_phi_scf] + y[pv->index_pt_theta_cdm] * pvecback[pba->index_bg_phi_prime_scf]);
         }
       }
 
