@@ -5958,14 +5958,15 @@ int perturbations_initial_conditions(struct precision *ppr,
       if (pba->has_cdm == _TRUE_)
       {
         delta_cdm += ppw->pvecback[pba->index_bg_rho_cdm] * ppw->pv->y[ppw->pv->index_pt_delta_cdm];
-        if (pba->model_cdm == 1) // Hubbleian DM model KBL
-        {
-          delta_cdm += ppw->pvecback[pba->index_bg_rho_cdm] * ppw->pvecback[pba->index_bg_H_prime] / ppw->pvecback[pba->index_bg_H];
-        }
-        else if (pba->model_cdm == 2) // interacting DM model
-        {
-          delta_cdm += ppw->pvecback[pba->index_bg_rho_cdm] * (-pba->cdm_c * (1 + tanh(pba->cdm_c * ppw->pvecback[pba->index_bg_phi_scf]))) * ppw->pv->y[ppw->pv->index_pt_phi_scf];
-        }
+        /* KBL: delta_cdm is probably the number density perturbation. The mass density perturbation should not contribute to this to keep it independent. */
+        // if (pba->model_cdm == 1) // Hubbleian DM model KBL
+        // {
+        //   delta_cdm += ppw->pvecback[pba->index_bg_rho_cdm] * ppw->pvecback[pba->index_bg_H_prime] / ppw->pvecback[pba->index_bg_H];
+        // }
+        // else if (pba->model_cdm == 2) // interacting DM model
+        // {
+        //   delta_cdm += ppw->pvecback[pba->index_bg_rho_cdm] * (-pba->cdm_c * (1 + tanh(pba->cdm_c * ppw->pvecback[pba->index_bg_phi_scf]))) * ppw->pv->y[ppw->pv->index_pt_phi_scf];
+        // }
         rho_cdm += ppw->pvecback[pba->index_bg_rho_cdm];
       }
       if (pba->has_idm == _TRUE_)
@@ -8241,10 +8242,10 @@ int perturbations_sources(
     if (ppt->has_source_delta_cdm == _TRUE_)
     {
       _set_source_(ppt->index_tp_delta_cdm) = y[ppw->pv->index_pt_delta_cdm] + 3. * a_prime_over_a * theta_over_k2; // N-body gauge correction
-      if (pba->model_cdm == 2)                                                                                      // if decaying cold dark matter, add extra term KBL
-      {
-        _set_source_(ppt->index_tp_delta_cdm) += y[ppw->pv->index_pt_phi_scf] * (-pba->cdm_c * (1 + tanh(pba->cdm_c * ppw->pvecback[pba->index_bg_phi_scf])));
-      }
+      // if (pba->model_cdm == 2)                                                                                      // Thie is the number density perturbation, which is independent from the coupling. KBL
+      // {
+      //   _set_source_(ppt->index_tp_delta_cdm) += y[ppw->pv->index_pt_phi_scf] * (-pba->cdm_c * (1 + tanh(pba->cdm_c * ppw->pvecback[pba->index_bg_phi_scf])));
+      // }
     }
 
     /* delta_idm */
