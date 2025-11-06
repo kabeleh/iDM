@@ -45,7 +45,7 @@ The Mathematica notebooks contain the derivation of the governing equations, equ
 
 - `xPert.nb` uses the [xAct](https://xact.es) package [xPert](https://xact.es/xPert/index.html) to derive metric-independent equations of motions from the Lagrangian and the stress–energy tensor. It includes first-order perturbations.
 - `xPand.nb` takes those equations and expresses them with respect to a metric and simplifies the equations using the Newtonian gauge. This notebook uses the [xPand](https://www2.iap.fr/users/pitrou/xpand.htm) plugin.
-- `rho_cdm.nb` computes the derivatives of the interacting dark matter mass $m\left(\phi\right)=1-tanh\left(c\phi\right) and expresses them in trigonometric functions.
+- `rho_cdm.nb` computes the derivatives of the interacting dark matter mass $m\left(\phi\right)=1-tanh\left(c\phi\right)$ and expresses them in trigonometric functions.
 
 # Collaboration
 Please reach out to me if you would like to collaborate on a similar project, or if you find bugs in my code!
