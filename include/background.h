@@ -130,6 +130,7 @@ struct background
                                                        not [delta p/delta rho] in the synchronous or newtonian gauge!) */
     double Omega_EDE;                               /**< \f$ wa_{DE} \f$: Early Dark Energy density parameter */
     double *scf_parameters;                         /**< list of parameters describing the scalar field potential */
+    int scf_potential;                              /**< index defining the scalar field potential form KBL*/
     short attractor_ic_scf;                         /**< whether the scalar field has attractor initial conditions */
     int scf_tuning_index;                           /**< index in scf_parameters used for tuning */
     double phi_ini_scf;                             /**< \f$ \phi(t_0) \f$: scalar field initial value */

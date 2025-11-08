@@ -3134,38 +3134,38 @@ double coupling_scf(
   return 3 * (pvecback[pba->index_bg_H] / pow(pvecback[pba->index_bg_rho_cdm] + pvecback[pba->index_bg_rho_scf], exp1 - 1)) * (q1 * pow(pvecback[pba->index_bg_rho_scf], exp1 - exp2) * pow(pvecback[pba->index_bg_rho_cdm], exp2) + q2 * pow(pvecback[pba->index_bg_rho_cdm], exp1 - exp2) * pow(pvecback[pba->index_bg_rho_scf], exp2)) / pvecback[pba->index_bg_phi_prime_scf] + q3 * pvecback[pba->index_bg_rho_cdm] + q4 * rho_cdm_prime;
 }
 
-double V_e_scf(struct background *pba,
-               double phi)
-{
-  double scf_lambda = pba->scf_parameters[0];
-  //  double scf_alpha  = pba->scf_parameters[1];
-  //  double scf_A      = pba->scf_parameters[2];
-  //  double scf_B      = pba->scf_parameters[3];
+// double V_e_scf(struct background *pba,
+//                double phi)
+// {
+//   double scf_lambda = pba->scf_parameters[0];
+//   //  double scf_alpha  = pba->scf_parameters[1];
+//   //  double scf_A      = pba->scf_parameters[2];
+//   //  double scf_B      = pba->scf_parameters[3];
 
-  return exp(-scf_lambda * phi);
-}
+//   return exp(-scf_lambda * phi);
+// }
 
-double dV_e_scf(struct background *pba,
-                double phi)
-{
-  double scf_lambda = pba->scf_parameters[0];
-  //  double scf_alpha  = pba->scf_parameters[1];
-  //  double scf_A      = pba->scf_parameters[2];
-  //  double scf_B      = pba->scf_parameters[3];
+// double dV_e_scf(struct background *pba,
+//                 double phi)
+// {
+//   double scf_lambda = pba->scf_parameters[0];
+//   //  double scf_alpha  = pba->scf_parameters[1];
+//   //  double scf_A      = pba->scf_parameters[2];
+//   //  double scf_B      = pba->scf_parameters[3];
 
-  return -scf_lambda * V_e_scf(pba, phi);
-}
+//   return -scf_lambda * V_e_scf(pba, phi);
+// }
 
-double ddV_e_scf(struct background *pba,
-                 double phi)
-{
-  double scf_lambda = pba->scf_parameters[0];
-  //  double scf_alpha  = pba->scf_parameters[1];
-  //  double scf_A      = pba->scf_parameters[2];
-  //  double scf_B      = pba->scf_parameters[3];
+// double ddV_e_scf(struct background *pba,
+//                  double phi)
+// {
+//   double scf_lambda = pba->scf_parameters[0];
+//   //  double scf_alpha  = pba->scf_parameters[1];
+//   //  double scf_A      = pba->scf_parameters[2];
+//   //  double scf_B      = pba->scf_parameters[3];
 
-  return pow(-scf_lambda, 2) * V_e_scf(pba, phi);
-}
+//   return pow(-scf_lambda, 2) * V_e_scf(pba, phi);
+// }
 
 /** parameters and functions for the polynomial coefficient
  * \f$ V_p = (\phi - B)^\alpha + A \f$(polynomial bump)
@@ -3177,51 +3177,131 @@ double ddV_e_scf(struct background *pba,
  * double scf_A = 0.01; (values for their Figure 2)
  */
 
-double V_p_scf(
-    struct background *pba,
-    double phi)
-{
-  //  double scf_lambda = pba->scf_parameters[0];
-  double scf_alpha = pba->scf_parameters[1];
-  double scf_A = pba->scf_parameters[2];
-  double scf_B = pba->scf_parameters[3];
+// double V_p_scf(
+//     struct background *pba,
+//     double phi)
+// {
+//   //  double scf_lambda = pba->scf_parameters[0];
+//   double scf_alpha = pba->scf_parameters[1];
+//   double scf_A = pba->scf_parameters[2];
+//   double scf_B = pba->scf_parameters[3];
 
-  return pow(phi - scf_B, scf_alpha) + scf_A;
-}
+//   return pow(phi - scf_B, scf_alpha) + scf_A;
+// }
 
-double dV_p_scf(
-    struct background *pba,
-    double phi)
-{
+// double dV_p_scf(
+//     struct background *pba,
+//     double phi)
+// {
 
-  //  double scf_lambda = pba->scf_parameters[0];
-  double scf_alpha = pba->scf_parameters[1];
-  //  double scf_A      = pba->scf_parameters[2];
-  double scf_B = pba->scf_parameters[3];
+//   //  double scf_lambda = pba->scf_parameters[0];
+//   double scf_alpha = pba->scf_parameters[1];
+//   //  double scf_A      = pba->scf_parameters[2];
+//   double scf_B = pba->scf_parameters[3];
 
-  return scf_alpha * pow(phi - scf_B, scf_alpha - 1);
-}
+//   return scf_alpha * pow(phi - scf_B, scf_alpha - 1);
+// }
 
-double ddV_p_scf(
-    struct background *pba,
-    double phi)
-{
-  //  double scf_lambda = pba->scf_parameters[0];
-  double scf_alpha = pba->scf_parameters[1];
-  //  double scf_A      = pba->scf_parameters[2];
-  double scf_B = pba->scf_parameters[3];
+// double ddV_p_scf(
+//     struct background *pba,
+//     double phi)
+// {
+//   //  double scf_lambda = pba->scf_parameters[0];
+//   double scf_alpha = pba->scf_parameters[1];
+//   //  double scf_A      = pba->scf_parameters[2];
+//   double scf_B = pba->scf_parameters[3];
 
-  return scf_alpha * (scf_alpha - 1.) * pow(phi - scf_B, scf_alpha - 2);
-}
+//   return scf_alpha * (scf_alpha - 1.) * pow(phi - scf_B, scf_alpha - 2);
+// }
 
 /** Fianlly we can obtain the overall potential \f$ V = V_p*V_e \f$
  */
+
+// double V_scf(
+//     struct background *pba,
+//     double phi)
+// {
+//   return V_e_scf(pba, phi) * V_p_scf(pba, phi);
+// }
+
+/* Here, we implement all the different possible types of scalar field potentials*/
+// # power-law:    V(phi) = c_1^(4-c_2) * phi^(-c_2) + c_3
+// # cosine:       V(phi) = c_1 * cos(phi*c_2)
+// # hyperbolic:   V(phi) = c_1 * [1-tanh(c_2*phi)]
+// # pNG:          V(phi) = c_1^4 * [1 + cos(phi/c_2)]
+// # iPL:          V(phi) = c_1^(4+c_2) * phi^(-c_2)
+// # exponential:  V(phi) = c_1 * exp(-c_2*phi)
+// # SqE:          V(phi) = c_1^(c_2+4) * phi^(-c_2) * exp(-c_1*phi^2)
+// # Bean:         V(phi) = c_1 * [(c_4-phi)^2 + c_2] * exp(-c_3*phi)
+// # DoubleExp:    V(phi) = c_1 * exp(-c_2*phi) + c_3 * exp(-c_4*phi)
 
 double V_scf(
     struct background *pba,
     double phi)
 {
-  return V_e_scf(pba, phi) * V_p_scf(pba, phi);
+  double c1 = pba->scf_parameters[0];
+  double c2 = pba->scf_parameters[1];
+  double c3 = pba->scf_parameters[2];
+  double c4 = pba->scf_parameters[3];
+
+  switch (pba->scf_potential)
+  {
+  case 1: // power-law
+    return pow(c1, 4. - c2) * pow(phi, c2) + c3;
+  case 2: // cosine
+    return c1 * cos(phi * c2);
+  case 3: // hyperbolic
+    return c1 * (1. - tanh(c2 * phi));
+  case 4: // pNG
+    return pow(c1, 4.) * (1. + cos(phi / c2));
+  case 5: // iPL
+    return pow(c1, 4. + c2) * pow(phi, -c2);
+  case 6: // exponential
+    return c1 * exp(-c2 * phi);
+  case 7: // SqE
+    return pow(c1, c2 + 4.) * pow(phi, -c2) * exp(c1 * phi * phi);
+  case 8: // Bean
+    return c1 * ((c4 - phi) * (c4 - phi) + c2) * exp(-c3 * phi);
+  case 9: // DoubleExp
+    return c1 * exp(-c2 * phi) + c3 * exp(-c4 * phi);
+  default:
+    return 0.;
+  }
+}
+
+/* Pure scalar field derivative: We compute the first derivatives of the scalar field potential. In the end, we will return the effective potential that includes the generalised coupling to dark matter */
+double dV_p_scf(
+    struct background *pba,
+    double phi)
+{
+  double c1 = pba->scf_parameters[0];
+  double c2 = pba->scf_parameters[1];
+  double c3 = pba->scf_parameters[2];
+  double c4 = pba->scf_parameters[3];
+
+  switch (pba->scf_potential)
+  {
+  case 1: // power-law
+    return c2 * pow(c1, 4. - c2) * pow(phi, c2 - 1.);
+  case 2: // cosine
+    return -c1 * c2 * sin(phi * c2);
+  case 3: // hyperbolic
+    return -c1 * c2 / (cosh(c2 * phi) * cosh(c2 * phi));
+  case 4: // pNG
+    return -pow(c1, 4.) / c2 * sin(phi / c2);
+  case 5: // iPL
+    return -c2 * pow(c1, 4. + c2) * pow(phi, -c2 - 1.);
+  case 6: // exponential
+    return -c1 * c2 * exp(-c2 * phi);
+  case 7: // SqE
+    return pow(c1, c2 + 4.) * pow(phi, -c2 - 1.) * exp(c1 * phi * phi) * (2. * c1 * phi * phi - c2);
+  case 8: // Bean
+    return -c1 * exp(-c3 * phi) * (2. * (c4 - phi) + c3 * ((phi - c4) * (phi - c4) + c2));
+  case 9: // DoubleExp
+    return -c1 * c2 * exp(-c2 * phi) - c3 * c4 * exp(-c4 * phi);
+  default:
+    return 0.;
+  }
 }
 
 // KBL: The generalised coupling X/phi' is added here to get V'_eff
@@ -3230,12 +3310,47 @@ double dV_scf(
     double phi,
     double *pvecback)
 {
-  return dV_e_scf(pba, phi) * V_p_scf(pba, phi) + V_e_scf(pba, phi) * dV_p_scf(pba, phi) + coupling_scf(pba, rho_cdm_prime(pba, phi, pvecback), pvecback);
+  return dV_p_scf(pba, phi) + coupling_scf(pba, rho_cdm_prime(pba, phi, pvecback), pvecback);
 }
 
+/* Lastly, we compute the second derivative of all these potentials*/
 double ddV_scf(
     struct background *pba,
     double phi)
 {
-  return ddV_e_scf(pba, phi) * V_p_scf(pba, phi) + 2 * dV_e_scf(pba, phi) * dV_p_scf(pba, phi) + V_e_scf(pba, phi) * ddV_p_scf(pba, phi);
+  double c1 = pba->scf_parameters[0];
+  double c2 = pba->scf_parameters[1];
+  double c3 = pba->scf_parameters[2];
+  double c4 = pba->scf_parameters[3];
+
+  switch (pba->scf_potential)
+  {
+  case 1: // power-law
+    return c2 * (c2 - 1.) * pow(c1, 4. - c2) * pow(phi, c2 - 2.);
+  case 2: // cosine
+    return -c1 * c2 * c2 * cos(phi * c2);
+  case 3: // hyperbolic
+    return 2. * c1 * c2 * c2 * tanh(c2 * phi) / (cosh(c2 * phi) * cosh(c2 * phi));
+  case 4: // pNG
+    return -pow(c1, 4.) / (c2 * c2) * cos(phi / c2);
+  case 5: // iPL
+    return c2 * (c2 + 1.) * pow(c1, 4. + c2) * pow(phi, -c2 - 2.);
+  case 6: // exponential
+    return c1 * c2 * c2 * exp(-c2 * phi);
+  case 7: // SqE
+    return pow(c1, c2 + 4.) * pow(phi, -c2 - 2.) * exp(c1 * phi * phi) * (4. * c1 * c1 * phi * phi * phi * phi + (-4. * c1 * c2 - 2. * c1) * phi * phi + c2 * (c2 + 1.));
+  case 8: // Bean
+    return c1 * exp(-c3 * phi) * (2. - 4. * (c4 - phi) * c3 + c3 * c3 * ((phi - c4) * (phi - c4) + c2));
+  case 9: // DoubleExp
+    return c1 * c2 * c2 * exp(-c2 * phi) + c3 * c4 * c4 * exp(-c4 * phi);
+  default:
+    return 0.;
+  }
 }
+
+// double ddV_scf(
+//     struct background *pba,
+//     double phi)
+// {
+//   return ddV_e_scf(pba, phi) * V_p_scf(pba, phi) + 2 * dV_e_scf(pba, phi) * dV_p_scf(pba, phi) + V_e_scf(pba, phi) * ddV_p_scf(pba, phi);
+// }

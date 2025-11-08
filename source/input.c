@@ -2538,6 +2538,7 @@ int input_read_parameters_species(struct file_content *pfc,
   double cdm_c;  // constant in the hyperbolic CDM model //KBL
   double rho_ncdm;
   double scf_lambda;
+  int scf_potential; // type of scalar field potential //KBL
   double fnu_factor;
   double Omega_tot;
   double sigma_B; // Stefan-Boltzmann constant
@@ -3638,6 +3639,59 @@ int input_read_parameters_species(struct file_content *pfc,
   if (pba->Omega0_scf != 0.)
   {
 
+    /** 8.b.0) Read type of scalar field potential KBL */
+    /* Read */
+    class_call(parser_read_string(pfc,
+                                  "scf_potential",
+                                  &string1,
+                                  &flag1,
+                                  errmsg),
+               errmsg,
+               errmsg);
+    if (flag1 == _TRUE_)
+    {
+      if (strstr(string1, "power-law") != NULL)
+      {
+        pba->scf_potential = 1;
+      }
+      else if (strstr(string1, "cosine") != NULL)
+      {
+        pba->scf_potential = 2;
+      }
+      else if (strstr(string1, "hyperbolic") != NULL)
+      {
+        pba->scf_potential = 3;
+      }
+      else if (strstr(string1, "pNG") != NULL)
+      {
+        pba->scf_potential = 4;
+      }
+      else if (strstr(string1, "iPL") != NULL)
+      {
+        pba->scf_potential = 5;
+      }
+      else if (strstr(string1, "exponential") != NULL)
+      {
+        pba->scf_potential = 6;
+      }
+      else if (strstr(string1, "SqE") != NULL)
+      {
+        pba->scf_potential = 7;
+      }
+      else if (strstr(string1, "Bean") != NULL)
+      {
+        pba->scf_potential = 8;
+      }
+      else if (strstr(string1, "DoubleExp") != NULL)
+      {
+        pba->scf_potential = 9;
+      }
+      else
+      {
+        class_stop(errmsg, "incomprehensible input '%s' for the field 'scf_potential'. Choose a dark energy potential.", string1);
+      }
+    }
+
     /** 8.b.1) Additional SCF parameters KBL*/
     /* Read */
     class_call(parser_read_list_of_doubles(pfc,
@@ -3651,6 +3705,14 @@ int input_read_parameters_species(struct file_content *pfc,
     class_test((pba->model_cdm != 2) && (pba->scf_parameters[pba->scf_parameters_size - 5] != 0.0),
                errmsg,
                "The DM mass does not depend on the scalar field, therefore, there is no d rho_cdm / d phi to couple to. Set q4 = 0 in scf_parameters.");
+
+    class_test((pba->scf_potential == 0) && (flag1 == _TRUE_),
+               errmsg,
+               "You have specified scf_parameters but not scf_potential. Please specify scf_potential.");
+
+    class_test((pba->scf_potential != 0) && (flag1 == _FALSE_),
+               errmsg,
+               "You have specified scf_potential but not scf_parameters. Please specify scf_parameters.");
 
     /** 8.b.2) SCF initial conditions from attractor solution */
     /* Read */
@@ -6471,6 +6533,7 @@ int input_default_params(struct background *pba,
   /** 9.b.1) Potential parameters and initial conditions */
   pba->scf_parameters = NULL;
   pba->scf_parameters_size = 0;
+  pba->scf_potential = 0;
   /** 9.b.2) Initial conditions from attractor solution */
   pba->attractor_ic_scf = _TRUE_;
   pba->phi_ini_scf = 1;       // MZ: initial conditions are as multiplicative
