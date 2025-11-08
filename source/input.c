@@ -2537,7 +2537,7 @@ int input_read_parameters_species(struct file_content *pfc,
   int model_cdm; // CDM model (0:standard, 1: Hubbleian, 2: interacting with DE) //KBL
   double cdm_c;  // constant in the hyperbolic CDM model //KBL
   double rho_ncdm;
-  double scf_lambda;
+  // double scf_lambda;
   int scf_potential; // type of scalar field potential //KBL
   double fnu_factor;
   double Omega_tot;
@@ -3688,7 +3688,7 @@ int input_read_parameters_species(struct file_content *pfc,
       }
       else
       {
-        class_stop(errmsg, "incomprehensible input '%s' for the field 'scf_potential'. Choose a dark energy potential.", string1);
+        class_stop(errmsg, "Incomprehensible input '%s' for the field 'scf_potential'. Choose a dark energy potential.", string1);
       }
     }
 
@@ -3755,11 +3755,11 @@ int input_read_parameters_species(struct file_content *pfc,
     /* Read */
     class_read_double("scf_shooting_parameter", pba->scf_parameters[pba->scf_tuning_index]);
     /* Complete set of parameters */
-    scf_lambda = pba->scf_parameters[0];
-    if ((fabs(scf_lambda) < 3.) && (pba->background_verbose > 1))
-    {
-      printf("'scf_lambda' = %e < 3 won't be tracking (for exp quint) unless overwritten by tuning function.", scf_lambda);
-    }
+    // scf_lambda = pba->scf_parameters[0];
+    // if ((fabs(scf_lambda) < 3.) && (pba->background_verbose > 1)) // KBL: No general statement possible with multiple potentials
+    // {
+    //   printf("'scf_lambda' = %e < 3 won't be tracking (for exp quint) unless overwritten by tuning function.", scf_lambda);
+    // }
   }
 
   return _SUCCESS_;
