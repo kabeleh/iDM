@@ -39,6 +39,19 @@ This repository contains
 - parameter-files
 - best-fit values 
 - covariance matrices
+These files allow you to fully reproduce my findings:
+- The parameter-files recreate the exact MCMC-pipeline, choosing the likelihoods and starting parameters.
+- The best-fit values can be used to accelerate the reproduction of my MCMC chains. Those can be passed on to `MontePython` as a starting value, i.e. your MCMC will then start at the best-fit value right away.
+- The covariance matrices can also be passed to `MontePython`, as initial guess. This also accelerates reproduction of my results.
+
+The Markov chains thesemlves are too big to be stored on GitHub. You can find them at [Zenodo](TODO). This allows you to directly analyse the chains yourself.
+
+To comply with FAIR data policy, the following naming scheme is applied to these files: 
+```
+Type of Dark Matter    -    Type of Dark Energy    -    Data Set    -    file-type
+< CDM | H | I >    -    < pL | c | h | pNG | iPL | exp | SqE | Bean | DoublExp >    -    < plik | PPDESI | PlikPPDESI | CMB-SPA | Full >    .    < param | bestfit | covmat >
+```
+For example, the parameter file to test standard CDM with quintessence in the form of a simple exponential scalar field tested against Plank 2018 data is `CDM-exp-plik.param`.
 
 ## Mathematica
 The Mathematica notebooks contain the derivation of the governing equations, equations of motions, the potentials and their derivatives, as well as additional tests for swampland-compatibility.
