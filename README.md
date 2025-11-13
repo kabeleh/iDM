@@ -47,7 +47,7 @@ These files allow you to fully reproduce my findings:
 
 The Markov chains themselves are too big to be stored on GitHub. You can find them at [Zenodo](TODO). This allows you to directly analyse the chains yourself.
 
-To comply with FAIR data policy, the following naming scheme is applied to these files: 
+The following naming scheme is applied to these files: 
 ```
 Type of Dark Matter    -    Type of Dark Energy                                         -    Data Set                                           .    file-type
 < CDM | H | I >        -    < pL | c | h | pNG | iPL | exp | SqE | Bean | DoublExp >    -    < plik | PPDESI | PlikPPDESI | CMB-SPA | Full >    .    < param | bestfit | covmat >
