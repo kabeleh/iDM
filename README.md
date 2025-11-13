@@ -54,6 +54,15 @@ Type of Dark Matter    -    Type of Dark Energy                                 
 ```
 For example, the parameter file to test standard CDM with quintessence in the form of a simple exponential scalar field tested against Plank 2018 data is `CDM-exp-plik.param`.
 
+The types of dark matter are explained in the [Wiki](https://github.com/kabeleh/iDM/wiki),
+and so are the [types of dark energy](https://github.com/kabeleh/iDM/wiki/New-User-Input-Parameters#scalar-field).
+The data sets are the following:
+- Rplik: Planck 2018 (Plik),
+- PPDESI: PantheonPlus + DESI DR2
+- PlikPPDESI: Planck 2018 (Plik) + PantheonPlus + DESI DR2
+- CMB-SPA: SPT-3G D1 + ACT DR6 + Planck (Plik)
+- Full: CMB-SPA + PantheonPlus + DESI DR2
+
 ## Mathematica
 The Mathematica notebooks contain the derivation of the governing equations, equations of motions, the potentials and their derivatives, as well as additional tests for swampland-compatibility.
 
