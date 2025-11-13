@@ -91,6 +91,9 @@ Our research complies with FAIR data principles:
   - The `Mathematica` notebooks can be used to derive the perturbed equations of motions for other systems with only slight modifications, in particular setting the corresponding Lagrangian respectively action terms.
   - The `CLASS` code can easily be extended by implementing additional types of dark matter or dark energy potentials. Also, except for dark energy related changes, no breaking changes were implemented compared to the official `CLASS` code. Therefore, our code is perfectly compatible and suitable for extended evaluations of other cosmological models that are already implemented in the official `CLASS`.
   - The MCMC chains can be analysed with other tools to do additional statistics on them.
+ 
+# Carbon Footprint
+The energy consumptions for all involved devices is offset at [climeworks](https://climeworks.com/checkout/referral/AqO8j10d). Therefore, I consider my PhD as _probably_ carbon-neutral.
 
 # Collaboration
 Please reach out to me if you would like to collaborate on a similar project, or if you find bugs in my code!
