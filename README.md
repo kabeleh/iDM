@@ -1,3 +1,6 @@
+> [!WARNING]
+> This is currently work in progress. Everything and anything is subject to change, including licensing information.
+
 # Dark Energy–Dark Matter Interactions
 - Author: Kay Lehnert
 - Publications: 
