@@ -73,9 +73,9 @@ The Mathematica notebooks contain the derivation of the governing equations, equ
 # FAIR Data Statement
 Our research complies with FAIR data principles:
 - **F**indable: All data is explained and made available on this `GitHub` repository. The naming schemes are explained in this `README`.
-- **A**ccessible: All data is available on this GitHub repository, except for the Markov chains, which are available on [Zenodo](TODO) Furthermore, the thesis is available on [arXiv](TODO) and on the Maynooth University Research Archive Library ([MURAL](TODO))
+- **A**ccessible: All data is available on this GitHub repository, except for the Markov chains, which are available on [Zenodo](TODO). Furthermore, the thesis is available on [arXiv](TODO) and on the Maynooth University Research Archive Library ([MURAL](TODO))
 - **I**nteroperable:
-  - The thesis `LaTeX` code can be used with any `LaTeX` engine. If none is available, a PDF output is provided on [arXiv](TODO), [MURAL](TODO), as well as here on `GitHub`
+  - The thesis' `LaTeX` code can be used with any `LaTeX` engine. If none is available, a PDF output is provided on [arXiv](TODO), [MURAL](TODO), as well as here on `GitHub`
   - The `Mathematica` notebooks are provided here. These are not per se 'interoperable', since the closed source software `Mathematica` must be used to read them. To mitigate this shortcomming, PDF prints of the evaluated notebooks are provided here.
   - The `CLASS` source code can be compiled with any `C` compiler.
   - The `MontePython` related setup files can be used with the open access tool [`MontePython`](https://github.com/brinckmann/montepython_public)
