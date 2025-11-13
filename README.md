@@ -45,7 +45,7 @@ These files allow you to fully reproduce my findings:
 - The best-fit values can be used to accelerate the reproduction of my MCMC chains. Those can be passed on to `MontePython` as a starting value, i.e. your MCMC will then start at the best-fit value right away.
 - The covariance matrices can also be passed to `MontePython`, as initial guess. This also accelerates reproduction of my results.
 
-The Markov chains thesemlves are too big to be stored on GitHub. You can find them at [Zenodo](TODO). This allows you to directly analyse the chains yourself.
+The Markov chains themselves are too big to be stored on GitHub. You can find them at [Zenodo](TODO). This allows you to directly analyse the chains yourself.
 
 To comply with FAIR data policy, the following naming scheme is applied to these files: 
 ```
