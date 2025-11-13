@@ -39,6 +39,7 @@ This repository contains
 - parameter-files
 - best-fit values 
 - covariance matrices
+
 These files allow you to fully reproduce my findings:
 - The parameter-files recreate the exact MCMC-pipeline, choosing the likelihoods and starting parameters.
 - The best-fit values can be used to accelerate the reproduction of my MCMC chains. Those can be passed on to `MontePython` as a starting value, i.e. your MCMC will then start at the best-fit value right away.
