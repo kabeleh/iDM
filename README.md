@@ -71,9 +71,9 @@ The Mathematica notebooks contain the derivation of the governing equations, equ
 - `rho_cdm.nb` computes the derivatives of the interacting dark matter mass $m\left(\phi\right)=1-\tanh\left(c\phi\right)$ and expresses them in trigonometric functions.
 
 ## Thesis
-My PhD thesis can be found on [arXiv](TODO), [MURAL(TODO), as well as in the folder `Thesis`. This folder contains, besides the PDF, the `LaTeX` code. The code acts as a template for similar documents and makes the equations available for typesetting.
+My PhD thesis can be found on [arXiv](TODO), [MURAL](TODO), as well as in the folder `Thesis`. This folder contains, besides the PDF, the `LaTeX` code. The code acts as a template for similar documents and makes the equations available for typesetting.
 
-The thesis template is an adaptation of [TeXtured](https://github.com/jdujava/TeXtured) with inspiration taken from [Tony Zorman](https://tony-zorman.com/posts/phd-typesetting.html).
+The thesis template is an adaptation of [TeXtured](https://github.com/jdujava/TeXtured) with inspiration taken from [Tony Zorman](https://tony-zorman.com/posts/phd-typesetting.html). It is compliant with Maynooth's [Doctoral Thesis Layout Recommendations](https://www.maynoothuniversity.ie/exams/postgraduate-information).
 
 
 # FAIR Data Statement
