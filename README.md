@@ -70,6 +70,12 @@ The Mathematica notebooks contain the derivation of the governing equations, equ
 - `xPand.nb` takes those equations and expresses them with respect to a metric and simplifies the equations using the Newtonian gauge. This notebook uses the [xPand](https://www2.iap.fr/users/pitrou/xpand.htm) plugin.
 - `rho_cdm.nb` computes the derivatives of the interacting dark matter mass $m\left(\phi\right)=1-\tanh\left(c\phi\right)$ and expresses them in trigonometric functions.
 
+## Thesis
+My PhD thesis can be found on [arXiv](TODO), [MURAL(TODO), as well as in the folder `Thesis`. This folder contains, besides the PDF, the `LaTeX` code. The code acts as a template for similar documents and makes the equations available for typesetting.
+
+The thesis template is an adaptation of [TeXtured](https://github.com/jdujava/TeXtured) with inspiration taken from [Tony Zorman](https://tony-zorman.com/posts/phd-typesetting.html).
+
+
 # FAIR Data Statement
 Our research complies with FAIR data principles:
 - **F**indable: All data is explained and made available on this `GitHub` repository. The naming schemes are explained in this `README`.
