@@ -48,8 +48,8 @@ The Markov chains thesemlves are too big to be stored on GitHub. You can find th
 
 To comply with FAIR data policy, the following naming scheme is applied to these files: 
 ```
-Type of Dark Matter    -    Type of Dark Energy    -    Data Set    -    file-type
-< CDM | H | I >    -    < pL | c | h | pNG | iPL | exp | SqE | Bean | DoublExp >    -    < plik | PPDESI | PlikPPDESI | CMB-SPA | Full >    .    < param | bestfit | covmat >
+Type of Dark Matter    -    Type of Dark Energy                                         -    Data Set                                           .    file-type
+< CDM | H | I >        -    < pL | c | h | pNG | iPL | exp | SqE | Bean | DoublExp >    -    < plik | PPDESI | PlikPPDESI | CMB-SPA | Full >    .    < param | bestfit | covmat >
 ```
 For example, the parameter file to test standard CDM with quintessence in the form of a simple exponential scalar field tested against Plank 2018 data is `CDM-exp-plik.param`.
 
