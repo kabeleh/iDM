@@ -81,7 +81,7 @@ The thesis template is an adaptation of [TeXtured](https://github.com/jdujava/Te
 
 # FAIR Data Statement
 Our research complies with FAIR data principles:
-- **F**indable: All data is explained and made available on this `GitHub` repository. The naming schemes are explained in this `README`.
+- **F**indable: All data is explained and made available on this `GitHub` repository. The naming schemes are explained in this `README`. Keywords are used for Search Engine Optimisation and clear reference.
 - **A**ccessible: All data is available on this GitHub repository, except for the Markov chains, which are available on [Zenodo](TODO). Furthermore, the thesis is available on [arXiv](TODO) and on the Maynooth University Research Archive Library ([MURAL](TODO))
 - **I**nteroperable:
   - The thesis' `LaTeX` code can be used with any `LaTeX` engine. If none is available, a PDF output is provided on [arXiv](TODO), [MURAL](TODO), as well as here on `GitHub`.
