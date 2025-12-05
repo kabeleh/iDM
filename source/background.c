@@ -2684,6 +2684,9 @@ int background_initial_conditions(
       pvecback_integration[pba->index_bi_phi_scf] = pba->phi_ini_scf;
       pvecback_integration[pba->index_bi_phi_prime_scf] = pba->phi_prime_ini_scf;
     }
+    // printf("initial phi = %e phi_prime = %e\n",
+    //        pvecback_integration[pba->index_bi_phi_scf],
+    //        pvecback_integration[pba->index_bi_phi_prime_scf]);
     // Check if there was a solution or if NaN was returned. If yes, use the user provided initial conditions.
     if (!isfinite(pvecback_integration[pba->index_bi_phi_scf]))
     {
