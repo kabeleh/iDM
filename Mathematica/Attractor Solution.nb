@@ -1,0 +1,3719 @@
+(* Content-type: application/vnd.wolfram.mathematica *)
+
+(*** Wolfram Notebook File ***)
+(* http://www.wolfram.com/nb *)
+
+(* CreatedBy='Wolfram 14.3' *)
+
+(*CacheID: 234*)
+(* Internal cache information:
+NotebookFileLineBreakTest
+NotebookFileLineBreakTest
+NotebookDataPosition[       154,          7]
+NotebookDataLength[    147517,       3711]
+NotebookOptionsPosition[    138650,       3547]
+NotebookOutlinePosition[    140380,       3604]
+CellTagsIndexPosition[    140337,       3601]
+WindowFrame->Normal*)
+
+(* Beginning of Notebook Content *)
+Notebook[{
+
+Cell[CellGroupData[{
+Cell["Attractor Solutions / Tracking Conditions", "Title",
+ CellChangeTimes->{{3.973758806886436*^9, 
+  3.973758817013193*^9}},ExpressionUUID->"a7d88442-0652-456f-8418-\
+6faf29af0775"],
+
+Cell[TextData[{
+ "Quintessence has early and late time tracking / attractor solutions, where \
+the scalar field \[OpenCurlyQuote]mimics\[CloseCurlyQuote] the background \
+energy density (early time behaviour) respectively approaches a plateau (late \
+time). For an attractor solution\[CloseCurlyQuote]s equation of state, ",
+ Cell[BoxData[
+  FormBox[
+   TemplateBox[<|"boxes" -> FormBox[
+       RowBox[{
+         SubscriptBox["\[Omega]", "\[Phi]"], "\[LongEqual]", 
+         SubscriptBox["\[Omega]", "background"]}], TraditionalForm], 
+     "errors" -> {}, "input" -> "\\omega_\\phi=\\omega_{\\text{background}}", 
+     "state" -> "Boxes"|>,
+    "TeXAssistantTemplate"], TraditionalForm]],ExpressionUUID->
+  "8ec3bb90-671c-4df3-8d77-53d736a25211"],
+ " holds. For a scalar field we have ",
+ Cell[BoxData[
+  FormBox[
+   TemplateBox[<|"boxes" -> FormBox[
+       RowBox[{
+         SubscriptBox["\[Omega]", "\[Phi]"], "\[LongEqual]", 
+         FractionBox[
+          SubscriptBox[
+           StyleBox["p", "TI"], "\[Phi]"], 
+          SubscriptBox["\[Rho]", "\[Phi]"]], "\[LongEqual]", 
+         FractionBox[
+          RowBox[{
+            FractionBox["1", "2"], 
+            SuperscriptBox[
+             OverscriptBox["\[Phi]", "."], "2"], "-", 
+            StyleBox["V", "TI"]}], 
+          RowBox[{
+            FractionBox["1", "2"], 
+            SuperscriptBox[
+             OverscriptBox["\[Phi]", "."], "2"], "+", 
+            StyleBox["V", "TI"]}]]}], TraditionalForm], "errors" -> {}, 
+     "input" -> 
+     "\\omega_\\phi=\\frac{p_\\phi}{\\rho_\\phi}=\\frac{\\frac{1}{2}\\dot{\\\
+phi}^2-V}{\\frac{1}{2}\\dot{\\phi}^2+V}", "state" -> "Boxes"|>,
+    "TeXAssistantTemplate"], TraditionalForm]],ExpressionUUID->
+  "97806080-7137-4ec3-b163-bc4fc7893409"],
+ "."
+}], "Text",
+ CellChangeTimes->{{3.973879097154064*^9, 3.9738791795813923`*^9}, {
+  3.973879210165506*^9, 3.973879266881308*^9}, {3.9738793195998173`*^9, 
+  3.9738795038911448`*^9}},ExpressionUUID->"14858ec1-8cbf-4150-bfb1-\
+ec3cb3f19123"],
+
+Cell[CellGroupData[{
+
+Cell[BoxData[
+ RowBox[{"phiDotSquared", "=", 
+  RowBox[{"First", "[", 
+   RowBox[{"Solve", "[", 
+    RowBox[{
+     RowBox[{"\[Omega]", "==", 
+      RowBox[{
+       RowBox[{"(", 
+        RowBox[{"x", "-", 
+         RowBox[{"2", " ", "V"}]}], ")"}], "/", 
+       RowBox[{"(", 
+        RowBox[{"x", "+", 
+         RowBox[{"2", " ", "V"}]}], ")"}]}]}], ",", "x"}], "]"}], 
+   "]"}]}]], "Input",
+ CellChangeTimes->{{3.973879631474313*^9, 3.973879678463635*^9}, {
+  3.973879830982737*^9, 3.973879838937313*^9}, {3.973880187557529*^9, 
+  3.973880191904788*^9}},
+ CellLabel->"In[40]:=",ExpressionUUID->"6d989914-5e6a-46a2-b7a2-de29f409f62e"],
+
+Cell[BoxData[
+ RowBox[{"{", 
+  RowBox[{"x", "\[Rule]", 
+   RowBox[{"-", 
+    FractionBox[
+     RowBox[{"2", " ", 
+      RowBox[{"(", 
+       RowBox[{"V", "+", 
+        RowBox[{"V", " ", "\[Omega]"}]}], ")"}]}], 
+     RowBox[{
+      RowBox[{"-", "1"}], "+", "\[Omega]"}]]}]}], "}"}]], "Output",
+ CellChangeTimes->{3.973879686221855*^9, 3.973879844690711*^9, 
+  3.97388019323129*^9},
+ CellLabel->"Out[40]=",ExpressionUUID->"2f292ffd-50ff-450d-9d03-2c9ee372365b"]
+}, Open  ]],
+
+Cell[TextData[{
+ "For an attractor solution, ",
+ Cell[BoxData[
+  FormBox[
+   TemplateBox[<|"boxes" -> FormBox[
+       RowBox[{
+         SuperscriptBox[
+          OverscriptBox["\[Phi]", "."], "2"], "\[LongEqual]", "2", 
+         StyleBox["V", "TI"], 
+         FractionBox[
+          RowBox[{"1", "+", "\[Omega]"}], 
+          RowBox[{"1", "-", "\[Omega]"}]]}], TraditionalForm], "errors" -> {},
+      "input" -> "\\dot{\\phi}^2=2V\\frac{1+\\omega}{1-\\omega}", "state" -> 
+     "Boxes"|>,
+    "TeXAssistantTemplate"], TraditionalForm]],ExpressionUUID->
+  "1e8fce97-ef85-487e-a4fc-b20dcb7186b6"],
+ " holds. Therefore, ",
+ Cell[BoxData[
+  FormBox[
+   TemplateBox[<|"boxes" -> FormBox[
+       RowBox[{
+         SubscriptBox["\[Rho]", "\[Phi]"], "\[LongEqual]", 
+         FractionBox[
+          RowBox[{"2", 
+            StyleBox["V", "TI"]}], 
+          RowBox[{"1", "-", "\[Omega]"}]]}], TraditionalForm], "errors" -> {},
+      "input" -> "\\rho_\\phi=\\frac{2V}{1-\\omega}", "state" -> "Boxes"|>,
+    "TeXAssistantTemplate"], TraditionalForm]],ExpressionUUID->
+  "ecc0fac8-7b6d-4bbb-8064-d23e1208c222"],
+ ":"
+}], "Text",
+ CellChangeTimes->{{3.973879697335107*^9, 3.97387977902008*^9}, {
+  3.9738802729673634`*^9, 
+  3.973880311529151*^9}},ExpressionUUID->"d0b24a8f-8bd5-445b-bf48-\
+77301e8f41f5"],
+
+Cell[CellGroupData[{
+
+Cell[BoxData[
+ RowBox[{"\[Rho]", "=", 
+  RowBox[{
+   RowBox[{
+    RowBox[{"(", 
+     RowBox[{
+      RowBox[{"x", "/", "2"}], "+", "V"}], ")"}], "/.", "phiDotSquared"}], "//",
+    "Simplify"}]}]], "Input",
+ CellChangeTimes->{{3.973879861643155*^9, 3.973879952781427*^9}, {
+  3.973880005721817*^9, 3.973880012010786*^9}, {3.9738802073000507`*^9, 
+  3.973880243513413*^9}},
+ CellLabel->"In[41]:=",ExpressionUUID->"d90406f3-be87-4101-8615-50a7c1ab40c6"],
+
+Cell[BoxData[
+ RowBox[{"-", 
+  FractionBox[
+   RowBox[{"2", " ", "V"}], 
+   RowBox[{
+    RowBox[{"-", "1"}], "+", "\[Omega]"}]]}]], "Output",
+ CellChangeTimes->{{3.9738799154819117`*^9, 3.9738799534315157`*^9}, 
+   3.973880013006785*^9, 3.97388024433295*^9},
+ CellLabel->"Out[41]=",ExpressionUUID->"9266bafe-6358-4e0f-94e3-9089bca40f79"]
+}, Open  ]],
+
+Cell[TextData[{
+ "To express this in terms of the potential ",
+ Cell[BoxData[
+  FormBox[
+   TemplateBox[<|"boxes" -> FormBox[
+       StyleBox["V", "TI"], TraditionalForm], "errors" -> {}, "input" -> "V", 
+     "state" -> "Boxes"|>,
+    "TeXAssistantTemplate"], TraditionalForm]],ExpressionUUID->
+  "cbdb6b73-e656-4118-8004-ac7eba31ecfd"],
+ " and the scalar field ",
+ Cell[BoxData[
+  FormBox[
+   TemplateBox[<|
+    "boxes" -> FormBox["\[Phi]", TraditionalForm], "errors" -> {}, "input" -> 
+     "\\phi", "state" -> "Boxes"|>,
+    "TeXAssistantTemplate"], TraditionalForm]],ExpressionUUID->
+  "284c50cb-757f-41d5-88f0-9c89d06d4d2c"],
+ ", we need the Friedmann equation ",
+ Cell[BoxData[
+  FormBox[
+   TemplateBox[<|"boxes" -> FormBox[
+       RowBox[{"3", 
+         SuperscriptBox[
+          StyleBox["H", "TI"], "2"], "\[LongEqual]", 
+         UnderscriptBox["\[Sum]", 
+          StyleBox["i", "TI"], LimitsPositioning -> True], 
+         SubscriptBox["\[Rho]", 
+          StyleBox["i", "TI"]]}], TraditionalForm], "errors" -> {}, "input" -> 
+     "3H^2=\\sum_i\\rho_i", "state" -> "Boxes"|>,
+    "TeXAssistantTemplate"], TraditionalForm]],ExpressionUUID->
+  "cd7c6e99-607f-42d3-a026-053bbd066a12"],
+ ", the definition for the relative energy density ",
+ Cell[BoxData[
+  FormBox[
+   TemplateBox[<|"boxes" -> FormBox[
+       RowBox[{
+         SubscriptBox["\[CapitalOmega]", "\[Phi]"], "\[LongEqual]", 
+         FractionBox[
+          SubscriptBox["\[Rho]", "\[Phi]"], 
+          SubscriptBox["\[Rho]", "crit"]], "\[LongEqual]", 
+         FractionBox[
+          SubscriptBox["\[Rho]", "\[Phi]"], 
+          RowBox[{"3", 
+            SuperscriptBox[
+             StyleBox["H", "TI"], "2"]}]]}], TraditionalForm], "errors" -> {},
+      "input" -> 
+     "\\Omega_\\phi=\\frac{\\rho_\\phi}{\\rho_{\\text{crit}}}=\\frac{\\rho_\\\
+phi}{3H^2}", "state" -> "Boxes"|>,
+    "TeXAssistantTemplate"], TraditionalForm]],ExpressionUUID->
+  "66dab034-abe9-44ea-83dc-dabf37893a3c"],
+ ", and the result from Copeland et al. 1998 (",
+ Cell[BoxData[
+ "arXiv"], "InlineCode",ExpressionUUID->
+  "4e0884bb-a17c-49e5-86bc-1d99b8a40992"],
+ ":gr-qg/9711068) ",
+ Cell[BoxData[
+  FormBox[
+   TemplateBox[<|"boxes" -> FormBox[
+       RowBox[{
+         SubscriptBox["\[CapitalOmega]", "\[Phi]"], "\[LongEqual]", 
+         FractionBox[
+          RowBox[{"3", "\[Gamma]"}], 
+          SuperscriptBox[
+           RowBox[{"(", 
+             RowBox[{
+               SuperscriptBox[
+                StyleBox["V", "TI"], "\[Prime]"], "/", 
+               StyleBox["V", "TI"]}], ")"}], "2"]]}], TraditionalForm], 
+     "errors" -> {}, "input" -> 
+     "\\Omega_\\phi=\\frac{3\\gamma}{\\left(V^\\prime/V\\right)^2}", "state" -> 
+     "Boxes"|>,
+    "TeXAssistantTemplate"], TraditionalForm]],ExpressionUUID->
+  "88bfaf20-3668-456d-a3d2-7a64e1188f14"],
+ ", with ",
+ Cell[BoxData[
+  FormBox[
+   TemplateBox[<|"boxes" -> FormBox[
+       RowBox[{"\[Gamma]", "\[LongEqual]", "4", "/", "3"}], TraditionalForm], 
+     "errors" -> {}, "input" -> "\\gamma=4/3", "state" -> "Boxes"|>,
+    "TeXAssistantTemplate"], TraditionalForm]],ExpressionUUID->
+  "cb7e501c-0b16-491b-bdfa-ec6c61d2e874"],
+ " for radiation, ",
+ Cell[BoxData[
+  FormBox[
+   TemplateBox[<|"boxes" -> FormBox[
+       RowBox[{"\[Gamma]", "\[LongEqual]", "1"}], TraditionalForm], 
+     "errors" -> {}, "input" -> "\\gamma=1", "state" -> "Boxes"|>,
+    "TeXAssistantTemplate"], TraditionalForm]],ExpressionUUID->
+  "fa5b254c-9c5b-434e-8a3b-b1ba96b822a3"],
+ " for dust, and ",
+ Cell[BoxData[
+  FormBox[
+   TemplateBox[<|"boxes" -> FormBox[
+       RowBox[{"\[Gamma]", "\[LongEqual]", "1", "+", "\[Omega]"}], 
+       TraditionalForm], "errors" -> {}, "input" -> "\\gamma=1+\\omega", 
+     "state" -> "Boxes"|>,
+    "TeXAssistantTemplate"], TraditionalForm]],ExpressionUUID->
+  "9a52d58c-be23-4812-8088-b187f1740053"],
+ " in general."
+}], "Text",
+ CellChangeTimes->{{3.973880425320074*^9, 3.973880550372616*^9}, {
+  3.9738805978645077`*^9, 
+  3.973880886016642*^9}},ExpressionUUID->"0b8a2f93-8404-477a-b6f9-\
+0ba9917d2793"],
+
+Cell[CellGroupData[{
+
+Cell[BoxData[
+ RowBox[{"Solve", "[", 
+  RowBox[{
+   RowBox[{"Eliminate", "[", 
+    RowBox[{
+     RowBox[{"{", 
+      RowBox[{
+       RowBox[{
+        RowBox[{"3", " ", 
+         RowBox[{"H", "^", "2"}]}], "==", 
+        RowBox[{"p", "+", "b"}]}], ",", 
+       RowBox[{"\[CapitalOmega]", "==", 
+        RowBox[{"p", "/", 
+         RowBox[{"(", 
+          RowBox[{"3", " ", 
+           RowBox[{"H", "^", "2"}]}], ")"}]}]}], ",", 
+       RowBox[{"\[CapitalOmega]", "==", 
+        RowBox[{"3", " ", 
+         RowBox[{"\[Gamma]", "/", 
+          RowBox[{"\[Lambda]", "^", "2"}]}]}]}]}], "}"}], ",", 
+     RowBox[{"{", 
+      RowBox[{"H", ",", "\[CapitalOmega]"}], "}"}]}], "]"}], ",", "p"}], 
+  "]"}]], "Input",
+ CellChangeTimes->{{3.9738810667422323`*^9, 3.973881373458424*^9}, {
+  3.9738814365590467`*^9, 3.9738814465160007`*^9}, {3.9738815147813272`*^9, 
+  3.973881519207778*^9}},
+ CellLabel->"In[3]:=",ExpressionUUID->"053d6732-faf9-4d22-988f-f3de7b2ce484"],
+
+Cell[BoxData[
+ RowBox[{"{", 
+  RowBox[{"{", 
+   RowBox[{"p", "\[Rule]", 
+    RowBox[{"-", 
+     FractionBox[
+      RowBox[{"3", " ", "b", " ", "\[Gamma]"}], 
+      RowBox[{
+       RowBox[{"3", " ", "\[Gamma]"}], "-", 
+       SuperscriptBox["\[Lambda]", "2"]}]]}]}], "}"}], "}"}]], "Output",
+ CellChangeTimes->{{3.9738812516740026`*^9, 3.9738813389786654`*^9}, 
+   3.9738813786783123`*^9, 3.973881413838866*^9, 3.973881447941658*^9, 
+   3.973881520479347*^9},
+ CellLabel->"Out[3]=",ExpressionUUID->"8da7bf6e-dd3b-4e64-aee3-e7e5b40e7e59"]
+}, Open  ]],
+
+Cell[TextData[{
+ "We find ",
+ Cell[BoxData[
+  FormBox[
+   TemplateBox[<|"boxes" -> FormBox[
+       RowBox[{
+         SubscriptBox["\[Rho]", "\[Phi]"], "\[LongEqual]", 
+         SubscriptBox["\[Rho]", "background"], 
+         FractionBox[
+          RowBox[{"3", "\[Gamma]", "/", 
+            SuperscriptBox["\[Lambda]", "2"]}], 
+          RowBox[{"1", "-", "3", "\[Gamma]", "/", 
+            SuperscriptBox["\[Lambda]", "2"]}]]}], TraditionalForm], 
+     "errors" -> {}, "input" -> 
+     "\\rho_\\phi=\\rho_{\\text{background}}\\frac{3\\gamma/\\lambda^2}{1-3\\\
+gamma/\\lambda^2}", "state" -> "Boxes"|>,
+    "TeXAssistantTemplate"], TraditionalForm]],ExpressionUUID->
+  "a824c3a5-9cc6-4b39-b49f-bf0073f1c50c"],
+ ". To find our initial conditions for \[Phi] and ",
+ Cell[BoxData[
+  FormBox[
+   TemplateBox[<|"boxes" -> FormBox[
+       SuperscriptBox["\[Phi]", "\[Prime]"], TraditionalForm], "errors" -> {},
+      "input" -> "{\\phi^\\prime}", "state" -> "Boxes"|>,
+    "TeXAssistantTemplate"], TraditionalForm]],ExpressionUUID->
+  "9c9a3f32-97e1-4d00-846a-eca4e4cd95db"],
+ ", we have to work with explicit potentials, which we do in the following."
+}], "Text",
+ CellChangeTimes->{{3.9738814680414743`*^9, 3.973881507507884*^9}, {
+  3.9738816224239798`*^9, 3.973881647052136*^9}, {3.973881749389288*^9, 
+  3.9738818159555187`*^9}},ExpressionUUID->"9133fd68-c29d-4f85-b895-\
+88f00cf8450c"],
+
+Cell[CellGroupData[{
+
+Cell["Setup", "Chapter",
+ CellChangeTimes->{{3.973758981581738*^9, 
+  3.973758982657688*^9}},ExpressionUUID->"e5a6f5f2-f6cd-42da-830e-\
+993778205dc9"],
+
+Cell[CellGroupData[{
+
+Cell["Potentials", "Section",
+ CellChangeTimes->{{3.973758855185575*^9, 
+  3.9737588565136127`*^9}},ExpressionUUID->"0bf6b29c-a243-4c4d-b0ae-\
+06034e7c91df"],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{
+   RowBox[{"potentials", "=", 
+    RowBox[{"<|", "\[IndentingNewLine]", 
+     RowBox[{
+      RowBox[{"\"\<pl\>\"", "->", 
+       RowBox[{
+        RowBox[{"c", "^", 
+         RowBox[{"(", 
+          RowBox[{"4", "-", "p"}], ")"}]}], " ", 
+        RowBox[{"\[Phi]", "^", "p"}]}]}], ",", "\[IndentingNewLine]", 
+      RowBox[{"\"\<cos\>\"", "->", 
+       RowBox[{"c1", " ", 
+        RowBox[{"Cos", "[", 
+         RowBox[{"c2", " ", "\[Phi]"}], "]"}]}]}], ",", "\[IndentingNewLine]", 
+      RowBox[{"\"\<hyp\>\"", "->", 
+       RowBox[{"c1", " ", 
+        RowBox[{"(", 
+         RowBox[{"1", "-", 
+          RowBox[{"Tanh", "[", 
+           RowBox[{"c2", " ", "\[Phi]"}], "]"}]}], ")"}]}]}], ",", 
+      "\[IndentingNewLine]", 
+      RowBox[{"\"\<pNG\>\"", "->", 
+       RowBox[{
+        RowBox[{"c1", "^", "4"}], " ", 
+        RowBox[{"(", 
+         RowBox[{"1", "+", 
+          RowBox[{"Cos", "[", 
+           RowBox[{"\[Phi]", "/", "c2"}], "]"}]}], ")"}]}]}], ",", 
+      "\[IndentingNewLine]", 
+      RowBox[{"\"\<iPL\>\"", "->", 
+       RowBox[{
+        RowBox[{"c", "^", 
+         RowBox[{"(", 
+          RowBox[{"p", "+", "4"}], ")"}]}], " ", 
+        RowBox[{"\[Phi]", "^", 
+         RowBox[{"(", 
+          RowBox[{"-", "p"}], ")"}]}]}]}], ",", "\[IndentingNewLine]", 
+      RowBox[{"\"\<exp\>\"", "->", 
+       RowBox[{"c1", " ", 
+        RowBox[{"Exp", "[", 
+         RowBox[{
+          RowBox[{"-", "c2"}], " ", "\[Phi]"}], "]"}]}]}], ",", 
+      "\[IndentingNewLine]", 
+      RowBox[{"\"\<sqexp\>\"", "->", 
+       RowBox[{
+        RowBox[{"c", "^", 
+         RowBox[{"(", 
+          RowBox[{"p", "+", "4"}], ")"}]}], " ", 
+        RowBox[{"\[Phi]", "^", 
+         RowBox[{"(", 
+          RowBox[{"-", "p"}], ")"}]}], " ", 
+        RowBox[{"Exp", "[", 
+         RowBox[{"c", " ", 
+          RowBox[{"\[Phi]", "^", "2"}]}], "]"}]}]}], ",", 
+      "\[IndentingNewLine]", 
+      RowBox[{"\"\<bexp\>\"", "->", 
+       RowBox[{"c1", " ", 
+        RowBox[{"(", 
+         RowBox[{
+          RowBox[{"\[Phi]", "^", "2"}], "+", "c2"}], ")"}], " ", 
+        RowBox[{"Exp", "[", 
+         RowBox[{
+          RowBox[{"-", "c3"}], " ", "\[Phi]"}], "]"}]}]}], ",", 
+      "\[IndentingNewLine]", 
+      RowBox[{"\"\<dexp\>\"", "->", 
+       RowBox[{
+        RowBox[{"c1", " ", 
+         RowBox[{"Exp", "[", 
+          RowBox[{
+           RowBox[{"-", "c2"}], " ", "\[Phi]"}], "]"}]}], "+", 
+        RowBox[{"c3", " ", 
+         RowBox[{"Exp", "[", 
+          RowBox[{
+           RowBox[{"-", "c4"}], " ", "\[Phi]"}], "]"}]}]}]}]}], "|>"}]}], 
+   ";"}], "\n"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{"vars", "=", 
+   RowBox[{"{", 
+    RowBox[{
+    "\[Phi]", ",", "p", ",", "c", ",", "c1", ",", "c2", ",", "c3", ",", 
+     "c4"}], "}"}]}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{"names", "=", 
+   RowBox[{"Keys", "[", "potentials", "]"}]}], ";"}], "\n", 
+ RowBox[{
+  RowBox[{"vals", "=", 
+   RowBox[{"Values", "[", "potentials", "]"}]}], ";"}]}], "Input",
+ CellChangeTimes->{{3.9737592440395727`*^9, 3.9737592684385557`*^9}, {
+  3.973779093079637*^9, 3.973779095598913*^9}, {3.9737812710041533`*^9, 
+  3.973781271648505*^9}, {3.9738678804241047`*^9, 3.973867905247534*^9}},
+ CellLabel->"In[1]:=",ExpressionUUID->"4cac35ae-57b8-4847-8124-8ed1ef2b78be"]
+}, Open  ]],
+
+Cell[CellGroupData[{
+
+Cell["Initial Setup for Parallel Computations", "Section",
+ CellChangeTimes->{{3.9737588263169107`*^9, 
+  3.973758834944553*^9}},ExpressionUUID->"ef17720d-ab1e-421e-8c27-\
+73924daec18f"],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"LaunchKernels", "[", "]"}], ";"}], "\n", 
+ RowBox[{
+  RowBox[{"DistributeDefinitions", "[", 
+   RowBox[{
+   "potentials", ",", "\[Omega]", ",", "\[Rho]", ",", "\[Gamma]", ",", "c", ",",
+     "p", ",", "c1", ",", "c2", ",", "c3", ",", "c4"}], "]"}], 
+  ";"}]}], "Input",
+ CellChangeTimes->{{3.9737467009967413`*^9, 3.973746718661202*^9}, {
+  3.973762369973605*^9, 3.973762372626391*^9}, {3.9738678946614037`*^9, 
+  3.97386789544318*^9}},
+ CellLabel->"In[5]:=",ExpressionUUID->"13b19608-b238-4e8b-bcfb-0d1032e58e59"]
+}, Open  ]]
+}, Open  ]],
+
+Cell[CellGroupData[{
+
+Cell["Exact Computations", "Chapter",
+ CellChangeTimes->{{3.973758918863565*^9, 
+  3.9737589218816853`*^9}},ExpressionUUID->"e8610970-26ad-4649-b3c8-\
+2e21b943f466"],
+
+Cell[CellGroupData[{
+
+Cell["Existence of Attractor Solution", "Section",
+ CellChangeTimes->{{3.973758928057651*^9, 
+  3.973758943740426*^9}},ExpressionUUID->"c880e9a2-2ec1-419f-a608-\
+91a2fc00f969"],
+
+Cell[TextData[{
+ "An attractor solution exists if ",
+ Cell[BoxData[
+  FormBox[
+   TemplateBox[<|"boxes" -> FormBox[
+       RowBox[{"\[CapitalGamma]", "\[LongEqual]", 
+         FractionBox[
+          RowBox[{
+            StyleBox["V", "TI"], 
+            SuperscriptBox[
+             StyleBox["V", "TI"], "\[Prime]\[Prime]"]}], 
+          SuperscriptBox[
+           RowBox[{"(", 
+             SuperscriptBox[
+              StyleBox["V", "TI"], "\[Prime]"], ")"}], "2"]], 
+         "\[GreaterEqual]", "1"}], TraditionalForm], "errors" -> {}, "input" -> 
+     "\\Gamma=\\frac{VV^{\\prime\\prime}}{\\left(V^\\prime\\right)^2}\\geq1", 
+     "state" -> "Boxes"|>,
+    "TeXAssistantTemplate"], TraditionalForm]],ExpressionUUID->
+  "ce312150-8336-408d-9eea-cb4143f5e19a"],
+ "."
+}], "Text",
+ CellChangeTimes->{{3.97376644717384*^9, 3.9737664831203547`*^9}, {
+  3.973867428699458*^9, 
+  3.9738675131321917`*^9}},ExpressionUUID->"240e1f83-297a-4df4-82b9-\
+60ad3150eae1"],
+
+Cell[CellGroupData[{
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"exactGamma", "=", 
+   RowBox[{"ParallelTable", "[", 
+    RowBox[{
+     RowBox[{"With", "[", 
+      RowBox[{
+       RowBox[{"{", 
+        RowBox[{"V", "=", 
+         RowBox[{"potentials", "[", 
+          RowBox[{"[", "name", "]"}], "]"}]}], "}"}], ",", 
+       RowBox[{"V", " ", 
+        RowBox[{
+         RowBox[{"D", "[", 
+          RowBox[{"V", ",", 
+           RowBox[{"{", 
+            RowBox[{"\[Phi]", ",", "2"}], "}"}]}], "]"}], "/", 
+         RowBox[{
+          RowBox[{"(", 
+           RowBox[{"D", "[", 
+            RowBox[{"V", ",", "\[Phi]"}], "]"}], ")"}], "^", "2"}]}]}]}], 
+      "]"}], ",", 
+     RowBox[{"{", 
+      RowBox[{"name", ",", 
+       RowBox[{"Keys", "[", "potentials", "]"}]}], "}"}]}], "]"}]}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{"gammalimitSmallPhi", "=", 
+   RowBox[{"ParallelTable", "[", 
+    RowBox[{
+     RowBox[{"Limit", "[", 
+      RowBox[{
+       RowBox[{"exactGamma", "[", 
+        RowBox[{"[", "i", "]"}], "]"}], ",", 
+       RowBox[{"\[Phi]", "->", "0"}]}], "]"}], ",", 
+     RowBox[{"{", 
+      RowBox[{"i", ",", 
+       RowBox[{"Length", "[", "exactGamma", "]"}]}], "}"}]}], "]"}]}], 
+  ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{"gammalimitLargePhi", "=", 
+   RowBox[{"ParallelTable", "[", 
+    RowBox[{
+     RowBox[{"Limit", "[", 
+      RowBox[{
+       RowBox[{"exactGamma", "[", 
+        RowBox[{"[", "i", "]"}], "]"}], ",", 
+       RowBox[{"\[Phi]", "->", "Infinity"}]}], "]"}], ",", 
+     RowBox[{"{", 
+      RowBox[{"i", ",", 
+       RowBox[{"Length", "[", "exactGamma", "]"}]}], "}"}]}], "]"}]}], 
+  ";"}], "\[IndentingNewLine]", 
+ RowBox[{"TableForm", "[", 
+  RowBox[{
+   RowBox[{"Transpose", "[", 
+    RowBox[{"{", 
+     RowBox[{
+      RowBox[{"Keys", "[", "potentials", "]"}], ",", "exactGamma", ",", 
+      "gammalimitSmallPhi", ",", "gammalimitLargePhi"}], "}"}], "]"}], ",", 
+   RowBox[{"TableHeadings", "->", 
+    RowBox[{"{", 
+     RowBox[{"None", ",", 
+      RowBox[{"{", 
+       RowBox[{"\"\<Potential\>\"", ",", "\"\<\[CapitalGamma]=VV''/(V')^2\>\"",
+         ",", "\"\<\[Phi]->0 \[CapitalGamma]\>\"", 
+        ",", "\"\<\[Phi]->\[Infinity] \[CapitalGamma]\>\""}], "}"}]}], 
+     "}"}]}]}], "]"}]}], "Input",
+ CellChangeTimes->{{3.973766496457717*^9, 3.9737665492145452`*^9}, 
+   3.973766589793655*^9, {3.973766642481481*^9, 3.973766712460487*^9}, 
+   3.973766746313724*^9, 3.9737667878700438`*^9},
+ CellLabel->"In[7]:=",ExpressionUUID->"b155d4bf-f095-45d3-9257-d6d26df30312"],
+
+Cell[BoxData[
+ TagBox[
+  TagBox[GridBox[{
+     {
+      TagBox["\<\"Potential\"\>",
+       HoldForm], 
+      TagBox["\<\"\[CapitalGamma]=VV''/(V')^2\"\>",
+       HoldForm], 
+      TagBox["\<\"\[Phi]->0 \[CapitalGamma]\"\>",
+       HoldForm], 
+      TagBox["\<\"\[Phi]->\[Infinity] \[CapitalGamma]\"\>",
+       HoldForm]},
+     {"\<\"pl\"\>", 
+      FractionBox[
+       RowBox[{
+        RowBox[{"-", "1"}], "+", "p"}], "p"], 
+      FractionBox[
+       RowBox[{
+        RowBox[{"-", "1"}], "+", "p"}], "p"], 
+      FractionBox[
+       RowBox[{
+        RowBox[{"-", "1"}], "+", "p"}], "p"]},
+     {"\<\"cos\"\>", 
+      RowBox[{"-", 
+       SuperscriptBox[
+        RowBox[{"Cot", "[", 
+         RowBox[{"c2", " ", "\[Phi]"}], "]"}], "2"]}], 
+      RowBox[{"DirectedInfinity", "[", 
+       RowBox[{"-", 
+        FractionBox["1", 
+         SuperscriptBox[
+          RowBox[{"Sign", "[", "c2", "]"}], "2"]]}], "]"}], 
+      TemplateBox[{"Indeterminate", 
+        RowBox[{"c2", ">", "0"}]},
+       "ConditionalExpression"]},
+     {"\<\"hyp\"\>", 
+      RowBox[{"2", " ", 
+       RowBox[{"Cosh", "[", 
+        RowBox[{"c2", " ", "\[Phi]"}], "]"}], " ", 
+       RowBox[{"Sinh", "[", 
+        RowBox[{"c2", " ", "\[Phi]"}], "]"}], " ", 
+       RowBox[{"(", 
+        RowBox[{"1", "-", 
+         RowBox[{"Tanh", "[", 
+          RowBox[{"c2", " ", "\[Phi]"}], "]"}]}], ")"}]}], "0", 
+      TemplateBox[{"1", 
+        RowBox[{"c2", ">", "0"}]},
+       "ConditionalExpression"]},
+     {"\<\"pNG\"\>", 
+      RowBox[{"-", 
+       RowBox[{"(", 
+        RowBox[{
+         RowBox[{"(", 
+          RowBox[{"1", "+", 
+           RowBox[{"Cos", "[", 
+            FractionBox["\[Phi]", "c2"], "]"}]}], ")"}], " ", 
+         RowBox[{"Cot", "[", 
+          FractionBox["\[Phi]", "c2"], "]"}], " ", 
+         RowBox[{"Csc", "[", 
+          FractionBox["\[Phi]", "c2"], "]"}]}], ")"}]}], 
+      RowBox[{"DirectedInfinity", "[", 
+       RowBox[{"-", 
+        SuperscriptBox[
+         RowBox[{"Sign", "[", "c2", "]"}], "2"]}], "]"}], 
+      TemplateBox[{"Indeterminate", 
+        RowBox[{"c2", ">", "0"}]},
+       "ConditionalExpression"]},
+     {"\<\"iPL\"\>", 
+      RowBox[{"-", 
+       FractionBox[
+        RowBox[{
+         RowBox[{"-", "1"}], "-", "p"}], "p"]}], 
+      RowBox[{"-", 
+       FractionBox[
+        RowBox[{
+         RowBox[{"-", "1"}], "-", "p"}], "p"]}], 
+      RowBox[{"-", 
+       FractionBox[
+        RowBox[{
+         RowBox[{"-", "1"}], "-", "p"}], "p"]}]},
+     {"\<\"exp\"\>", "1", "1", "1"},
+     {"\<\"sqexp\"\>", 
+      FractionBox[
+       RowBox[{
+        SuperscriptBox["c", 
+         RowBox[{"4", "+", "p"}]], " ", 
+        SuperscriptBox["\[ExponentialE]", 
+         RowBox[{"c", " ", 
+          SuperscriptBox["\[Phi]", "2"]}]], " ", 
+        SuperscriptBox["\[Phi]", 
+         RowBox[{"-", "p"}]], " ", 
+        RowBox[{"(", 
+         RowBox[{
+          RowBox[{
+           RowBox[{"-", 
+            SuperscriptBox["c", 
+             RowBox[{"4", "+", "p"}]]}], " ", 
+           SuperscriptBox["\[ExponentialE]", 
+            RowBox[{"c", " ", 
+             SuperscriptBox["\[Phi]", "2"]}]], " ", 
+           RowBox[{"(", 
+            RowBox[{
+             RowBox[{"-", "1"}], "-", "p"}], ")"}], " ", "p", " ", 
+           SuperscriptBox["\[Phi]", 
+            RowBox[{
+             RowBox[{"-", "2"}], "-", "p"}]]}], "-", 
+          RowBox[{"4", " ", 
+           SuperscriptBox["c", 
+            RowBox[{"5", "+", "p"}]], " ", 
+           SuperscriptBox["\[ExponentialE]", 
+            RowBox[{"c", " ", 
+             SuperscriptBox["\[Phi]", "2"]}]], " ", "p", " ", 
+           SuperscriptBox["\[Phi]", 
+            RowBox[{"-", "p"}]]}], "+", 
+          RowBox[{
+           SuperscriptBox["c", 
+            RowBox[{"4", "+", "p"}]], " ", 
+           SuperscriptBox["\[Phi]", 
+            RowBox[{"-", "p"}]], " ", 
+           RowBox[{"(", 
+            RowBox[{
+             RowBox[{"2", " ", "c", " ", 
+              SuperscriptBox["\[ExponentialE]", 
+               RowBox[{"c", " ", 
+                SuperscriptBox["\[Phi]", "2"]}]]}], "+", 
+             RowBox[{"4", " ", 
+              SuperscriptBox["c", "2"], " ", 
+              SuperscriptBox["\[ExponentialE]", 
+               RowBox[{"c", " ", 
+                SuperscriptBox["\[Phi]", "2"]}]], " ", 
+              SuperscriptBox["\[Phi]", "2"]}]}], ")"}]}]}], ")"}]}], 
+       SuperscriptBox[
+        RowBox[{"(", 
+         RowBox[{
+          RowBox[{
+           RowBox[{"-", 
+            SuperscriptBox["c", 
+             RowBox[{"4", "+", "p"}]]}], " ", 
+           SuperscriptBox["\[ExponentialE]", 
+            RowBox[{"c", " ", 
+             SuperscriptBox["\[Phi]", "2"]}]], " ", "p", " ", 
+           SuperscriptBox["\[Phi]", 
+            RowBox[{
+             RowBox[{"-", "1"}], "-", "p"}]]}], "+", 
+          RowBox[{"2", " ", 
+           SuperscriptBox["c", 
+            RowBox[{"5", "+", "p"}]], " ", 
+           SuperscriptBox["\[ExponentialE]", 
+            RowBox[{"c", " ", 
+             SuperscriptBox["\[Phi]", "2"]}]], " ", 
+           SuperscriptBox["\[Phi]", 
+            RowBox[{"1", "-", "p"}]]}]}], ")"}], "2"]], 
+      RowBox[{"1", "+", 
+       FractionBox["1", "p"]}], "1"},
+     {"\<\"bexp\"\>", 
+      FractionBox[
+       RowBox[{"c1", " ", 
+        SuperscriptBox["\[ExponentialE]", 
+         RowBox[{
+          RowBox[{"-", "c3"}], " ", "\[Phi]"}]], " ", 
+        RowBox[{"(", 
+         RowBox[{"c2", "+", 
+          SuperscriptBox["\[Phi]", "2"]}], ")"}], " ", 
+        RowBox[{"(", 
+         RowBox[{
+          RowBox[{"2", " ", "c1", " ", 
+           SuperscriptBox["\[ExponentialE]", 
+            RowBox[{
+             RowBox[{"-", "c3"}], " ", "\[Phi]"}]]}], "-", 
+          RowBox[{"4", " ", "c1", " ", "c3", " ", 
+           SuperscriptBox["\[ExponentialE]", 
+            RowBox[{
+             RowBox[{"-", "c3"}], " ", "\[Phi]"}]], " ", "\[Phi]"}], "+", 
+          RowBox[{"c1", " ", 
+           SuperscriptBox["c3", "2"], " ", 
+           SuperscriptBox["\[ExponentialE]", 
+            RowBox[{
+             RowBox[{"-", "c3"}], " ", "\[Phi]"}]], " ", 
+           RowBox[{"(", 
+            RowBox[{"c2", "+", 
+             SuperscriptBox["\[Phi]", "2"]}], ")"}]}]}], ")"}]}], 
+       SuperscriptBox[
+        RowBox[{"(", 
+         RowBox[{
+          RowBox[{"2", " ", "c1", " ", 
+           SuperscriptBox["\[ExponentialE]", 
+            RowBox[{
+             RowBox[{"-", "c3"}], " ", "\[Phi]"}]], " ", "\[Phi]"}], "-", 
+          RowBox[{"c1", " ", "c3", " ", 
+           SuperscriptBox["\[ExponentialE]", 
+            RowBox[{
+             RowBox[{"-", "c3"}], " ", "\[Phi]"}]], " ", 
+           RowBox[{"(", 
+            RowBox[{"c2", "+", 
+             SuperscriptBox["\[Phi]", "2"]}], ")"}]}]}], ")"}], "2"]], 
+      FractionBox[
+       RowBox[{
+        RowBox[{"2", " ", "c1"}], "+", 
+        RowBox[{"c1", " ", "c2", " ", 
+         SuperscriptBox["c3", "2"]}]}], 
+       RowBox[{"c1", " ", "c2", " ", 
+        SuperscriptBox["c3", "2"]}]], "1"},
+     {"\<\"dexp\"\>", 
+      FractionBox[
+       RowBox[{
+        RowBox[{"(", 
+         RowBox[{
+          RowBox[{"c1", " ", 
+           SuperscriptBox["\[ExponentialE]", 
+            RowBox[{
+             RowBox[{"-", "c2"}], " ", "\[Phi]"}]]}], "+", 
+          RowBox[{"c3", " ", 
+           SuperscriptBox["\[ExponentialE]", 
+            RowBox[{
+             RowBox[{"-", "c4"}], " ", "\[Phi]"}]]}]}], ")"}], " ", 
+        RowBox[{"(", 
+         RowBox[{
+          RowBox[{"c1", " ", 
+           SuperscriptBox["c2", "2"], " ", 
+           SuperscriptBox["\[ExponentialE]", 
+            RowBox[{
+             RowBox[{"-", "c2"}], " ", "\[Phi]"}]]}], "+", 
+          RowBox[{"c3", " ", 
+           SuperscriptBox["c4", "2"], " ", 
+           SuperscriptBox["\[ExponentialE]", 
+            RowBox[{
+             RowBox[{"-", "c4"}], " ", "\[Phi]"}]]}]}], ")"}]}], 
+       SuperscriptBox[
+        RowBox[{"(", 
+         RowBox[{
+          RowBox[{
+           RowBox[{"-", "c1"}], " ", "c2", " ", 
+           SuperscriptBox["\[ExponentialE]", 
+            RowBox[{
+             RowBox[{"-", "c2"}], " ", "\[Phi]"}]]}], "-", 
+          RowBox[{"c3", " ", "c4", " ", 
+           SuperscriptBox["\[ExponentialE]", 
+            RowBox[{
+             RowBox[{"-", "c4"}], " ", "\[Phi]"}]]}]}], ")"}], "2"]], 
+      FractionBox[
+       RowBox[{
+        RowBox[{"(", 
+         RowBox[{"c1", "+", "c3"}], ")"}], " ", 
+        RowBox[{"(", 
+         RowBox[{
+          RowBox[{"c1", " ", 
+           SuperscriptBox["c2", "2"]}], "+", 
+          RowBox[{"c3", " ", 
+           SuperscriptBox["c4", "2"]}]}], ")"}]}], 
+       SuperscriptBox[
+        RowBox[{"(", 
+         RowBox[{
+          RowBox[{
+           RowBox[{"-", "c1"}], " ", "c2"}], "-", 
+          RowBox[{"c3", " ", "c4"}]}], ")"}], "2"]], 
+      TemplateBox[{"1", 
+        RowBox[{
+          RowBox[{
+            RowBox[{"(", 
+              RowBox[{"c1", "|", "c3"}], ")"}], "\[Element]", 
+            TemplateBox[{}, "Reals"]}], "&&", 
+          RowBox[{"c2", ">", "0"}], "&&", 
+          RowBox[{"c2", ">", "c4"}], "&&", 
+          RowBox[{"c4", ">", "0"}]}]},
+       "ConditionalExpression"]}
+    },
+    GridBoxAlignment->{"Columns" -> {{Left}}, "Rows" -> {{Baseline}}},
+    GridBoxDividers->{
+     "Columns" -> {{False}}, "Rows" -> {False, True, {False}, False}},
+    GridBoxSpacings->{"Columns" -> {
+        Offset[0.27999999999999997`], {
+         Offset[2.0999999999999996`]}, 
+        Offset[0.27999999999999997`]}, "Rows" -> {
+        Offset[0.2], {
+         Offset[0.4]}, 
+        Offset[0.2]}}],
+   {None, OutputFormsDump`HeadedColumns}],
+  Function[BoxForm`e$, 
+   TableForm[
+   BoxForm`e$, 
+    TableHeadings -> {
+     None, {"Potential", "\[CapitalGamma]=VV''/(V')^2", 
+       "\[Phi]->0 \[CapitalGamma]", 
+       "\[Phi]->\[Infinity] \[CapitalGamma]"}}]]]], "Output",
+ CellChangeTimes->{{3.973766725104906*^9, 3.973766747771193*^9}, 
+   3.973766789984322*^9, 3.973869243520844*^9},
+ CellLabel->
+  "Out[10]//TableForm=",ExpressionUUID->"3cbaddbd-7789-4080-8e54-\
+ac9d9113e68c"]
+}, Open  ]],
+
+Cell[TextData[{
+ "We see that power-law potentials, Cosines, and pseudo-Nambu--Goldstone \
+potentials do not have attractor solutions. These are thawing respectively \
+oscillating scenarios. In ",
+ Cell[BoxData[
+ "CLASS"], "InlineCode",ExpressionUUID->
+  "ba7f6717-30e1-4c72-87f3-6403fffe3134"],
+ ", we will have to brute-force the initial conditions for \[Phi] and ",
+ Cell[BoxData[
+  FormBox[
+   TemplateBox[<|"boxes" -> FormBox[
+       SuperscriptBox["\[Phi]", "\[Prime]"], TraditionalForm], "errors" -> {},
+      "input" -> "\\phi^\\prime", "state" -> "Boxes"|>,
+    "TeXAssistantTemplate"], TraditionalForm]],ExpressionUUID->
+  "1506db3c-10b0-45ae-940f-d89c981531ca"],
+ " to match the energy budget. All other potentials have attractor solutions \
+for large \[Phi], and except for the hyperbolic potential also for small \
+\[Phi]."
+}], "Text",
+ CellChangeTimes->{{3.9737669657927437`*^9, 3.9737670878946533`*^9}, {
+  3.973767164731989*^9, 3.973767204941276*^9}, {3.9738675557615767`*^9, 
+  3.973867560435532*^9}, {3.973869267561849*^9, 
+  3.9738692744980183`*^9}},ExpressionUUID->"f878bec1-03a7-4eaf-8522-\
+cfae1bab991c"],
+
+Cell[TextData[{
+ "An important quantity is the relative slope of the potential, ",
+ Cell[BoxData[
+  FormBox[
+   TemplateBox[<|"boxes" -> FormBox[
+       RowBox[{"\[Lambda]", "\[LongEqual]", 
+         FractionBox[
+          SuperscriptBox[
+           StyleBox["V", "TI"], "\[Prime]"], 
+          StyleBox["V", "TI"]]}], TraditionalForm], "errors" -> {}, "input" -> 
+     "\\lambda=\\frac{V^\\prime}{V}", "state" -> "Boxes"|>,
+    "TeXAssistantTemplate"], TraditionalForm]],ExpressionUUID->
+  "ab4da8f8-2df7-4a5f-9cd8-8fea613401f7"],
+ ":"
+}], "Text",
+ CellChangeTimes->{{3.973767324880094*^9, 3.973767375226696*^9}, {
+  3.973867638118239*^9, 
+  3.973867667062169*^9}},ExpressionUUID->"2f040234-728f-48ed-adac-\
+657c1f5e2c72"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"exactlambda", "=", 
+   RowBox[{"ParallelTable", "[", 
+    RowBox[{
+     RowBox[{"With", "[", 
+      RowBox[{
+       RowBox[{"{", 
+        RowBox[{"V", "=", 
+         RowBox[{"potentials", "[", 
+          RowBox[{"[", "name", "]"}], "]"}]}], "}"}], ",", 
+       RowBox[{
+        RowBox[{"D", "[", 
+         RowBox[{"V", ",", "\[Phi]"}], "]"}], "/", "V"}]}], "]"}], ",", 
+     RowBox[{"{", 
+      RowBox[{"name", ",", 
+       RowBox[{"Keys", "[", "potentials", "]"}]}], "}"}]}], "]"}]}], 
+  ";"}]], "Input",
+ CellLabel->"In[11]:=",ExpressionUUID->"0db4117b-c15f-4663-9f7d-1d8d377a6190"],
+
+Cell[TextData[{
+ "as well as the tracking density ",
+ Cell[BoxData[
+  FormBox[
+   TemplateBox[<|"boxes" -> FormBox[
+       RowBox[{
+         SubscriptBox["\[Rho]", "tracking"], "\[LongEqual]", 
+         SubscriptBox["\[Rho]", "background"], 
+         FractionBox[
+          RowBox[{"3", "\[Gamma]"}], 
+          RowBox[{"\[Lambda]", "-", "3", "\[Gamma]"}]]}], TraditionalForm], 
+     "errors" -> {}, "input" -> 
+     "\\rho_{\\text{tracking}}=\\rho_{\\text{background}}\\frac{3\\gamma}{\\\
+lambda-3\\gamma}", "state" -> "Boxes"|>,
+    "TeXAssistantTemplate"], TraditionalForm]],ExpressionUUID->
+  "12be2d72-f3d0-4c65-8367-3d8b778f6795"]
+}], "Text",
+ CellChangeTimes->{{3.973767447318228*^9, 3.973767455137682*^9}, {
+  3.973867674105835*^9, 
+  3.973867723751346*^9}},ExpressionUUID->"d4a5f0fd-4023-43cc-8a19-\
+7a30e9e59f95"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"rhoTracking", "=", 
+   RowBox[{"\[Rho]", " ", "3", " ", 
+    RowBox[{
+     RowBox[{"\[Gamma]", "/", "exactlambda"}], "/", 
+     RowBox[{"(", 
+      RowBox[{"1", "-", 
+       RowBox[{"3", " ", 
+        RowBox[{"\[Gamma]", "/", "exactlambda"}]}]}], ")"}]}]}]}], 
+  ";"}]], "Input",
+ CellLabel->"In[12]:=",ExpressionUUID->"86fe35c5-ae82-4ba1-85ea-e0d9d056b880"],
+
+Cell[TextData[{
+ "where we use \[Rho] as the background energy density and \[Gamma]=1 for \
+dust or \[Gamma]=4/3 for radiation, i.e. \[Gamma]=1+\[Omega].\nThis then \
+yields the initial ",
+ Cell[BoxData[
+  FormBox[
+   TemplateBox[<|"boxes" -> FormBox[
+       RowBox[{
+         SuperscriptBox["\[Phi]", "\[Prime]"], "\[LongEqual]", 
+         SqrtBox[
+          RowBox[{
+            SubscriptBox["\[Rho]", "tracking"], "(", 
+            RowBox[{"1", "+", "\[Omega]"}], ")"}]]}], TraditionalForm], 
+     "errors" -> {}, "input" -> 
+     "\\phi^\\prime=\\sqrt{\\rho_{\\text{tracking}}\\left(1+\\omega\\right)}",
+      "state" -> "Boxes"|>,
+    "TeXAssistantTemplate"], TraditionalForm]],ExpressionUUID->
+  "409d48fe-0d36-42d9-9db8-0f17be536525"],
+ ":"
+}], "Text",
+ CellChangeTimes->{{3.973767473642234*^9, 3.973767521034136*^9}, {
+   3.973767567895267*^9, 3.9737675792972183`*^9}, {3.9738677774371033`*^9, 
+   3.97386782837401*^9}, 
+   3.9738683360346727`*^9},ExpressionUUID->"2d04383a-6586-41aa-9af3-\
+71fc5014c149"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"phiPrimeIni", "=", 
+   RowBox[{
+    RowBox[{"Sqrt", "[", 
+     RowBox[{"rhoTracking", " ", 
+      RowBox[{"(", 
+       RowBox[{"1", "+", "\[Omega]"}], ")"}]}], "]"}], "//", 
+    "FullSimplify"}]}], ";"}]], "Input",
+ CellChangeTimes->{{3.973868363918509*^9, 3.973868367212633*^9}},
+ CellLabel->"In[13]:=",ExpressionUUID->"ed09a261-9977-4806-ae76-7d38442f8756"],
+
+Cell[CellGroupData[{
+
+Cell[BoxData[
+ RowBox[{"TableForm", "[", 
+  RowBox[{
+   RowBox[{"Transpose", "[", 
+    RowBox[{"{", 
+     RowBox[{
+      RowBox[{"Keys", "[", "potentials", "]"}], ",", "exactlambda", ",", 
+      "phiPrimeIni"}], "}"}], "]"}], ",", 
+   RowBox[{"TableHeadings", "->", 
+    RowBox[{"{", 
+     RowBox[{"None", ",", 
+      RowBox[{"{", 
+       RowBox[{"\"\<Potential\>\"", ",", "\"\<\[Lambda] = V'/ V\>\"", 
+        ",", "\"\<initial \[Phi]'\>\""}], "}"}]}], "}"}]}]}], "]"}]], "Input",\
+
+ CellChangeTimes->{{3.973767616557233*^9, 3.973767642796359*^9}},
+ CellLabel->"In[14]:=",ExpressionUUID->"4e7837b8-1ffe-4c0c-b1fa-f8e76d37a982"],
+
+Cell[BoxData[
+ TagBox[
+  TagBox[GridBox[{
+     {
+      TagBox["\<\"Potential\"\>",
+       HoldForm], 
+      TagBox["\<\"\[Lambda] = V'/ V\"\>",
+       HoldForm], 
+      TagBox["\<\"initial \[Phi]'\"\>",
+       HoldForm]},
+     {"\<\"pl\"\>", 
+      FractionBox["p", "\[Phi]"], 
+      RowBox[{
+       SqrtBox["3"], " ", 
+       SqrtBox[
+        FractionBox[
+         RowBox[{"\[Gamma]", " ", "\[Rho]", " ", "\[Phi]", " ", 
+          RowBox[{"(", 
+           RowBox[{"1", "+", "\[Omega]"}], ")"}]}], 
+         RowBox[{"p", "-", 
+          RowBox[{"3", " ", "\[Gamma]", " ", "\[Phi]"}]}]]]}]},
+     {"\<\"cos\"\>", 
+      RowBox[{
+       RowBox[{"-", "c2"}], " ", 
+       RowBox[{"Tan", "[", 
+        RowBox[{"c2", " ", "\[Phi]"}], "]"}]}], 
+      RowBox[{
+       SqrtBox["3"], " ", 
+       SqrtBox[
+        RowBox[{"-", 
+         FractionBox[
+          RowBox[{"\[Gamma]", " ", "\[Rho]", " ", 
+           RowBox[{"(", 
+            RowBox[{"1", "+", "\[Omega]"}], ")"}], " ", 
+           RowBox[{"Cot", "[", 
+            RowBox[{"c2", " ", "\[Phi]"}], "]"}]}], 
+          RowBox[{"c2", "+", 
+           RowBox[{"3", " ", "\[Gamma]", " ", 
+            RowBox[{"Cot", "[", 
+             RowBox[{"c2", " ", "\[Phi]"}], "]"}]}]}]]}]]}]},
+     {"\<\"hyp\"\>", 
+      RowBox[{"-", 
+       FractionBox[
+        RowBox[{"c2", " ", 
+         SuperscriptBox[
+          RowBox[{"Sech", "[", 
+           RowBox[{"c2", " ", "\[Phi]"}], "]"}], "2"]}], 
+        RowBox[{"1", "-", 
+         RowBox[{"Tanh", "[", 
+          RowBox[{"c2", " ", "\[Phi]"}], "]"}]}]]}], 
+      RowBox[{
+       SqrtBox["3"], " ", 
+       SqrtBox[
+        RowBox[{"-", 
+         FractionBox[
+          RowBox[{"\[Gamma]", " ", "\[Rho]", " ", 
+           RowBox[{"(", 
+            RowBox[{"1", "+", "\[Omega]"}], ")"}], " ", 
+           RowBox[{"Cosh", "[", 
+            RowBox[{"c2", " ", "\[Phi]"}], "]"}]}], 
+          RowBox[{
+           RowBox[{
+            RowBox[{"(", 
+             RowBox[{"c2", "+", 
+              RowBox[{"3", " ", "\[Gamma]"}]}], ")"}], " ", 
+            RowBox[{"Cosh", "[", 
+             RowBox[{"c2", " ", "\[Phi]"}], "]"}]}], "+", 
+           RowBox[{"c2", " ", 
+            RowBox[{"Sinh", "[", 
+             RowBox[{"c2", " ", "\[Phi]"}], "]"}]}]}]]}]]}]},
+     {"\<\"pNG\"\>", 
+      RowBox[{"-", 
+       FractionBox[
+        RowBox[{"Sin", "[", 
+         FractionBox["\[Phi]", "c2"], "]"}], 
+        RowBox[{"c2", " ", 
+         RowBox[{"(", 
+          RowBox[{"1", "+", 
+           RowBox[{"Cos", "[", 
+            FractionBox["\[Phi]", "c2"], "]"}]}], ")"}]}]]}], 
+      SqrtBox[
+       RowBox[{"\[Rho]", " ", 
+        RowBox[{"(", 
+         RowBox[{"1", "+", "\[Omega]"}], ")"}], " ", 
+        RowBox[{"(", 
+         RowBox[{
+          RowBox[{"-", "1"}], "+", 
+          FractionBox["1", 
+           RowBox[{"1", "+", 
+            RowBox[{"3", " ", "c2", " ", "\[Gamma]", " ", 
+             RowBox[{"Cot", "[", 
+              FractionBox["\[Phi]", 
+               RowBox[{"2", " ", "c2"}]], "]"}]}]}]]}], ")"}]}]]},
+     {"\<\"iPL\"\>", 
+      RowBox[{"-", 
+       FractionBox["p", "\[Phi]"]}], 
+      RowBox[{
+       SqrtBox["3"], " ", 
+       SqrtBox[
+        RowBox[{"-", 
+         FractionBox[
+          RowBox[{"\[Gamma]", " ", "\[Rho]", " ", "\[Phi]", " ", 
+           RowBox[{"(", 
+            RowBox[{"1", "+", "\[Omega]"}], ")"}]}], 
+          RowBox[{"p", "+", 
+           RowBox[{"3", " ", "\[Gamma]", " ", "\[Phi]"}]}]]}]]}]},
+     {"\<\"exp\"\>", 
+      RowBox[{"-", "c2"}], 
+      RowBox[{
+       SqrtBox["3"], " ", 
+       SqrtBox[
+        RowBox[{"-", 
+         FractionBox[
+          RowBox[{"\[Gamma]", " ", "\[Rho]", " ", 
+           RowBox[{"(", 
+            RowBox[{"1", "+", "\[Omega]"}], ")"}]}], 
+          RowBox[{"c2", "+", 
+           RowBox[{"3", " ", "\[Gamma]"}]}]]}]]}]},
+     {"\<\"sqexp\"\>", 
+      RowBox[{
+       SuperscriptBox["c", 
+        RowBox[{
+         RowBox[{"-", "4"}], "-", "p"}]], " ", 
+       SuperscriptBox["\[ExponentialE]", 
+        RowBox[{
+         RowBox[{"-", "c"}], " ", 
+         SuperscriptBox["\[Phi]", "2"]}]], " ", 
+       SuperscriptBox["\[Phi]", "p"], " ", 
+       RowBox[{"(", 
+        RowBox[{
+         RowBox[{
+          RowBox[{"-", 
+           SuperscriptBox["c", 
+            RowBox[{"4", "+", "p"}]]}], " ", 
+          SuperscriptBox["\[ExponentialE]", 
+           RowBox[{"c", " ", 
+            SuperscriptBox["\[Phi]", "2"]}]], " ", "p", " ", 
+          SuperscriptBox["\[Phi]", 
+           RowBox[{
+            RowBox[{"-", "1"}], "-", "p"}]]}], "+", 
+         RowBox[{"2", " ", 
+          SuperscriptBox["c", 
+           RowBox[{"5", "+", "p"}]], " ", 
+          SuperscriptBox["\[ExponentialE]", 
+           RowBox[{"c", " ", 
+            SuperscriptBox["\[Phi]", "2"]}]], " ", 
+          SuperscriptBox["\[Phi]", 
+           RowBox[{"1", "-", "p"}]]}]}], ")"}]}], 
+      RowBox[{
+       SqrtBox["3"], " ", 
+       SqrtBox[
+        RowBox[{"-", 
+         FractionBox[
+          RowBox[{"\[Gamma]", " ", "\[Rho]", " ", "\[Phi]", " ", 
+           RowBox[{"(", 
+            RowBox[{"1", "+", "\[Omega]"}], ")"}]}], 
+          RowBox[{"p", "+", 
+           RowBox[{"\[Phi]", " ", 
+            RowBox[{"(", 
+             RowBox[{
+              RowBox[{"3", " ", "\[Gamma]"}], "-", 
+              RowBox[{"2", " ", "c", " ", "\[Phi]"}]}], ")"}]}]}]]}]]}]},
+     {"\<\"bexp\"\>", 
+      FractionBox[
+       RowBox[{
+        SuperscriptBox["\[ExponentialE]", 
+         RowBox[{"c3", " ", "\[Phi]"}]], " ", 
+        RowBox[{"(", 
+         RowBox[{
+          RowBox[{"2", " ", "c1", " ", 
+           SuperscriptBox["\[ExponentialE]", 
+            RowBox[{
+             RowBox[{"-", "c3"}], " ", "\[Phi]"}]], " ", "\[Phi]"}], "-", 
+          RowBox[{"c1", " ", "c3", " ", 
+           SuperscriptBox["\[ExponentialE]", 
+            RowBox[{
+             RowBox[{"-", "c3"}], " ", "\[Phi]"}]], " ", 
+           RowBox[{"(", 
+            RowBox[{"c2", "+", 
+             SuperscriptBox["\[Phi]", "2"]}], ")"}]}]}], ")"}]}], 
+       RowBox[{"c1", " ", 
+        RowBox[{"(", 
+         RowBox[{"c2", "+", 
+          SuperscriptBox["\[Phi]", "2"]}], ")"}]}]], 
+      RowBox[{
+       SqrtBox["3"], " ", 
+       SqrtBox[
+        RowBox[{"-", 
+         FractionBox[
+          RowBox[{"\[Gamma]", " ", "\[Rho]", " ", 
+           RowBox[{"(", 
+            RowBox[{"c2", "+", 
+             SuperscriptBox["\[Phi]", "2"]}], ")"}], " ", 
+           RowBox[{"(", 
+            RowBox[{"1", "+", "\[Omega]"}], ")"}]}], 
+          RowBox[{
+           RowBox[{
+            RowBox[{"-", "2"}], " ", "\[Phi]"}], "+", 
+           RowBox[{
+            RowBox[{"(", 
+             RowBox[{"c3", "+", 
+              RowBox[{"3", " ", "\[Gamma]"}]}], ")"}], " ", 
+            RowBox[{"(", 
+             RowBox[{"c2", "+", 
+              SuperscriptBox["\[Phi]", "2"]}], ")"}]}]}]]}]]}]},
+     {"\<\"dexp\"\>", 
+      FractionBox[
+       RowBox[{
+        RowBox[{
+         RowBox[{"-", "c1"}], " ", "c2", " ", 
+         SuperscriptBox["\[ExponentialE]", 
+          RowBox[{
+           RowBox[{"-", "c2"}], " ", "\[Phi]"}]]}], "-", 
+        RowBox[{"c3", " ", "c4", " ", 
+         SuperscriptBox["\[ExponentialE]", 
+          RowBox[{
+           RowBox[{"-", "c4"}], " ", "\[Phi]"}]]}]}], 
+       RowBox[{
+        RowBox[{"c1", " ", 
+         SuperscriptBox["\[ExponentialE]", 
+          RowBox[{
+           RowBox[{"-", "c2"}], " ", "\[Phi]"}]]}], "+", 
+        RowBox[{"c3", " ", 
+         SuperscriptBox["\[ExponentialE]", 
+          RowBox[{
+           RowBox[{"-", "c4"}], " ", "\[Phi]"}]]}]}]], 
+      RowBox[{
+       SqrtBox["3"], " ", 
+       SqrtBox[
+        RowBox[{"-", 
+         FractionBox[
+          RowBox[{
+           RowBox[{"(", 
+            RowBox[{
+             RowBox[{"c3", " ", 
+              SuperscriptBox["\[ExponentialE]", 
+               RowBox[{"c2", " ", "\[Phi]"}]]}], "+", 
+             RowBox[{"c1", " ", 
+              SuperscriptBox["\[ExponentialE]", 
+               RowBox[{"c4", " ", "\[Phi]"}]]}]}], ")"}], " ", "\[Gamma]", " ",
+            "\[Rho]", " ", 
+           RowBox[{"(", 
+            RowBox[{"1", "+", "\[Omega]"}], ")"}]}], 
+          RowBox[{
+           RowBox[{"c1", " ", 
+            SuperscriptBox["\[ExponentialE]", 
+             RowBox[{"c4", " ", "\[Phi]"}]], " ", 
+            RowBox[{"(", 
+             RowBox[{"c2", "+", 
+              RowBox[{"3", " ", "\[Gamma]"}]}], ")"}]}], "+", 
+           RowBox[{"c3", " ", 
+            SuperscriptBox["\[ExponentialE]", 
+             RowBox[{"c2", " ", "\[Phi]"}]], " ", 
+            RowBox[{"(", 
+             RowBox[{"c4", "+", 
+              RowBox[{"3", " ", "\[Gamma]"}]}], ")"}]}]}]]}]]}]}
+    },
+    GridBoxAlignment->{"Columns" -> {{Left}}, "Rows" -> {{Baseline}}},
+    GridBoxDividers->{
+     "Columns" -> {{False}}, "Rows" -> {False, True, {False}, False}},
+    GridBoxSpacings->{"Columns" -> {
+        Offset[0.27999999999999997`], {
+         Offset[2.0999999999999996`]}, 
+        Offset[0.27999999999999997`]}, "Rows" -> {
+        Offset[0.2], {
+         Offset[0.4]}, 
+        Offset[0.2]}}],
+   {None, OutputFormsDump`HeadedColumns}],
+  Function[BoxForm`e$, 
+   TableForm[
+   BoxForm`e$, 
+    TableHeadings -> {
+     None, {"Potential", "\[Lambda] = V'/ V", 
+       "initial \[Phi]'"}}]]]], "Output",
+ CellChangeTimes->{3.97376764527736*^9, 3.973869245203388*^9},
+ CellLabel->
+  "Out[14]//TableForm=",ExpressionUUID->"60b7931c-6ed3-4b00-814d-\
+a680f488bc81"]
+}, Open  ]],
+
+Cell["\<\
+We see that most of these attractor initial conditions depend on the initial \
+field value. We can take large field attractors, which are in a quintessence \
+context usually understood as the early universe attractor, and a \
+small-field, late-time attractor solution.\
+\>", "Text",
+ CellChangeTimes->{{3.9738684057643557`*^9, 
+  3.9738684798774157`*^9}},ExpressionUUID->"548e60bb-7a88-42ba-acd8-\
+578e9af9274d"]
+}, Open  ]],
+
+Cell[CellGroupData[{
+
+Cell["Large \[Phi] Attractor Solutions", "Section",
+ CellChangeTimes->{{3.973767227334755*^9, 
+  3.973767236057329*^9}},ExpressionUUID->"a764e3e9-361c-44da-81d3-\
+3f44c26a778d"],
+
+Cell[CellGroupData[{
+
+Cell[TextData[{
+ "Initial ",
+ Cell[BoxData[
+  FormBox[
+   TemplateBox[<|"boxes" -> FormBox[
+       SuperscriptBox["\[Phi]", "\[Prime]"], TraditionalForm], "errors" -> {},
+      "input" -> "\\phi^\\prime", "state" -> "Boxes"|>,
+    "TeXAssistantTemplate"], TraditionalForm]],ExpressionUUID->
+  "4218c93a-05f3-4acd-bcc0-3b889e1c5171"]
+}], "Subsection",
+ CellChangeTimes->{{3.9737682380097303`*^9, 3.9737682462049713`*^9}, {
+  3.973868065652299*^9, 
+  3.9738680737611513`*^9}},ExpressionUUID->"5d8ef2d1-2e6a-4435-b370-\
+747db1f46e15"],
+
+Cell[TextData[{
+ "In the large \[Phi] limit, we obtain the following initial values for ",
+ Cell[BoxData[
+  FormBox[
+   TemplateBox[<|"boxes" -> FormBox[
+       SuperscriptBox["\[Phi]", "\[Prime]"], TraditionalForm], "errors" -> {},
+      "input" -> "\\phi^\\prime", "state" -> "Boxes"|>,
+    "TeXAssistantTemplate"], TraditionalForm]],ExpressionUUID->
+  "c3c6db0f-b7b7-4635-8ce4-0019e4b84c29"],
+ ":"
+}], "Text",
+ CellChangeTimes->{{3.973767400290818*^9, 3.973767415001134*^9}, {
+  3.973767809520979*^9, 3.973767827204728*^9}, {3.973868080793316*^9, 
+  3.973868089355548*^9}},ExpressionUUID->"aa673a77-45aa-40e4-a3ca-\
+3b669253de19"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"phiPrimeIniLargePhi", "=", 
+   RowBox[{"ParallelTable", "[", 
+    RowBox[{
+     RowBox[{
+      RowBox[{"Limit", "[", 
+       RowBox[{
+        RowBox[{"phiPrimeIni", "[", 
+         RowBox[{"[", "i", "]"}], "]"}], ",", 
+        RowBox[{"\[Phi]", "->", "Infinity"}]}], "]"}], "//", "Simplify"}], ",", 
+     RowBox[{"{", 
+      RowBox[{"i", ",", 
+       RowBox[{"Length", "[", "phiPrimeIni", "]"}]}], "}"}]}], "]"}]}], 
+  ";"}]], "Input",
+ CellChangeTimes->{{3.973767833173715*^9, 3.973767938734776*^9}, {
+  3.973767984891609*^9, 3.973767986166823*^9}, {3.9738685257049837`*^9, 
+  3.973868528183419*^9}},
+ CellLabel->"In[15]:=",ExpressionUUID->"7d53563b-5b37-4e56-bd66-b77aa7724ddb"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"lambdaLimitLargePhi", "=", 
+   RowBox[{"ParallelTable", "[", 
+    RowBox[{
+     RowBox[{"Limit", "[", 
+      RowBox[{
+       RowBox[{"exactlambda", "[", 
+        RowBox[{"[", "i", "]"}], "]"}], ",", 
+       RowBox[{"\[Phi]", "->", "Infinity"}]}], "]"}], ",", 
+     RowBox[{"{", 
+      RowBox[{"i", ",", 
+       RowBox[{"Length", "[", "exactlambda", "]"}]}], "}"}]}], "]"}]}], 
+  ";"}]], "Input",
+ CellLabel->"In[16]:=",ExpressionUUID->"e5322845-576d-480a-8598-e3fdb6e09e27"],
+
+Cell[CellGroupData[{
+
+Cell[BoxData[
+ RowBox[{"TableForm", "[", 
+  RowBox[{
+   RowBox[{"Transpose", "[", 
+    RowBox[{"{", 
+     RowBox[{
+      RowBox[{"Keys", "[", "potentials", "]"}], ",", "lambdaLimitLargePhi", ",",
+       "phiPrimeIniLargePhi"}], "}"}], "]"}], ",", 
+   RowBox[{"TableHeadings", "->", 
+    RowBox[{"{", 
+     RowBox[{"None", ",", 
+      RowBox[{"{", 
+       RowBox[{"\"\<Potential\>\"", ",", "\"\<large-field \[Lambda]\>\"", 
+        ",", "\"\<large-field \!\(\*TemplateBox[<|\"boxes\" -> FormBox[
+SubsuperscriptBox[\"\[Phi]\", \"ini\", \"\[Prime]\"], TraditionalForm], \
+\"errors\" -> {}, \"input\" -> \"\\\\phi^\\\\prime_ {\\\\text {ini}}\", \
+\"state\" -> \"Boxes\"|>,\"TeXAssistantTemplate\"]\)\>\""}], "}"}]}], 
+     "}"}]}]}], "]"}]], "Input",
+ CellChangeTimes->{{3.97376799243579*^9, 3.973767993795884*^9}, {
+  3.973869020057063*^9, 3.973869049558173*^9}},
+ CellLabel->"In[17]:=",ExpressionUUID->"b3b5c11e-f685-4b73-982e-329623d98cda"],
+
+Cell[BoxData[
+ TagBox[
+  TagBox[GridBox[{
+     {
+      TagBox["\<\"Potential\"\>",
+       HoldForm], 
+      TagBox["\<\"large-field \[Lambda]\"\>",
+       HoldForm], 
+      TagBox["\<\"large-field \\!\\(\\*TemplateBox[<|\\\"boxes\\\" -> \
+FormBox[SubsuperscriptBox[\\\"\[Phi]\\\", \\\"ini\\\", \\\"\[Prime]\\\"], \
+TraditionalForm], \\\"errors\\\" -> {}, \\\"input\\\" -> \\\"\\\\\\\\phi^\\\\\
+\\\\prime_ {\\\\\\\\text {ini}}\\\", \\\"state\\\" -> \
+\\\"Boxes\\\"|>,\\\"TeXAssistantTemplate\\\"]\\)\"\>",
+       HoldForm]},
+     {"\<\"pl\"\>", "0", 
+      SqrtBox[
+       RowBox[{
+        RowBox[{"-", "\[Rho]"}], " ", 
+        RowBox[{"(", 
+         RowBox[{"1", "+", "\[Omega]"}], ")"}]}]]},
+     {"\<\"cos\"\>", 
+      TemplateBox[{"Indeterminate", 
+        RowBox[{"c2", "\[Element]", 
+          TemplateBox[{}, "Reals"]}]},
+       "ConditionalExpression"], 
+      RowBox[{
+       UnderscriptBox["\[Limit]", 
+        RowBox[{"\[Phi]", "\[Rule]", "\[Infinity]"}]], 
+       RowBox[{
+        SqrtBox["3"], " ", 
+        SqrtBox[
+         RowBox[{"-", 
+          FractionBox[
+           RowBox[{"\[Gamma]", " ", "\[Rho]", " ", 
+            RowBox[{"(", 
+             RowBox[{"1", "+", "\[Omega]"}], ")"}], " ", 
+            RowBox[{"Cot", "[", 
+             RowBox[{"c2", " ", "\[Phi]"}], "]"}]}], 
+           RowBox[{"c2", "+", 
+            RowBox[{"3", " ", "\[Gamma]", " ", 
+             RowBox[{"Cot", "[", 
+              RowBox[{"c2", " ", "\[Phi]"}], "]"}]}]}]]}]]}]}]},
+     {"\<\"hyp\"\>", 
+      TemplateBox[{
+        RowBox[{
+          RowBox[{"-", "2"}], " ", "c2"}], 
+        RowBox[{"c2", ">", "0"}]},
+       "ConditionalExpression"], 
+      TemplateBox[{
+        RowBox[{
+          SqrtBox["3"], " ", 
+          SqrtBox[
+           RowBox[{"-", 
+             FractionBox[
+              RowBox[{"\[Gamma]", " ", "\[Rho]", " ", 
+                RowBox[{"(", 
+                  RowBox[{"1", "+", "\[Omega]"}], ")"}]}], 
+              RowBox[{
+                RowBox[{"2", " ", "c2"}], "+", 
+                RowBox[{"3", " ", "\[Gamma]"}]}]]}]]}], 
+        RowBox[{
+          RowBox[{
+            RowBox[{"(", 
+              RowBox[{"\[Gamma]", "|", "\[Rho]", "|", "\[Omega]"}], ")"}], 
+            "\[Element]", 
+            TemplateBox[{}, "Reals"]}], "&&", 
+          RowBox[{"c2", ">", "0"}], "&&", 
+          RowBox[{
+            RowBox[{"\[Gamma]", " ", "\[Rho]", " ", 
+              RowBox[{"(", 
+                RowBox[{"1", "+", "\[Omega]"}], ")"}], " ", 
+              RowBox[{"Re", "[", 
+                FractionBox["1", 
+                 RowBox[{
+                   RowBox[{"2", " ", "c2"}], "+", 
+                   RowBox[{"3", " ", "\[Gamma]"}]}]], "]"}]}], "<", "0"}]}]},
+       "ConditionalExpression"]},
+     {"\<\"pNG\"\>", 
+      RowBox[{
+       UnderscriptBox["\[Limit]", 
+        RowBox[{"\[Phi]", "\[Rule]", "\[Infinity]"}]], 
+       RowBox[{"-", 
+        FractionBox[
+         RowBox[{"Sin", "[", 
+          FractionBox["\[Phi]", "c2"], "]"}], 
+         RowBox[{"c2", " ", 
+          RowBox[{"(", 
+           RowBox[{"1", "+", 
+            RowBox[{"Cos", "[", 
+             FractionBox["\[Phi]", "c2"], "]"}]}], ")"}]}]]}]}], 
+      RowBox[{
+       UnderscriptBox["\[Limit]", 
+        RowBox[{"\[Phi]", "\[Rule]", "\[Infinity]"}]], 
+       SqrtBox[
+        RowBox[{"\[Rho]", " ", 
+         RowBox[{"(", 
+          RowBox[{"1", "+", "\[Omega]"}], ")"}], " ", 
+         RowBox[{"(", 
+          RowBox[{
+           RowBox[{"-", "1"}], "+", 
+           FractionBox["1", 
+            RowBox[{"1", "+", 
+             RowBox[{"3", " ", "c2", " ", "\[Gamma]", " ", 
+              RowBox[{"Cot", "[", 
+               FractionBox["\[Phi]", 
+                RowBox[{"2", " ", "c2"}]], "]"}]}]}]]}], ")"}]}]]}]},
+     {"\<\"iPL\"\>", "0", 
+      SqrtBox[
+       RowBox[{
+        RowBox[{"-", "\[Rho]"}], " ", 
+        RowBox[{"(", 
+         RowBox[{"1", "+", "\[Omega]"}], ")"}]}]]},
+     {"\<\"exp\"\>", 
+      RowBox[{"-", "c2"}], 
+      RowBox[{
+       SqrtBox["3"], " ", 
+       SqrtBox[
+        RowBox[{"-", 
+         FractionBox[
+          RowBox[{"\[Gamma]", " ", "\[Rho]", " ", 
+           RowBox[{"(", 
+            RowBox[{"1", "+", "\[Omega]"}], ")"}]}], 
+          RowBox[{"c2", "+", 
+           RowBox[{"3", " ", "\[Gamma]"}]}]]}]]}]},
+     {"\<\"sqexp\"\>", 
+      RowBox[{"c", " ", "\[Infinity]"}], "0"},
+     {"\<\"bexp\"\>", 
+      RowBox[{"-", "c3"}], 
+      RowBox[{
+       SqrtBox["3"], " ", 
+       SqrtBox[
+        RowBox[{"-", 
+         FractionBox[
+          RowBox[{"\[Gamma]", " ", "\[Rho]", " ", 
+           RowBox[{"(", 
+            RowBox[{"1", "+", "\[Omega]"}], ")"}]}], 
+          RowBox[{"c3", "+", 
+           RowBox[{"3", " ", "\[Gamma]"}]}]]}]]}]},
+     {"\<\"dexp\"\>", 
+      TemplateBox[{
+        RowBox[{"-", "c4"}], 
+        RowBox[{
+          RowBox[{
+            RowBox[{"(", 
+              RowBox[{"c1", "|", "c3"}], ")"}], "\[Element]", 
+            TemplateBox[{}, "Reals"]}], "&&", 
+          RowBox[{"c2", ">", "0"}], "&&", 
+          RowBox[{"c2", ">", "c4"}], "&&", 
+          RowBox[{"c4", ">", "0"}]}]},
+       "ConditionalExpression"], 
+      TemplateBox[{
+        RowBox[{
+          SqrtBox["3"], " ", 
+          SqrtBox[
+           RowBox[{"-", 
+             FractionBox[
+              RowBox[{"\[Gamma]", " ", "\[Rho]", " ", 
+                RowBox[{"(", 
+                  RowBox[{"1", "+", "\[Omega]"}], ")"}]}], 
+              RowBox[{"c4", "+", 
+                RowBox[{"3", " ", "\[Gamma]"}]}]]}]]}], 
+        InterpretationBox[
+         DynamicModuleBox[{Typeset`open = False}, 
+          TemplateBox[{"Expression", 
+            StyleBox[
+             TagBox[
+              TooltipBox["\"condition\"", 
+               TagBox[
+                RowBox[{
+                  RowBox[{
+                    RowBox[{"(", 
+                    
+                    RowBox[{
+                    "c3", "|", "c1", "|", "\[Gamma]", "|", "\[Rho]", "|", 
+                    "\[Omega]"}], ")"}], "\[Element]", 
+                    TemplateBox[{}, "Reals"]}], "&&", 
+                  RowBox[{"c2", ">", "0"}], "&&", 
+                  RowBox[{"c2", ">", "c4"}], "&&", 
+                  RowBox[{"c4", ">", "0"}], "&&", 
+                  RowBox[{
+                    RowBox[{"\[Gamma]", " ", "\[Rho]", " ", 
+                    RowBox[{"(", 
+                    RowBox[{"1", "+", "\[Omega]"}], ")"}], " ", 
+                    RowBox[{"Re", "[", 
+                    FractionBox["1", 
+                    RowBox[{"c4", "+", 
+                    RowBox[{"3", " ", "\[Gamma]"}]}]], "]"}]}], "<", "0"}]}], 
+                Short[#, 7]& ]], Annotation[#, 
+               Short[
+                And[
+                 Element[
+                  
+                  Alternatives[$CellContext`c3, $CellContext`c1, \
+$CellContext`\[Gamma], $CellContext`\[Rho], $CellContext`\[Omega]], 
+                  Reals], $CellContext`c2 > 
+                 0, $CellContext`c2 > $CellContext`c4, $CellContext`c4 > 
+                 0, $CellContext`\[Gamma] $CellContext`\[Rho] (
+                   1 + $CellContext`\[Omega]) 
+                  Re[($CellContext`c4 + 3 $CellContext`\[Gamma])^(-1)] < 0], 
+                7], "Tooltip"]& ], "IconizedCustomName", StripOnInput -> 
+             False], 
+            GridBox[{{
+               RowBox[{
+                 TagBox["\"Head: \"", "IconizedLabel"], "\[InvisibleSpace]", 
+                 TagBox["And", "IconizedItem"]}]}, {
+               RowBox[{
+                 TagBox["\"Byte count: \"", "IconizedLabel"], 
+                 "\[InvisibleSpace]", 
+                 TagBox["880", "IconizedItem"]}]}}, 
+             GridBoxAlignment -> {"Columns" -> {{Left}}}, DefaultBaseStyle -> 
+             "Column", 
+             GridBoxItemSize -> {
+              "Columns" -> {{Automatic}}, "Rows" -> {{Automatic}}}], 
+            Dynamic[Typeset`open]}, "IconizedObject"]], 
+         And[
+          Element[
+           
+           Alternatives[$CellContext`c3, $CellContext`c1, $CellContext`\
+\[Gamma], $CellContext`\[Rho], $CellContext`\[Omega]], 
+           Reals], $CellContext`c2 > 
+          0, $CellContext`c2 > $CellContext`c4, $CellContext`c4 > 
+          0, $CellContext`\[Gamma] $CellContext`\[Rho] (
+            1 + $CellContext`\[Omega]) 
+           Re[($CellContext`c4 + 3 $CellContext`\[Gamma])^(-1)] < 0], 
+         SelectWithContents -> True, Selectable -> False]},
+       "ConditionalExpression"]}
+    },
+    GridBoxAlignment->{"Columns" -> {{Left}}, "Rows" -> {{Baseline}}},
+    GridBoxDividers->{
+     "Columns" -> {{False}}, "Rows" -> {False, True, {False}, False}},
+    GridBoxSpacings->{"Columns" -> {
+        Offset[0.27999999999999997`], {
+         Offset[2.0999999999999996`]}, 
+        Offset[0.27999999999999997`]}, "Rows" -> {
+        Offset[0.2], {
+         Offset[0.4]}, 
+        Offset[0.2]}}],
+   {None, OutputFormsDump`HeadedColumns}],
+  Function[BoxForm`e$, 
+   TableForm[
+   BoxForm`e$, 
+    TableHeadings -> {
+     None, {"Potential", "large-field \[Lambda]", 
+       "large-field \!\(\*TemplateBox[<|\"boxes\" -> \
+FormBox[SubsuperscriptBox[\"\[Phi]\", \"ini\", \"\[Prime]\"], \
+TraditionalForm], \"errors\" -> {}, \"input\" -> \"\\\\phi^\\\\prime_ \
+{\\\\text {ini}}\", \"state\" -> \
+\"Boxes\"|>,\"TeXAssistantTemplate\"]\)"}}]]]], "Output",
+ CellChangeTimes->{3.973768032488922*^9, 3.973869360929941*^9},
+ CellLabel->
+  "Out[17]//TableForm=",ExpressionUUID->"6dd3126d-77dd-4e57-acd3-\
+7fad65ab7117"]
+}, Open  ]],
+
+Cell[TextData[{
+ "We already know that power-law potentials, Cosines, and \
+pseudo-Nambu--Goldstone potentials do not have attractor solutions. Here, we \
+see that Hyperbolic potentials and double exponential potentials do not have \
+physical attractor solutions, as there is no real initial ",
+ Cell[BoxData[
+  FormBox[
+   TemplateBox[<|"boxes" -> FormBox[
+       SuperscriptBox["\[Phi]", "\[Prime]"], TraditionalForm], "errors" -> {},
+      "input" -> "\\phi^\\prime", "state" -> "Boxes"|>,
+    "TeXAssistantTemplate"], TraditionalForm]],ExpressionUUID->
+  "bf5fe0b3-b46e-4de8-b477-f3cb5febf49c"],
+ " for those. However, both approximate a simple exponential, i.e. at least \
+numerically an attractor initial condition exists, which suffices for ",
+ Cell[BoxData[
+ "CLASS"], "InlineCode",ExpressionUUID->
+  "a456528d-ea03-4409-8cbd-4342287114e3"],
+ "."
+}], "Text",
+ CellChangeTimes->{{3.9737797895578623`*^9, 3.973779862027624*^9}, {
+  3.973779912749104*^9, 3.973779946554378*^9}, {3.973868543762723*^9, 
+  3.973868552635236*^9}},ExpressionUUID->"7d3a414c-79b9-4e57-93b8-\
+35315a2a6eea"]
+}, Open  ]],
+
+Cell[CellGroupData[{
+
+Cell["Initial \[Phi]", "Subsection",
+ CellChangeTimes->{{3.9737682527560596`*^9, 
+  3.973768255537858*^9}},ExpressionUUID->"86ce9432-d6c4-4b88-9668-\
+9e8d0969e64e"],
+
+Cell[TextData[{
+ "For the initial value of ",
+ Cell[BoxData[
+  FormBox[
+   TemplateBox[<|
+    "boxes" -> FormBox["\[Phi]", TraditionalForm], "errors" -> {}, "input" -> 
+     "\\phi", "state" -> "Boxes"|>,
+    "TeXAssistantTemplate"], TraditionalForm]],ExpressionUUID->
+  "7ad6731f-6fa5-46e0-95a2-44c562fe797d"],
+ " we solve the equation ",
+ Cell[BoxData[
+  FormBox[
+   TemplateBox[<|"boxes" -> FormBox[
+       RowBox[{
+         FractionBox[
+          RowBox[{"2", 
+            StyleBox["V", "TI"], 
+            RowBox[{"(", "\[Phi]", ")"}]}], 
+          RowBox[{"1", "-", "\[Omega]"}]], "\[LongEqual]", 
+         SubscriptBox["\[Rho]", "tracking"]}], TraditionalForm], 
+     "errors" -> {}, "input" -> 
+     "\\frac{2V\\left(\\phi\\right)}{1-\\omega}=\\rho_{\\text{tracking}}", 
+     "state" -> "Boxes"|>,
+    "TeXAssistantTemplate"], TraditionalForm]],ExpressionUUID->
+  "3c4f4cb4-537b-4623-8e99-4205cf24c34e"],
+ ". This does not always have a real or close-form solution, since ",
+ Cell[BoxData[
+  FormBox[
+   TemplateBox[<|"boxes" -> FormBox[
+       SubscriptBox["\[Rho]", "tracking"], TraditionalForm], "errors" -> {}, 
+     "input" -> "\\rho_{\\text{tracking}}", "state" -> "Boxes"|>,
+    "TeXAssistantTemplate"], TraditionalForm]],ExpressionUUID->
+  "d6b47881-3dfe-48b6-b4a1-6529e244017d"],
+ " depends on ",
+ Cell[BoxData[
+  FormBox[
+   TemplateBox[<|"boxes" -> FormBox[
+       StyleBox["V", "TI"], TraditionalForm], "errors" -> {}, "input" -> "V", 
+     "state" -> "Boxes"|>,
+    "TeXAssistantTemplate"], TraditionalForm]],ExpressionUUID->
+  "938094ba-4767-41f0-aeaf-738089402227"],
+ " and ",
+ Cell[BoxData[
+  FormBox[
+   TemplateBox[<|"boxes" -> FormBox[
+       SuperscriptBox[
+        StyleBox["V", "TI"], "\[Prime]"], TraditionalForm], "errors" -> {}, 
+     "input" -> "V^\\prime", "state" -> "Boxes"|>,
+    "TeXAssistantTemplate"], TraditionalForm]],ExpressionUUID->
+  "af3afb7a-a4d4-4521-b491-7ccef710f91e"],
+ " and therefore non-trivially on ",
+ Cell[BoxData[
+  FormBox[
+   TemplateBox[<|
+    "boxes" -> FormBox["\[Phi]", TraditionalForm], "errors" -> {}, "input" -> 
+     "\\phi", "state" -> "Boxes"|>,
+    "TeXAssistantTemplate"], TraditionalForm]],ExpressionUUID->
+  "0722e497-556e-4fbc-b200-667d9cef67ca"],
+ " itself."
+}], "Text",
+ CellChangeTimes->{{3.9738685812848463`*^9, 3.973868589265545*^9}, {
+  3.9738686194711103`*^9, 
+  3.973868789366267*^9}},ExpressionUUID->"38d01ef4-48b4-44d6-a0b4-\
+bbe191c3f126"],
+
+Cell[CellGroupData[{
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"(*", 
+   RowBox[{
+    RowBox[{"Compute", " ", "large"}], "-", 
+    RowBox[{
+    "phi", " ", "initial", " ", "conditions", " ", "in", " ", "parallel"}]}], 
+   "*)"}], 
+  RowBox[{
+   RowBox[{
+    RowBox[{"largePhiInitial", "=", 
+     RowBox[{"ParallelTable", "[", 
+      RowBox[{
+       RowBox[{"Module", "[", 
+        RowBox[{
+         RowBox[{"{", 
+          RowBox[{
+           RowBox[{"name", "=", 
+            RowBox[{"names", "[", 
+             RowBox[{"[", "i", "]"}], "]"}]}], ",", 
+           RowBox[{"V", "=", 
+            RowBox[{"vals", "[", 
+             RowBox[{"[", "i", "]"}], "]"}]}], ",", 
+           RowBox[{"LambdaLargePhi", "=", 
+            RowBox[{"lambdaLimitLargePhi", "[", 
+             RowBox[{"[", "i", "]"}], "]"}]}], ",", "VLargePhi", ",", "eqn", ",",
+            "result"}], "}"}], ",", 
+         RowBox[{"(*", 
+          RowBox[{
+           RowBox[{
+           "Asymptotic", " ", "form", " ", "of", " ", "V", " ", "as", " ", 
+            "\[Phi]"}], "\[RightArrow]", 
+           RowBox[{"\[Infinity]", " ", 
+            RowBox[{"(", 
+             RowBox[{"leading", " ", "term", " ", "only"}], ")"}]}]}], "*)"}], 
+         RowBox[{
+          RowBox[{"VLargePhi", "=", 
+           RowBox[{"Normal", "@", 
+            RowBox[{"Series", "[", 
+             RowBox[{"V", ",", 
+              RowBox[{"{", 
+               RowBox[{"\[Phi]", ",", "Infinity", ",", "1"}], "}"}]}], 
+             "]"}]}]}], ";", "\[IndentingNewLine]", 
+          RowBox[{"(*", 
+           RowBox[{
+           "Construct", " ", "attractor", " ", "equation", " ", "using", " ", 
+            "asymptotic", " ", "Lambda", " ", "and", " ", "V"}], "*)"}], 
+          RowBox[{"eqn", "=", 
+           RowBox[{
+            RowBox[{
+             RowBox[{"2", " ", 
+              RowBox[{"VLargePhi", "/", 
+               RowBox[{"(", 
+                RowBox[{"1", "-", "\[Omega]"}], ")"}]}]}], "==", 
+             RowBox[{"\[Rho]", " ", "3", " ", 
+              RowBox[{
+               RowBox[{"\[Gamma]", "/", 
+                RowBox[{
+                 RowBox[{"(", "LambdaLargePhi", ")"}], "^", "2"}]}], "/", 
+               RowBox[{"(", 
+                RowBox[{"1", "-", 
+                 RowBox[{"3", " ", 
+                  RowBox[{"\[Gamma]", "/", 
+                   RowBox[{
+                    RowBox[{"(", "LambdaLargePhi", ")"}], "^", "2"}]}]}]}], 
+                ")"}]}]}]}], "&&", 
+            RowBox[{"p", ">", "0"}], "&&", 
+            RowBox[{"\[Gamma]", ">", "0"}], "&&", 
+            RowBox[{"\[Rho]", ">", "0"}], "&&", 
+            RowBox[{"\[Omega]", ">", "0"}]}]}], ";", "\[IndentingNewLine]", 
+          RowBox[{"(*", 
+           RowBox[{
+           "Try", " ", "to", " ", "solve", " ", "for", " ", "\[Phi]"}], 
+           "*)"}], 
+          RowBox[{"If", "[", 
+           RowBox[{
+            RowBox[{"name", "===", "\"\<iPL\>\""}], ",", 
+            "\[IndentingNewLine]", 
+            RowBox[{"(*", 
+             RowBox[{"Use", " ", "Reduce", " ", "for", " ", "iPL"}], "*)"}], 
+            RowBox[{"result", "=", 
+             RowBox[{"Quiet", "@", 
+              RowBox[{"Reduce", "[", 
+               RowBox[{"eqn", ",", "\[Phi]", ",", "Reals"}], "]"}]}]}], ",", 
+            "\[IndentingNewLine]", 
+            RowBox[{"(*", 
+             RowBox[{
+             "Use", " ", "Solve", " ", "for", " ", "all", " ", "other", " ", 
+              "potentials"}], "*)"}], 
+            RowBox[{"Module", "[", 
+             RowBox[{
+              RowBox[{"{", "soln", "}"}], ",", 
+              RowBox[{
+               RowBox[{"soln", "=", 
+                RowBox[{"Quiet", "@", 
+                 RowBox[{"Solve", "[", 
+                  RowBox[{"eqn", ",", "\[Phi]", ",", "Reals"}], "]"}]}]}], ";",
+                "\[IndentingNewLine]", 
+               RowBox[{"result", "=", 
+                RowBox[{"If", "[", 
+                 RowBox[{
+                  RowBox[{"soln", "=!=", 
+                   RowBox[{"{", "}"}]}], ",", 
+                  RowBox[{"First", "[", "soln", "]"}], 
+                  ",", "\"\<no real solution / \[Phi] unconstrained\>\""}], 
+                 "]"}]}]}]}], "]"}]}], "]"}], ";", "\[IndentingNewLine]", 
+          RowBox[{"{", 
+           RowBox[{"name", ",", "result"}], "}"}]}]}], "]"}], ",", 
+       RowBox[{"{", 
+        RowBox[{"i", ",", 
+         RowBox[{"Length", "[", "vals", "]"}]}], "}"}]}], "]"}]}], ";"}], 
+   "\[IndentingNewLine]", "\[IndentingNewLine]", 
+   RowBox[{"(*", "Display", "*)"}], "\n", 
+   RowBox[{"TableForm", "[", 
+    RowBox[{
+     RowBox[{"Transpose", "[", 
+      RowBox[{"{", 
+       RowBox[{"names", ",", 
+        RowBox[{"largePhiInitial", "[", 
+         RowBox[{"[", 
+          RowBox[{"All", ",", "2"}], "]"}], "]"}]}], "  ", 
+       RowBox[{"(*", 
+        RowBox[{"extract", " ", "solutions"}], "*)"}], "}"}], "]"}], ",", 
+     RowBox[{"TableHeadings", "->", 
+      RowBox[{"{", 
+       RowBox[{"None", ",", 
+        RowBox[{"{", 
+         RowBox[{"\"\<Potential\>\"", 
+          ",", "\"\<\!\(\*TemplateBox[<|\"boxes\" -> FormBox[
+SubscriptBox[\"\[Phi]\", \"ini\"], TraditionalForm], \"errors\" -> {}, \
+\"input\" -> \"\\\\phi_ {\\\\text {ini}}\", \"state\" -> \
+\"Boxes\"|>,\"TeXAssistantTemplate\"]\) (large \[Phi] attractor)\>\""}], 
+         "}"}]}], "}"}]}]}], "]"}], "\n"}]}]], "Input",
+ CellChangeTimes->{{3.973777494350733*^9, 3.973777551293178*^9}, 
+   3.973777681095709*^9, {3.973777748579247*^9, 3.9737777887901373`*^9}, {
+   3.973777830134761*^9, 3.973777831816242*^9}, {3.973777913858677*^9, 
+   3.9737779383694353`*^9}, {3.97377853204296*^9, 3.9737785336745367`*^9}, {
+   3.973779261129723*^9, 3.9737792658285427`*^9}, {3.973779383663885*^9, 
+   3.973779390657514*^9}, {3.9737794380219183`*^9, 3.9737794411408*^9}, {
+   3.973779496962264*^9, 3.9737795001396*^9}, {3.973779560209242*^9, 
+   3.973779567728434*^9}, {3.973780215641927*^9, 3.973780264754942*^9}, {
+   3.973780299277729*^9, 3.973780303328577*^9}, {3.9737809944813766`*^9, 
+   3.973781001702303*^9}, {3.973781038348361*^9, 3.973781102230188*^9}, {
+   3.973868868913692*^9, 3.973868887579686*^9}, {3.973868921003829*^9, 
+   3.973868934344571*^9}},
+ CellLabel->"In[18]:=",ExpressionUUID->"efa1f7eb-5601-43c8-8fa3-e539e93f3116"],
+
+Cell[BoxData[
+ TemplateBox[{
+  "Power", "infy", 
+   "\"Infinite expression \\!\\(\\*FractionBox[\\\"1\\\", \\\"0\\\"]\\) \
+encountered.\"", None, 18, 1, 30513678247668644453, "Local"},
+  "MessageTemplate",
+  BaseStyle->"MSG"]], "Message", "MSG",
+ ShowCellLabel->True,
+ CellChangeTimes->{3.9738693636275387`*^9},
+ CellLabel->
+  "kernel 1 (Local)",ExpressionUUID->"ccb39d60-02ac-4561-ad5e-e1fd03465373"],
+
+Cell[BoxData[
+ TemplateBox[{
+  "Power", "infy", 
+   "\"Infinite expression \\!\\(\\*FractionBox[\\\"1\\\", \\\"0\\\"]\\) \
+encountered.\"", None, 18, 2, 30513678247668644453, "Local"},
+  "MessageTemplate",
+  BaseStyle->"MSG"]], "Message", "MSG",
+ ShowCellLabel->True,
+ CellChangeTimes->{3.973869363678368*^9},
+ CellLabel->
+  "kernel 1 (Local)",ExpressionUUID->"a7ef9577-7e5d-4622-9b28-300ffcdea78c"],
+
+Cell[BoxData[
+ TemplateBox[{
+  "Power", "infy", 
+   "\"Infinite expression \\!\\(\\*FractionBox[\\\"1\\\", \\\"0\\\"]\\) \
+encountered.\"", None, 18, 3, 30513678247668644453, "Local"},
+  "MessageTemplate",
+  BaseStyle->"MSG"]], "Message", "MSG",
+ ShowCellLabel->True,
+ CellChangeTimes->{3.973869363710408*^9},
+ CellLabel->
+  "kernel 5 (Local)",ExpressionUUID->"51766364-83bd-47a9-a3aa-201f31855551"],
+
+Cell[BoxData[
+ TemplateBox[{
+  "Infinity", "indet", 
+   "\"Indeterminate expression \\!\\(\\*RowBox[{\\\"0\\\", \\\" \\\", \
+\\\"ComplexInfinity\\\"}]\\) encountered.\"", None, 18, 4, 
+   30513678247668644453, "Local"},
+  "MessageTemplate",
+  BaseStyle->"MSG"]], "Message", "MSG",
+ ShowCellLabel->True,
+ CellChangeTimes->{3.973869363735965*^9},
+ CellLabel->
+  "kernel 1 (Local)",ExpressionUUID->"7dfc2a07-c1dc-4e74-a169-95736d66993c"],
+
+Cell[BoxData[
+ TemplateBox[{
+  "Power", "infy", 
+   "\"Infinite expression \\!\\(\\*FractionBox[\\\"1\\\", \\\"0\\\"]\\) \
+encountered.\"", None, 18, 5, 30513678247668644453, "Local"},
+  "MessageTemplate",
+  BaseStyle->"MSG"]], "Message", "MSG",
+ ShowCellLabel->True,
+ CellChangeTimes->{3.973869363766602*^9},
+ CellLabel->
+  "kernel 5 (Local)",ExpressionUUID->"6e613cb7-ca79-4204-b9ad-7fd0b2173633"],
+
+Cell[BoxData[
+ TemplateBox[{
+  "Infinity", "indet", 
+   "\"Indeterminate expression \\!\\(\\*RowBox[{\\\"0\\\", \\\" \\\", \
+\\\"ComplexInfinity\\\"}]\\) encountered.\"", None, 18, 6, 
+   30513678247668644453, "Local"},
+  "MessageTemplate",
+  BaseStyle->"MSG"]], "Message", "MSG",
+ ShowCellLabel->True,
+ CellChangeTimes->{3.973869363815044*^9},
+ CellLabel->
+  "kernel 5 (Local)",ExpressionUUID->"73679361-2012-478e-b9af-e5c59e4e0e52"],
+
+Cell[BoxData[
+ InterpretationBox[GridBox[{
+    {"\<\"Potential\"\>", "\<\"\\!\\(\\*TemplateBox[<|\\\"boxes\\\" -> \
+FormBox[SubscriptBox[\\\"\[Phi]\\\", \\\"ini\\\"], TraditionalForm], \
+\\\"errors\\\" -> {}, \\\"input\\\" -> \\\"\\\\\\\\phi_ {\\\\\\\\text \
+{ini}}\\\", \\\"state\\\" -> \\\"Boxes\\\"|>,\\\"TeXAssistantTemplate\\\"]\\) \
+(large \[Phi] attractor)\"\>"},
+    {"\<\"pl\"\>", "\<\"no real solution / \[Phi] unconstrained\"\>"},
+    {"\<\"cos\"\>", "\<\"no real solution / \[Phi] unconstrained\"\>"},
+    {"\<\"hyp\"\>", GridBox[{
+       {
+        RowBox[{"\[Phi]", "\[Rule]", 
+         TemplateBox[{
+           FractionBox[
+            RowBox[{"ArcTanh", "[", 
+              FractionBox[
+               RowBox[{
+                 RowBox[{"8", " ", "c1", " ", 
+                   SuperscriptBox["c2", "2"]}], "-", 
+                 RowBox[{"6", " ", "c1", " ", "\[Gamma]"}], "-", 
+                 RowBox[{"3", " ", "\[Gamma]", " ", "\[Rho]"}], "+", 
+                 
+                 RowBox[{
+                  "3", " ", "\[Gamma]", " ", "\[Rho]", " ", "\[Omega]"}]}], 
+               RowBox[{"2", " ", "c1", " ", 
+                 RowBox[{"(", 
+                   RowBox[{
+                    RowBox[{"4", " ", 
+                    SuperscriptBox["c2", "2"]}], "-", 
+                    RowBox[{"3", " ", "\[Gamma]"}]}], ")"}]}]], "]"}], "c2"], 
+           
+           InterpretationBox[
+            DynamicModuleBox[{Typeset`open = False}, 
+             TemplateBox[{"Expression", 
+               StyleBox[
+                TagBox[
+                 TooltipBox["\"condition\"", 
+                  TagBox[
+                   RowBox[{
+                    RowBox[{"(", 
+                    RowBox[{
+                    RowBox[{"p", ">", "0"}], "&&", 
+                    RowBox[{"c1", ">", "0"}], "&&", 
+                    RowBox[{"c2", ">", "0"}], "&&", 
+                    RowBox[{"\[Gamma]", ">", 
+                    FractionBox[
+                    RowBox[{"4", " ", 
+                    SuperscriptBox["c2", "2"]}], "3"]}], "&&", 
+                    RowBox[{"\[Rho]", ">", "0"}], "&&", 
+                    RowBox[{"1", "<", "\[Omega]", "<", 
+                    FractionBox[
+                    RowBox[{
+                    RowBox[{
+                    RowBox[{"-", "16"}], " ", "c1", " ", 
+                    SuperscriptBox["c2", "2"]}], "+", 
+                    RowBox[{"12", " ", "c1", " ", "\[Gamma]"}], "+", 
+                    RowBox[{"3", " ", "\[Gamma]", " ", "\[Rho]"}]}], 
+                    RowBox[{"3", " ", "\[Gamma]", " ", "\[Rho]"}]]}]}], ")"}],
+                     "||", 
+                    RowBox[{"(", 
+                    RowBox[{
+                    RowBox[{"p", ">", "0"}], "&&", 
+                    RowBox[{"c1", ">", "0"}], "&&", 
+                    RowBox[{"c2", ">", "0"}], "&&", 
+                    RowBox[{"0", "<", "\[Gamma]", "<", 
+                    FractionBox[
+                    RowBox[{"4", " ", 
+                    SuperscriptBox["c2", "2"]}], "3"]}], "&&", 
+                    RowBox[{"\[Rho]", ">", 
+                    FractionBox[
+                    RowBox[{
+                    RowBox[{"16", " ", "c1", " ", 
+                    SuperscriptBox["c2", "2"]}], "-", 
+                    RowBox[{"12", " ", "c1", " ", "\[Gamma]"}]}], 
+                    RowBox[{"3", " ", "\[Gamma]"}]]}], "&&", 
+                    RowBox[{
+                    FractionBox[
+                    RowBox[{
+                    RowBox[{
+                    RowBox[{"-", "16"}], " ", "c1", " ", 
+                    SuperscriptBox["c2", "2"]}], "+", 
+                    RowBox[{"12", " ", "c1", " ", "\[Gamma]"}], "+", 
+                    RowBox[{"3", " ", "\[Gamma]", " ", "\[Rho]"}]}], 
+                    RowBox[{"3", " ", "\[Gamma]", " ", "\[Rho]"}]], "<", 
+                    "\[Omega]", "<", "1"}]}], ")"}], "||", 
+                    RowBox[{"(", 
+                    RowBox[{
+                    RowBox[{"p", ">", "0"}], "&&", 
+                    RowBox[{"c1", ">", "0"}], "&&", 
+                    RowBox[{"c2", ">", "0"}], "&&", 
+                    RowBox[{"0", "<", "\[Gamma]", "<", 
+                    FractionBox[
+                    RowBox[{"4", " ", 
+                    SuperscriptBox["c2", "2"]}], "3"]}], "&&", 
+                    RowBox[{"0", "<", "\[Rho]", "\[LessEqual]", 
+                    FractionBox[
+                    RowBox[{
+                    RowBox[{"16", " ", "c1", " ", 
+                    SuperscriptBox["c2", "2"]}], "-", 
+                    RowBox[{"12", " ", "c1", " ", "\[Gamma]"}]}], 
+                    RowBox[{"3", " ", "\[Gamma]"}]]}], "&&", 
+                    RowBox[{"0", "<", "\[Omega]", "<", "1"}]}], ")"}], "||", 
+                    RowBox[{"(", 
+                    RowBox[{
+                    RowBox[{"p", ">", "0"}], "&&", 
+                    RowBox[{"c1", "<", "0"}], "&&", 
+                    RowBox[{"c2", ">", "0"}], "&&", 
+                    RowBox[{"\[Gamma]", ">", 
+                    FractionBox[
+                    RowBox[{"4", " ", 
+                    SuperscriptBox["c2", "2"]}], "3"]}], "&&", 
+                    RowBox[{"\[Rho]", ">", 
+                    FractionBox[
+                    RowBox[{
+                    RowBox[{"16", " ", "c1", " ", 
+                    SuperscriptBox["c2", "2"]}], "-", 
+                    RowBox[{"12", " ", "c1", " ", "\[Gamma]"}]}], 
+                    RowBox[{"3", " ", "\[Gamma]"}]]}], "&&", 
+                    RowBox[{
+                    FractionBox[
+                    RowBox[{
+                    RowBox[{
+                    RowBox[{"-", "16"}], " ", "c1", " ", 
+                    SuperscriptBox["c2", "2"]}], "+", 
+                    RowBox[{"12", " ", "c1", " ", "\[Gamma]"}], "+", 
+                    RowBox[{"3", " ", "\[Gamma]", " ", "\[Rho]"}]}], 
+                    RowBox[{"3", " ", "\[Gamma]", " ", "\[Rho]"}]], "<", 
+                    "\[Omega]", "<", "1"}]}], ")"}], "||", 
+                    RowBox[{"(", 
+                    RowBox[{
+                    RowBox[{"p", ">", "0"}], "&&", 
+                    RowBox[{"c1", "<", "0"}], "&&", 
+                    RowBox[{"c2", ">", "0"}], "&&", 
+                    RowBox[{"\[Gamma]", ">", 
+                    FractionBox[
+                    RowBox[{"4", " ", 
+                    SuperscriptBox["c2", "2"]}], "3"]}], "&&", 
+                    RowBox[{"0", "<", "\[Rho]", "\[LessEqual]", 
+                    FractionBox[
+                    RowBox[{
+                    RowBox[{"16", " ", "c1", " ", 
+                    SuperscriptBox["c2", "2"]}], "-", 
+                    RowBox[{"12", " ", "c1", " ", "\[Gamma]"}]}], 
+                    RowBox[{"3", " ", "\[Gamma]"}]]}], "&&", 
+                    RowBox[{"0", "<", "\[Omega]", "<", "1"}]}], ")"}], "||", 
+                    RowBox[{"(", 
+                    RowBox[{
+                    RowBox[{"p", ">", "0"}], "&&", 
+                    RowBox[{"c1", "<", "0"}], "&&", 
+                    RowBox[{"c2", ">", "0"}], "&&", 
+                    RowBox[{"0", "<", "\[Gamma]", "<", 
+                    FractionBox[
+                    RowBox[{"4", " ", 
+                    SuperscriptBox["c2", "2"]}], "3"]}], "&&", 
+                    RowBox[{"\[Rho]", ">", "0"}], "&&", 
+                    RowBox[{"1", "<", "\[Omega]", "<", 
+                    FractionBox[
+                    RowBox[{
+                    RowBox[{
+                    RowBox[{"-", "16"}], " ", "c1", " ", 
+                    SuperscriptBox["c2", "2"]}], "+", 
+                    RowBox[{"12", " ", "c1", " ", "\[Gamma]"}], "+", 
+                    RowBox[{"3", " ", "\[Gamma]", " ", "\[Rho]"}]}], 
+                    RowBox[{"3", " ", "\[Gamma]", " ", "\[Rho]"}]]}]}], 
+                    ")"}]}], Short[#, 7]& ]], Annotation[#, 
+                  Short[
+                   Or[
+                    
+                    And[$CellContext`p > 0, $CellContext`c1 > 
+                    0, $CellContext`c2 > 0, $CellContext`\[Gamma] > 
+                    Rational[4, 3] $CellContext`c2^2, $CellContext`\[Rho] > 0, 
+                    Inequality[
+                    1, Less, $CellContext`\[Omega], Less, 
+                    Rational[
+                    1, 3] $CellContext`\[Gamma]^(-1) $CellContext`\[Rho]^(-1) \
+((-16) $CellContext`c1 $CellContext`c2^2 + 
+                    12 $CellContext`c1 $CellContext`\[Gamma] + 
+                    3 $CellContext`\[Gamma] $CellContext`\[Rho])]], 
+                    
+                    And[$CellContext`p > 0, $CellContext`c1 > 
+                    0, $CellContext`c2 > 0, 
+                    Inequality[
+                    0, Less, $CellContext`\[Gamma], Less, 
+                    Rational[4, 3] $CellContext`c2^2], $CellContext`\[Rho] > 
+                    Rational[1, 3] $CellContext`\[Gamma]^(-1) (
+                    16 $CellContext`c1 $CellContext`c2^2 - 
+                    12 $CellContext`c1 $CellContext`\[Gamma]), 
+                    Inequality[
+                    Rational[
+                    1, 3] $CellContext`\[Gamma]^(-1) $CellContext`\[Rho]^(-1) \
+((-16) $CellContext`c1 $CellContext`c2^2 + 
+                    12 $CellContext`c1 $CellContext`\[Gamma] + 
+                    3 $CellContext`\[Gamma] $CellContext`\[Rho]), 
+                    Less, $CellContext`\[Omega], Less, 1]], 
+                    
+                    And[$CellContext`p > 0, $CellContext`c1 > 
+                    0, $CellContext`c2 > 0, 
+                    Inequality[
+                    0, Less, $CellContext`\[Gamma], Less, 
+                    Rational[4, 3] $CellContext`c2^2], 
+                    Inequality[
+                    0, Less, $CellContext`\[Rho], LessEqual, 
+                    Rational[1, 3] $CellContext`\[Gamma]^(-1) (
+                    16 $CellContext`c1 $CellContext`c2^2 - 
+                    12 $CellContext`c1 $CellContext`\[Gamma])], 
+                    Inequality[0, Less, $CellContext`\[Omega], Less, 1]], 
+                    
+                    And[$CellContext`p > 0, $CellContext`c1 < 
+                    0, $CellContext`c2 > 0, $CellContext`\[Gamma] > 
+                    Rational[4, 3] $CellContext`c2^2, $CellContext`\[Rho] > 
+                    Rational[1, 3] $CellContext`\[Gamma]^(-1) (
+                    16 $CellContext`c1 $CellContext`c2^2 - 
+                    12 $CellContext`c1 $CellContext`\[Gamma]), 
+                    Inequality[
+                    Rational[
+                    1, 3] $CellContext`\[Gamma]^(-1) $CellContext`\[Rho]^(-1) \
+((-16) $CellContext`c1 $CellContext`c2^2 + 
+                    12 $CellContext`c1 $CellContext`\[Gamma] + 
+                    3 $CellContext`\[Gamma] $CellContext`\[Rho]), 
+                    Less, $CellContext`\[Omega], Less, 1]], 
+                    
+                    And[$CellContext`p > 0, $CellContext`c1 < 
+                    0, $CellContext`c2 > 0, $CellContext`\[Gamma] > 
+                    Rational[4, 3] $CellContext`c2^2, 
+                    Inequality[
+                    0, Less, $CellContext`\[Rho], LessEqual, 
+                    Rational[1, 3] $CellContext`\[Gamma]^(-1) (
+                    16 $CellContext`c1 $CellContext`c2^2 - 
+                    12 $CellContext`c1 $CellContext`\[Gamma])], 
+                    Inequality[0, Less, $CellContext`\[Omega], Less, 1]], 
+                    
+                    And[$CellContext`p > 0, $CellContext`c1 < 
+                    0, $CellContext`c2 > 0, 
+                    Inequality[
+                    0, Less, $CellContext`\[Gamma], Less, 
+                    Rational[4, 3] $CellContext`c2^2], $CellContext`\[Rho] > 
+                    0, 
+                    Inequality[
+                    1, Less, $CellContext`\[Omega], Less, 
+                    Rational[
+                    1, 3] $CellContext`\[Gamma]^(-1) $CellContext`\[Rho]^(-1) \
+((-16) $CellContext`c1 $CellContext`c2^2 + 
+                    12 $CellContext`c1 $CellContext`\[Gamma] + 
+                    3 $CellContext`\[Gamma] $CellContext`\[Rho])]]], 7], 
+                  "Tooltip"]& ], "IconizedCustomName", StripOnInput -> False], 
+               GridBox[{{
+                  RowBox[{
+                    TagBox["\"Head: \"", "IconizedLabel"], 
+                    "\[InvisibleSpace]", 
+                    TagBox["Or", "IconizedItem"]}]}, {
+                  RowBox[{
+                    TagBox["\"Byte count: \"", "IconizedLabel"], 
+                    "\[InvisibleSpace]", 
+                    TagBox["9040", "IconizedItem"]}]}}, 
+                GridBoxAlignment -> {"Columns" -> {{Left}}}, DefaultBaseStyle -> 
+                "Column", 
+                GridBoxItemSize -> {
+                 "Columns" -> {{Automatic}}, "Rows" -> {{Automatic}}}], 
+               Dynamic[Typeset`open]}, "IconizedObject"]], 
+            Or[
+             
+             And[$CellContext`p > 0, $CellContext`c1 > 0, $CellContext`c2 > 
+              0, $CellContext`\[Gamma] > 
+              Rational[4, 3] $CellContext`c2^2, $CellContext`\[Rho] > 0, 
+              Inequality[
+              1, Less, $CellContext`\[Omega], Less, 
+               Rational[
+                1, 3] $CellContext`\[Gamma]^(-1) $CellContext`\[Rho]^(-1) \
+((-16) $CellContext`c1 $CellContext`c2^2 + 
+                12 $CellContext`c1 $CellContext`\[Gamma] + 
+                3 $CellContext`\[Gamma] $CellContext`\[Rho])]], 
+             And[$CellContext`p > 0, $CellContext`c1 > 0, $CellContext`c2 > 0, 
+              Inequality[
+              0, Less, $CellContext`\[Gamma], Less, 
+               Rational[4, 3] $CellContext`c2^2], $CellContext`\[Rho] > 
+              Rational[1, 3] $CellContext`\[Gamma]^(-1) (
+                16 $CellContext`c1 $CellContext`c2^2 - 
+                12 $CellContext`c1 $CellContext`\[Gamma]), 
+              Inequality[
+              Rational[
+                1, 3] $CellContext`\[Gamma]^(-1) $CellContext`\[Rho]^(-1) \
+((-16) $CellContext`c1 $CellContext`c2^2 + 
+                12 $CellContext`c1 $CellContext`\[Gamma] + 
+                3 $CellContext`\[Gamma] $CellContext`\[Rho]), 
+               Less, $CellContext`\[Omega], Less, 1]], 
+             And[$CellContext`p > 0, $CellContext`c1 > 0, $CellContext`c2 > 0, 
+              Inequality[
+              0, Less, $CellContext`\[Gamma], Less, 
+               Rational[4, 3] $CellContext`c2^2], 
+              Inequality[
+              0, Less, $CellContext`\[Rho], LessEqual, 
+               Rational[1, 3] $CellContext`\[Gamma]^(-1) (
+                16 $CellContext`c1 $CellContext`c2^2 - 
+                12 $CellContext`c1 $CellContext`\[Gamma])], 
+              Inequality[0, Less, $CellContext`\[Omega], Less, 1]], 
+             
+             And[$CellContext`p > 0, $CellContext`c1 < 0, $CellContext`c2 > 
+              0, $CellContext`\[Gamma] > 
+              Rational[4, 3] $CellContext`c2^2, $CellContext`\[Rho] > 
+              Rational[1, 3] $CellContext`\[Gamma]^(-1) (
+                16 $CellContext`c1 $CellContext`c2^2 - 
+                12 $CellContext`c1 $CellContext`\[Gamma]), 
+              Inequality[
+              Rational[
+                1, 3] $CellContext`\[Gamma]^(-1) $CellContext`\[Rho]^(-1) \
+((-16) $CellContext`c1 $CellContext`c2^2 + 
+                12 $CellContext`c1 $CellContext`\[Gamma] + 
+                3 $CellContext`\[Gamma] $CellContext`\[Rho]), 
+               Less, $CellContext`\[Omega], Less, 1]], 
+             
+             And[$CellContext`p > 0, $CellContext`c1 < 0, $CellContext`c2 > 
+              0, $CellContext`\[Gamma] > Rational[4, 3] $CellContext`c2^2, 
+              Inequality[
+              0, Less, $CellContext`\[Rho], LessEqual, 
+               Rational[1, 3] $CellContext`\[Gamma]^(-1) (
+                16 $CellContext`c1 $CellContext`c2^2 - 
+                12 $CellContext`c1 $CellContext`\[Gamma])], 
+              Inequality[0, Less, $CellContext`\[Omega], Less, 1]], 
+             And[$CellContext`p > 0, $CellContext`c1 < 0, $CellContext`c2 > 0, 
+              Inequality[
+              0, Less, $CellContext`\[Gamma], Less, 
+               Rational[4, 3] $CellContext`c2^2], $CellContext`\[Rho] > 0, 
+              Inequality[
+              1, Less, $CellContext`\[Omega], Less, 
+               Rational[
+                1, 3] $CellContext`\[Gamma]^(-1) $CellContext`\[Rho]^(-1) \
+((-16) $CellContext`c1 $CellContext`c2^2 + 
+                12 $CellContext`c1 $CellContext`\[Gamma] + 
+                3 $CellContext`\[Gamma] $CellContext`\[Rho])]]], 
+            SelectWithContents -> True, Selectable -> False]},
+          "ConditionalExpression"]}]}
+      },
+      GridBoxAlignment->{"Columns" -> {{Left}}, "Rows" -> {{Baseline}}},
+      GridBoxSpacings->{"Columns" -> {
+          Offset[0.27999999999999997`], {
+           Offset[0.7]}, 
+          Offset[0.27999999999999997`]}, "Rows" -> {
+          Offset[0.2], {
+           Offset[0.1]}, 
+          Offset[0.2]}}]},
+    {"\<\"pNG\"\>", 
+     RowBox[{
+      RowBox[{
+       FractionBox[
+        RowBox[{"2", " ", 
+         RowBox[{"(", 
+          RowBox[{
+           SuperscriptBox["c1", "4"], "+", 
+           RowBox[{
+            SuperscriptBox["c1", "4"], " ", 
+            RowBox[{"Cos", "[", 
+             FractionBox["\[Phi]", "c2"], "]"}]}]}], ")"}]}], 
+        RowBox[{"1", "-", "\[Omega]"}]], "\[Equal]", 
+       FractionBox[
+        RowBox[{"3", " ", "\[Gamma]", " ", "\[Rho]"}], 
+        RowBox[{
+         RowBox[{"(", 
+          RowBox[{"1", "-", 
+           FractionBox[
+            RowBox[{"3", " ", "\[Gamma]"}], 
+            SuperscriptBox[
+             RowBox[{"(", 
+              RowBox[{
+               UnderscriptBox["\[Limit]", 
+                RowBox[{"\[Phi]", "\[Rule]", "\[Infinity]"}]], 
+               RowBox[{"-", 
+                FractionBox[
+                 RowBox[{"Sin", "[", 
+                  FractionBox["\[Phi]", "c2"], "]"}], 
+                 RowBox[{"c2", " ", 
+                  RowBox[{"(", 
+                   RowBox[{"1", "+", 
+                    RowBox[{"Cos", "[", 
+                    FractionBox["\[Phi]", "c2"], "]"}]}], ")"}]}]]}]}], ")"}],
+              "2"]]}], ")"}], " ", 
+         SuperscriptBox[
+          RowBox[{"(", 
+           RowBox[{
+            UnderscriptBox["\[Limit]", 
+             RowBox[{"\[Phi]", "\[Rule]", "\[Infinity]"}]], 
+            RowBox[{"-", 
+             FractionBox[
+              RowBox[{"Sin", "[", 
+               FractionBox["\[Phi]", "c2"], "]"}], 
+              RowBox[{"c2", " ", 
+               RowBox[{"(", 
+                RowBox[{"1", "+", 
+                 RowBox[{"Cos", "[", 
+                  FractionBox["\[Phi]", "c2"], "]"}]}], ")"}]}]]}]}], ")"}], 
+          "2"]}]]}], "&&", 
+      RowBox[{"p", ">", "0"}], "&&", 
+      RowBox[{"\[Gamma]", ">", "0"}], "&&", 
+      RowBox[{"\[Rho]", ">", "0"}], "&&", 
+      RowBox[{"\[Omega]", ">", "0"}]}]},
+    {"\<\"iPL\"\>", "False"},
+    {"\<\"exp\"\>", GridBox[{
+       {
+        RowBox[{"\[Phi]", "\[Rule]", 
+         TemplateBox[{
+           FractionBox[
+            RowBox[{"Log", "[", 
+              RowBox[{"-", 
+                FractionBox[
+                 RowBox[{"2", " ", 
+                   RowBox[{"(", 
+                    RowBox[{
+                    RowBox[{"c1", " ", 
+                    SuperscriptBox["c2", "2"]}], "-", 
+                    RowBox[{"3", " ", "c1", " ", "\[Gamma]"}]}], ")"}]}], 
+                 RowBox[{"3", " ", "\[Gamma]", " ", "\[Rho]", " ", 
+                   RowBox[{"(", 
+                    RowBox[{
+                    RowBox[{"-", "1"}], "+", "\[Omega]"}], ")"}]}]]}], "]"}], 
+            "c2"], 
+           InterpretationBox[
+            DynamicModuleBox[{Typeset`open = False}, 
+             TemplateBox[{"Expression", 
+               StyleBox[
+                TagBox[
+                 TooltipBox["\"condition\"", 
+                  TagBox[
+                   RowBox[{
+                    RowBox[{"(", 
+                    RowBox[{
+                    RowBox[{"p", ">", "0"}], "&&", 
+                    RowBox[{"c1", ">", "0"}], "&&", 
+                    RowBox[{"\[Gamma]", ">", 
+                    FractionBox[
+                    SuperscriptBox["c2", "2"], "3"]}], "&&", 
+                    RowBox[{"\[Rho]", ">", "0"}], "&&", 
+                    RowBox[{"\[Omega]", ">", "1"}]}], ")"}], "||", 
+                    RowBox[{"(", 
+                    RowBox[{
+                    RowBox[{"p", ">", "0"}], "&&", 
+                    RowBox[{"c1", ">", "0"}], "&&", 
+                    RowBox[{"0", "<", "\[Gamma]", "<", 
+                    FractionBox[
+                    SuperscriptBox["c2", "2"], "3"]}], "&&", 
+                    RowBox[{"\[Rho]", ">", "0"}], "&&", 
+                    RowBox[{"0", "<", "\[Omega]", "<", "1"}]}], ")"}], "||", 
+                    RowBox[{"(", 
+                    RowBox[{
+                    RowBox[{"p", ">", "0"}], "&&", 
+                    RowBox[{"c1", "<", "0"}], "&&", 
+                    RowBox[{"\[Gamma]", ">", 
+                    FractionBox[
+                    SuperscriptBox["c2", "2"], "3"]}], "&&", 
+                    RowBox[{"\[Rho]", ">", "0"}], "&&", 
+                    RowBox[{"0", "<", "\[Omega]", "<", "1"}]}], ")"}], "||", 
+                    RowBox[{"(", 
+                    RowBox[{
+                    RowBox[{"p", ">", "0"}], "&&", 
+                    RowBox[{"c1", "<", "0"}], "&&", 
+                    RowBox[{"0", "<", "\[Gamma]", "<", 
+                    FractionBox[
+                    SuperscriptBox["c2", "2"], "3"]}], "&&", 
+                    RowBox[{"\[Rho]", ">", "0"}], "&&", 
+                    RowBox[{"\[Omega]", ">", "1"}]}], ")"}]}], 
+                   Short[#, 7]& ]], Annotation[#, 
+                  Short[
+                   Or[
+                    
+                    And[$CellContext`p > 0, $CellContext`c1 > 
+                    0, $CellContext`\[Gamma] > 
+                    Rational[1, 3] $CellContext`c2^2, $CellContext`\[Rho] > 
+                    0, $CellContext`\[Omega] > 1], 
+                    And[$CellContext`p > 0, $CellContext`c1 > 0, 
+                    Inequality[
+                    0, Less, $CellContext`\[Gamma], Less, 
+                    Rational[1, 3] $CellContext`c2^2], $CellContext`\[Rho] > 
+                    0, 
+                    Inequality[0, Less, $CellContext`\[Omega], Less, 1]], 
+                    
+                    And[$CellContext`p > 0, $CellContext`c1 < 
+                    0, $CellContext`\[Gamma] > 
+                    Rational[1, 3] $CellContext`c2^2, $CellContext`\[Rho] > 0, 
+                    Inequality[0, Less, $CellContext`\[Omega], Less, 1]], 
+                    And[$CellContext`p > 0, $CellContext`c1 < 0, 
+                    Inequality[
+                    0, Less, $CellContext`\[Gamma], Less, 
+                    Rational[1, 3] $CellContext`c2^2], $CellContext`\[Rho] > 
+                    0, $CellContext`\[Omega] > 1]], 7], "Tooltip"]& ], 
+                "IconizedCustomName", StripOnInput -> False], 
+               GridBox[{{
+                  RowBox[{
+                    TagBox["\"Head: \"", "IconizedLabel"], 
+                    "\[InvisibleSpace]", 
+                    TagBox["Or", "IconizedItem"]}]}, {
+                  RowBox[{
+                    TagBox["\"Byte count: \"", "IconizedLabel"], 
+                    "\[InvisibleSpace]", 
+                    TagBox["2664", "IconizedItem"]}]}}, 
+                GridBoxAlignment -> {"Columns" -> {{Left}}}, DefaultBaseStyle -> 
+                "Column", 
+                GridBoxItemSize -> {
+                 "Columns" -> {{Automatic}}, "Rows" -> {{Automatic}}}], 
+               Dynamic[Typeset`open]}, "IconizedObject"]], 
+            Or[
+             
+             And[$CellContext`p > 0, $CellContext`c1 > 
+              0, $CellContext`\[Gamma] > 
+              Rational[1, 3] $CellContext`c2^2, $CellContext`\[Rho] > 
+              0, $CellContext`\[Omega] > 1], 
+             And[$CellContext`p > 0, $CellContext`c1 > 0, 
+              Inequality[
+              0, Less, $CellContext`\[Gamma], Less, 
+               Rational[1, 3] $CellContext`c2^2], $CellContext`\[Rho] > 0, 
+              Inequality[0, Less, $CellContext`\[Omega], Less, 1]], 
+             
+             And[$CellContext`p > 0, $CellContext`c1 < 
+              0, $CellContext`\[Gamma] > 
+              Rational[1, 3] $CellContext`c2^2, $CellContext`\[Rho] > 0, 
+              Inequality[0, Less, $CellContext`\[Omega], Less, 1]], 
+             And[$CellContext`p > 0, $CellContext`c1 < 0, 
+              Inequality[
+              0, Less, $CellContext`\[Gamma], Less, 
+               Rational[1, 3] $CellContext`c2^2], $CellContext`\[Rho] > 
+              0, $CellContext`\[Omega] > 1]], SelectWithContents -> True, 
+            Selectable -> False]},
+          "ConditionalExpression"]}]}
+      },
+      GridBoxAlignment->{"Columns" -> {{Left}}, "Rows" -> {{Baseline}}},
+      GridBoxSpacings->{"Columns" -> {
+          Offset[0.27999999999999997`], {
+           Offset[0.7]}, 
+          Offset[0.27999999999999997`]}, "Rows" -> {
+          Offset[0.2], {
+           Offset[0.1]}, 
+          Offset[0.2]}}]},
+    {"\<\"sqexp\"\>", "\<\"no real solution / \[Phi] unconstrained\"\>"},
+    {"\<\"bexp\"\>", 
+     RowBox[{
+      RowBox[{
+       FractionBox[
+        RowBox[{"2", " ", 
+         SuperscriptBox["\[ExponentialE]", 
+          RowBox[{
+           RowBox[{"-", "c3"}], " ", "\[Phi]"}]], " ", 
+         RowBox[{"(", 
+          RowBox[{
+           RowBox[{"c1", " ", "c2"}], "+", 
+           RowBox[{"c1", " ", 
+            SuperscriptBox["\[Phi]", "2"]}]}], ")"}]}], 
+        RowBox[{"1", "-", "\[Omega]"}]], "\[Equal]", 
+       FractionBox[
+        RowBox[{"3", " ", "\[Gamma]", " ", "\[Rho]"}], 
+        RowBox[{
+         SuperscriptBox["c3", "2"], " ", 
+         RowBox[{"(", 
+          RowBox[{"1", "-", 
+           FractionBox[
+            RowBox[{"3", " ", "\[Gamma]"}], 
+            SuperscriptBox["c3", "2"]]}], ")"}]}]]}], "&&", 
+      RowBox[{"p", ">", "0"}], "&&", 
+      RowBox[{"\[Gamma]", ">", "0"}], "&&", 
+      RowBox[{"\[Rho]", ">", "0"}], "&&", 
+      RowBox[{"\[Omega]", ">", "0"}]}]},
+    {"\<\"dexp\"\>", 
+     TemplateBox[{
+       RowBox[{
+         RowBox[{
+           FractionBox[
+            RowBox[{"2", " ", 
+              RowBox[{"(", 
+                RowBox[{
+                  RowBox[{"c1", " ", 
+                    SuperscriptBox["\[ExponentialE]", 
+                    RowBox[{
+                    RowBox[{"-", "c2"}], " ", "\[Phi]"}]]}], "+", 
+                  RowBox[{"c3", " ", 
+                    SuperscriptBox["\[ExponentialE]", 
+                    RowBox[{
+                    RowBox[{"-", "c4"}], " ", "\[Phi]"}]]}]}], ")"}]}], 
+            RowBox[{"1", "-", "\[Omega]"}]], "\[Equal]", 
+           FractionBox[
+            RowBox[{"3", " ", "\[Gamma]", " ", "\[Rho]"}], 
+            RowBox[{
+              SuperscriptBox["c4", "2"], " ", 
+              RowBox[{"(", 
+                RowBox[{"1", "-", 
+                  FractionBox[
+                   RowBox[{"3", " ", "\[Gamma]"}], 
+                   SuperscriptBox["c4", "2"]]}], ")"}]}]]}], "&&", 
+         RowBox[{"p", ">", "0"}], "&&", 
+         RowBox[{"\[Gamma]", ">", "0"}], "&&", 
+         RowBox[{"\[Rho]", ">", "0"}], "&&", 
+         RowBox[{"\[Omega]", ">", "0"}]}], 
+       RowBox[{
+         RowBox[{
+           RowBox[{"(", 
+             RowBox[{"c1", "|", "c3"}], ")"}], "\[Element]", 
+           TemplateBox[{}, "Reals"]}], "&&", 
+         RowBox[{"c2", ">", "0"}], "&&", 
+         RowBox[{"c2", ">", "c4"}], "&&", 
+         RowBox[{"c4", ">", "0"}]}]},
+      "ConditionalExpression"]}
+   },
+   GridBoxAlignment->{"Columns" -> {{Center}}, "Rows" -> {{Baseline}}},
+   GridBoxSpacings->{"Columns" -> {
+       Offset[0.27999999999999997`], {
+        Offset[2.0999999999999996`]}, 
+       Offset[0.27999999999999997`]}, "Rows" -> {
+       Offset[0.2], {
+        Offset[0.4]}, 
+       Offset[0.2]}}],
+  TableForm[{{"pl", "no real solution / \[Phi] unconstrained"}, {
+    "cos", "no real solution / \[Phi] unconstrained"}, {
+    "hyp", {$CellContext`\[Phi] -> 
+      ConditionalExpression[$CellContext`c2^(-1) 
+        ArcTanh[Rational[
+           1, 2] $CellContext`c1^(-1) (4 $CellContext`c2^2 - 
+            3 $CellContext`\[Gamma])^(-1) (
+           8 $CellContext`c1 $CellContext`c2^2 - 
+           6 $CellContext`c1 $CellContext`\[Gamma] - 
+           3 $CellContext`\[Gamma] $CellContext`\[Rho] + 
+           3 $CellContext`\[Gamma] $CellContext`\[Rho] \
+$CellContext`\[Omega])], 
+        Or[
+         And[$CellContext`p > 0, $CellContext`c1 > 0, $CellContext`c2 > 
+          0, $CellContext`\[Gamma] > 
+          Rational[4, 3] $CellContext`c2^2, $CellContext`\[Rho] > 0, 
+          Inequality[
+          1, Less, $CellContext`\[Omega], Less, 
+           Rational[
+            1, 3] $CellContext`\[Gamma]^(-1) $CellContext`\[Rho]^(-1) ((-16) \
+$CellContext`c1 $CellContext`c2^2 + 12 $CellContext`c1 $CellContext`\[Gamma] + 
+            3 $CellContext`\[Gamma] $CellContext`\[Rho])]], 
+         And[$CellContext`p > 0, $CellContext`c1 > 0, $CellContext`c2 > 0, 
+          Inequality[
+          0, Less, $CellContext`\[Gamma], Less, 
+           Rational[4, 3] $CellContext`c2^2], $CellContext`\[Rho] > 
+          Rational[1, 3] $CellContext`\[Gamma]^(-1) (
+            16 $CellContext`c1 $CellContext`c2^2 - 
+            12 $CellContext`c1 $CellContext`\[Gamma]), 
+          Inequality[
+          Rational[
+            1, 3] $CellContext`\[Gamma]^(-1) $CellContext`\[Rho]^(-1) ((-16) \
+$CellContext`c1 $CellContext`c2^2 + 12 $CellContext`c1 $CellContext`\[Gamma] + 
+            3 $CellContext`\[Gamma] $CellContext`\[Rho]), 
+           Less, $CellContext`\[Omega], Less, 1]], 
+         And[$CellContext`p > 0, $CellContext`c1 > 0, $CellContext`c2 > 0, 
+          Inequality[
+          0, Less, $CellContext`\[Gamma], Less, 
+           Rational[4, 3] $CellContext`c2^2], 
+          Inequality[
+          0, Less, $CellContext`\[Rho], LessEqual, 
+           Rational[1, 3] $CellContext`\[Gamma]^(-1) (
+            16 $CellContext`c1 $CellContext`c2^2 - 
+            12 $CellContext`c1 $CellContext`\[Gamma])], 
+          Inequality[0, Less, $CellContext`\[Omega], Less, 1]], 
+         And[$CellContext`p > 0, $CellContext`c1 < 0, $CellContext`c2 > 
+          0, $CellContext`\[Gamma] > 
+          Rational[4, 3] $CellContext`c2^2, $CellContext`\[Rho] > 
+          Rational[1, 3] $CellContext`\[Gamma]^(-1) (
+            16 $CellContext`c1 $CellContext`c2^2 - 
+            12 $CellContext`c1 $CellContext`\[Gamma]), 
+          Inequality[
+          Rational[
+            1, 3] $CellContext`\[Gamma]^(-1) $CellContext`\[Rho]^(-1) ((-16) \
+$CellContext`c1 $CellContext`c2^2 + 12 $CellContext`c1 $CellContext`\[Gamma] + 
+            3 $CellContext`\[Gamma] $CellContext`\[Rho]), 
+           Less, $CellContext`\[Omega], Less, 1]], 
+         And[$CellContext`p > 0, $CellContext`c1 < 0, $CellContext`c2 > 
+          0, $CellContext`\[Gamma] > Rational[4, 3] $CellContext`c2^2, 
+          Inequality[
+          0, Less, $CellContext`\[Rho], LessEqual, 
+           Rational[1, 3] $CellContext`\[Gamma]^(-1) (
+            16 $CellContext`c1 $CellContext`c2^2 - 
+            12 $CellContext`c1 $CellContext`\[Gamma])], 
+          Inequality[0, Less, $CellContext`\[Omega], Less, 1]], 
+         And[$CellContext`p > 0, $CellContext`c1 < 0, $CellContext`c2 > 0, 
+          Inequality[
+          0, Less, $CellContext`\[Gamma], Less, 
+           Rational[4, 3] $CellContext`c2^2], $CellContext`\[Rho] > 0, 
+          Inequality[
+          1, Less, $CellContext`\[Omega], Less, 
+           Rational[
+            1, 3] $CellContext`\[Gamma]^(-1) $CellContext`\[Rho]^(-1) ((-16) \
+$CellContext`c1 $CellContext`c2^2 + 12 $CellContext`c1 $CellContext`\[Gamma] + 
+            3 $CellContext`\[Gamma] $CellContext`\[Rho])]]]]}}, {"pNG", 
+     And[2 (
+         1 - $CellContext`\[Omega])^(-1) ($CellContext`c1^4 + \
+$CellContext`c1^4 Cos[$CellContext`c2^(-1) $CellContext`\[Phi]]) == 
+      3 $CellContext`\[Gamma] $CellContext`\[Rho] (1 - 
+         3 $CellContext`\[Gamma] 
+         Limit[-$CellContext`c2^(-1) (1 + 
+              Cos[$CellContext`c2^(-1) $CellContext`\[Phi]])^(-1) 
+            Sin[$CellContext`c2^(-1) $CellContext`\[Phi]], \
+$CellContext`\[Phi] -> DirectedInfinity[1]]^(-2))^(-1) 
+       Limit[-$CellContext`c2^(-1) (1 + 
+            Cos[$CellContext`c2^(-1) $CellContext`\[Phi]])^(-1) 
+          Sin[$CellContext`c2^(-1) $CellContext`\[Phi]], $CellContext`\[Phi] -> 
+          DirectedInfinity[1]]^(-2), $CellContext`p > 
+      0, $CellContext`\[Gamma] > 0, $CellContext`\[Rho] > 
+      0, $CellContext`\[Omega] > 0]}, {"iPL", False}, {
+    "exp", {$CellContext`\[Phi] -> 
+      ConditionalExpression[$CellContext`c2^(-1) 
+        Log[Rational[-2, 
+            3] $CellContext`\[Gamma]^(-1) ($CellContext`c1 $CellContext`c2^2 - 
+           3 $CellContext`c1 $CellContext`\[Gamma]) \
+$CellContext`\[Rho]^(-1)/(-1 + $CellContext`\[Omega])], 
+        Or[
+         And[$CellContext`p > 0, $CellContext`c1 > 0, $CellContext`\[Gamma] > 
+          Rational[1, 3] $CellContext`c2^2, $CellContext`\[Rho] > 
+          0, $CellContext`\[Omega] > 1], 
+         And[$CellContext`p > 0, $CellContext`c1 > 0, 
+          Inequality[
+          0, Less, $CellContext`\[Gamma], Less, 
+           Rational[1, 3] $CellContext`c2^2], $CellContext`\[Rho] > 0, 
+          Inequality[0, Less, $CellContext`\[Omega], Less, 1]], 
+         And[$CellContext`p > 0, $CellContext`c1 < 0, $CellContext`\[Gamma] > 
+          Rational[1, 3] $CellContext`c2^2, $CellContext`\[Rho] > 0, 
+          Inequality[0, Less, $CellContext`\[Omega], Less, 1]], 
+         And[$CellContext`p > 0, $CellContext`c1 < 0, 
+          Inequality[
+          0, Less, $CellContext`\[Gamma], Less, 
+           Rational[1, 3] $CellContext`c2^2], $CellContext`\[Rho] > 
+          0, $CellContext`\[Omega] > 1]]]}}, {
+    "sqexp", "no real solution / \[Phi] unconstrained"}, {"bexp", 
+     And[2 
+       E^(-$CellContext`c3 $CellContext`\[Phi]) ($CellContext`c1 \
+$CellContext`c2 + $CellContext`c1 $CellContext`\[Phi]^2)/(
+       1 - $CellContext`\[Omega]) == 
+      3 $CellContext`c3^(-2) $CellContext`\[Gamma] (1 - 
+         3 $CellContext`c3^(-2) $CellContext`\[Gamma])^(-1) $CellContext`\
+\[Rho], $CellContext`p > 0, $CellContext`\[Gamma] > 0, $CellContext`\[Rho] > 
+      0, $CellContext`\[Omega] > 0]}, {"dexp", 
+     ConditionalExpression[
+      And[
+      2 ($CellContext`c1 
+          E^(-$CellContext`c2 $CellContext`\[Phi]) + $CellContext`c3 
+          E^(-$CellContext`c4 $CellContext`\[Phi]))/(
+        1 - $CellContext`\[Omega]) == 
+       3 $CellContext`c4^(-2) $CellContext`\[Gamma] (1 - 
+          3 $CellContext`c4^(-2) $CellContext`\[Gamma])^(-1) $CellContext`\
+\[Rho], $CellContext`p > 0, $CellContext`\[Gamma] > 0, $CellContext`\[Rho] > 
+       0, $CellContext`\[Omega] > 0], 
+      And[
+       Element[
+        Alternatives[$CellContext`c1, $CellContext`c3], 
+        Reals], $CellContext`c2 > 
+       0, $CellContext`c2 > $CellContext`c4, $CellContext`c4 > 0]]}}, 
+   TableHeadings -> {
+    None, {"Potential", 
+      "\!\(\*TemplateBox[<|\"boxes\" -> FormBox[SubscriptBox[\"\[Phi]\", \
+\"ini\"], TraditionalForm], \"errors\" -> {}, \"input\" -> \"\\\\phi_ \
+{\\\\text {ini}}\", \"state\" -> \"Boxes\"|>,\"TeXAssistantTemplate\"]\) \
+(large \[Phi] attractor)"}}]]], "Output",
+ CellChangeTimes->{3.9737810054085617`*^9, 3.973781142852036*^9, 
+  3.973869366331934*^9},
+ CellLabel->
+  "Out[19]//TableForm=",ExpressionUUID->"ce78845c-5db8-46e4-8abc-\
+eee9e55afb25"]
+}, Open  ]],
+
+Cell[TextData[{
+ "We notice that the double exponential potential and Bean\[CloseCurlyQuote]s \
+exponential cannot be solved with the means of ",
+ Cell[BoxData[
+ "Solve"], "InlineCode",ExpressionUUID->
+  "9c39d68a-07b4-41c0-97ea-ef1b53b1cf19"],
+ " (or ",
+ Cell[BoxData[
+ "Reduce"], "InlineCode",ExpressionUUID->
+  "408733c1-b9b2-4045-9830-d42b694fdfe5"],
+ "), yet both can be approximated by a simple exponential."
+}], "Text",
+ CellChangeTimes->{{3.9738694599677973`*^9, 
+  3.973869522614949*^9}},ExpressionUUID->"c10dd203-beaa-4228-84a6-\
+2f859d3601c9"]
+}, Open  ]]
+}, Open  ]],
+
+Cell[CellGroupData[{
+
+Cell["Small \[Phi] Attractors", "Section",
+ CellChangeTimes->{{3.973767255217641*^9, 
+  3.973767260344829*^9}},ExpressionUUID->"4035e146-7833-4486-b026-\
+6d7a757f513e"],
+
+Cell["Here, we compute the late-time, small-field attractors.", "Text",
+ CellChangeTimes->{{3.9738689500404463`*^9, 
+  3.9738689603722973`*^9}},ExpressionUUID->"56bae2a3-91ec-4802-949c-\
+c65a1cddcd28"],
+
+Cell[CellGroupData[{
+
+Cell[TextData[{
+ "Initial ",
+ Cell[BoxData[
+  FormBox[
+   TemplateBox[<|"boxes" -> FormBox[
+       SuperscriptBox["\[Phi]", "\[Prime]"], TraditionalForm], "errors" -> {},
+      "input" -> "\\phi^\\prime", "state" -> "Boxes"|>,
+    "TeXAssistantTemplate"], TraditionalForm]],ExpressionUUID->
+  "d92e4a05-8abf-4627-b2bb-16fdbf4859fe"]
+}], "Subsection",
+ CellChangeTimes->{{3.9737685175492907`*^9, 3.9737685215077753`*^9}, {
+  3.973869772871861*^9, 
+  3.973869782927742*^9}},ExpressionUUID->"b023f42d-f24d-4365-b5af-\
+295f12bc196e"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"phiPrimeIniSmallPhi", "=", 
+   RowBox[{"ParallelTable", "[", 
+    RowBox[{
+     RowBox[{"Limit", "[", 
+      RowBox[{
+       RowBox[{"phiPrimeIni", "[", 
+        RowBox[{"[", "i", "]"}], "]"}], ",", 
+       RowBox[{"\[Phi]", "->", "0"}]}], "]"}], ",", 
+     RowBox[{"{", 
+      RowBox[{"i", ",", 
+       RowBox[{"Length", "[", "phiPrimeIni", "]"}]}], "}"}]}], "]"}]}], 
+  ";"}]], "Input",
+ CellChangeTimes->{{3.973868969702499*^9, 3.973868970965886*^9}, {
+  3.9738697976577387`*^9, 3.9738697984332952`*^9}},
+ CellLabel->"In[27]:=",ExpressionUUID->"a3c13f8f-c64f-4639-8db7-3b5f12dbf8bc"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"lambdaLimitSmallPhi", "=", 
+   RowBox[{"ParallelTable", "[", 
+    RowBox[{
+     RowBox[{"Limit", "[", 
+      RowBox[{
+       RowBox[{"exactlambda", "[", 
+        RowBox[{"[", "i", "]"}], "]"}], ",", 
+       RowBox[{"\[Phi]", "->", "0"}]}], "]"}], ",", 
+     RowBox[{"{", 
+      RowBox[{"i", ",", 
+       RowBox[{"Length", "[", "exactlambda", "]"}]}], "}"}]}], "]"}]}], 
+  ";"}]], "Input",
+ CellChangeTimes->{3.9737685706417503`*^9},
+ CellLabel->"In[20]:=",ExpressionUUID->"32a6c9ab-c827-4c50-9bd8-0aa96b990e57"],
+
+Cell[CellGroupData[{
+
+Cell[BoxData[
+ RowBox[{"TableForm", "[", 
+  RowBox[{
+   RowBox[{"Transpose", "[", 
+    RowBox[{"{", 
+     RowBox[{
+      RowBox[{"Keys", "[", "potentials", "]"}], ",", "lambdaLimitSmallPhi", ",",
+       "phiPrimeIniSmallPhi"}], "}"}], "]"}], ",", 
+   RowBox[{"TableHeadings", "->", 
+    RowBox[{"{", 
+     RowBox[{"None", ",", 
+      RowBox[{"{", 
+       RowBox[{"\"\<Potential\>\"", ",", "\"\<small-field \[Lambda]\>\"", 
+        ",", "\"\<small-field \!\(\*TemplateBox[<|\"boxes\" -> FormBox[
+SubsuperscriptBox[\"\[Phi]\", \"ini\", \"\[Prime]\"], TraditionalForm], \
+\"errors\" -> {}, \"input\" -> \"\\\\phi^\\\\prime_ {\\\\text {ini}}\", \
+\"state\" -> \"Boxes\"|>,\"TeXAssistantTemplate\"]\)\>\""}], "}"}]}], 
+     "}"}]}]}], "]"}]], "Input",
+ CellChangeTimes->{{3.973768595264525*^9, 3.9737686069173937`*^9}, {
+  3.973868986988183*^9, 3.9738690120387077`*^9}, {3.973869069125185*^9, 
+  3.9738690699229603`*^9}},
+ CellLabel->"In[28]:=",ExpressionUUID->"99a2dde5-40d1-4891-85b8-3229d655f1b9"],
+
+Cell[BoxData[
+ TagBox[
+  TagBox[GridBox[{
+     {
+      TagBox["\<\"Potential\"\>",
+       HoldForm], 
+      TagBox["\<\"small-field \[Lambda]\"\>",
+       HoldForm], 
+      TagBox["\<\"small-field \\!\\(\\*TemplateBox[<|\\\"boxes\\\" -> \
+FormBox[SubsuperscriptBox[\\\"\[Phi]\\\", \\\"ini\\\", \\\"\[Prime]\\\"], \
+TraditionalForm], \\\"errors\\\" -> {}, \\\"input\\\" -> \\\"\\\\\\\\phi^\\\\\
+\\\\prime_ {\\\\\\\\text {ini}}\\\", \\\"state\\\" -> \
+\\\"Boxes\\\"|>,\\\"TeXAssistantTemplate\\\"]\\)\"\>",
+       HoldForm]},
+     {"\<\"pl\"\>", "Indeterminate", "0"},
+     {"\<\"cos\"\>", "0", 
+      SqrtBox[
+       RowBox[{
+        RowBox[{"-", "\[Rho]"}], " ", 
+        RowBox[{"(", 
+         RowBox[{"1", "+", "\[Omega]"}], ")"}]}]]},
+     {"\<\"hyp\"\>", 
+      RowBox[{"-", "c2"}], 
+      RowBox[{
+       SqrtBox["3"], " ", 
+       SqrtBox[
+        RowBox[{"-", 
+         FractionBox[
+          RowBox[{"\[Gamma]", " ", "\[Rho]", " ", 
+           RowBox[{"(", 
+            RowBox[{"1", "+", "\[Omega]"}], ")"}]}], 
+          RowBox[{"c2", "+", 
+           RowBox[{"3", " ", "\[Gamma]"}]}]]}]]}]},
+     {"\<\"pNG\"\>", "0", 
+      SqrtBox[
+       RowBox[{
+        RowBox[{"-", "\[Rho]"}], " ", 
+        RowBox[{"(", 
+         RowBox[{"1", "+", "\[Omega]"}], ")"}]}]]},
+     {"\<\"iPL\"\>", "Indeterminate", "0"},
+     {"\<\"exp\"\>", 
+      RowBox[{"-", "c2"}], 
+      RowBox[{
+       SqrtBox["3"], " ", 
+       SqrtBox[
+        RowBox[{"-", 
+         FractionBox[
+          RowBox[{"\[Gamma]", " ", "\[Rho]", " ", 
+           RowBox[{"(", 
+            RowBox[{"1", "+", "\[Omega]"}], ")"}]}], 
+          RowBox[{"c2", "+", 
+           RowBox[{"3", " ", "\[Gamma]"}]}]]}]]}]},
+     {"\<\"sqexp\"\>", "Indeterminate", "0"},
+     {"\<\"bexp\"\>", 
+      RowBox[{"-", "c3"}], 
+      RowBox[{
+       SqrtBox["3"], " ", 
+       SqrtBox[
+        RowBox[{"-", 
+         FractionBox[
+          RowBox[{"\[Gamma]", " ", "\[Rho]", " ", 
+           RowBox[{"(", 
+            RowBox[{"1", "+", "\[Omega]"}], ")"}]}], 
+          RowBox[{"c3", "+", 
+           RowBox[{"3", " ", "\[Gamma]"}]}]]}]]}]},
+     {"\<\"dexp\"\>", 
+      FractionBox[
+       RowBox[{
+        RowBox[{
+         RowBox[{"-", "c1"}], " ", "c2"}], "-", 
+        RowBox[{"c3", " ", "c4"}]}], 
+       RowBox[{"c1", "+", "c3"}]], 
+      RowBox[{
+       SqrtBox["3"], " ", 
+       SqrtBox[
+        RowBox[{"-", 
+         FractionBox[
+          RowBox[{
+           RowBox[{"(", 
+            RowBox[{"c1", "+", "c3"}], ")"}], " ", "\[Gamma]", " ", "\[Rho]", 
+           " ", 
+           RowBox[{"(", 
+            RowBox[{"1", "+", "\[Omega]"}], ")"}]}], 
+          RowBox[{
+           RowBox[{"c1", " ", 
+            RowBox[{"(", 
+             RowBox[{"c2", "+", 
+              RowBox[{"3", " ", "\[Gamma]"}]}], ")"}]}], "+", 
+           RowBox[{"c3", " ", 
+            RowBox[{"(", 
+             RowBox[{"c4", "+", 
+              RowBox[{"3", " ", "\[Gamma]"}]}], ")"}]}]}]]}]]}]}
+    },
+    GridBoxAlignment->{"Columns" -> {{Left}}, "Rows" -> {{Baseline}}},
+    GridBoxDividers->{
+     "Columns" -> {{False}}, "Rows" -> {False, True, {False}, False}},
+    GridBoxSpacings->{"Columns" -> {
+        Offset[0.27999999999999997`], {
+         Offset[2.0999999999999996`]}, 
+        Offset[0.27999999999999997`]}, "Rows" -> {
+        Offset[0.2], {
+         Offset[0.4]}, 
+        Offset[0.2]}}],
+   {None, OutputFormsDump`HeadedColumns}],
+  Function[BoxForm`e$, 
+   TableForm[
+   BoxForm`e$, 
+    TableHeadings -> {
+     None, {"Potential", "small-field \[Lambda]", 
+       "small-field \!\(\*TemplateBox[<|\"boxes\" -> \
+FormBox[SubsuperscriptBox[\"\[Phi]\", \"ini\", \"\[Prime]\"], \
+TraditionalForm], \"errors\" -> {}, \"input\" -> \"\\\\phi^\\\\prime_ \
+{\\\\text {ini}}\", \"state\" -> \
+\"Boxes\"|>,\"TeXAssistantTemplate\"]\)"}}]]]], "Output",
+ CellChangeTimes->{
+  3.97376860774581*^9, 3.973869366630526*^9, {3.973869789505521*^9, 
+   3.973869808106349*^9}},
+ CellLabel->
+  "Out[28]//TableForm=",ExpressionUUID->"16624952-71c1-431a-bbb6-\
+0d9b868318c0"]
+}, Open  ]],
+
+Cell["\<\
+We see that Bean\[CloseCurlyQuote]s exponential and the double exponential \
+have only conditional solutions. If the conditions are not met, we can still \
+approximate those as simple exponential potentials.\
+\>", "Text",
+ CellChangeTimes->{{3.97378162548186*^9, 3.973781670441868*^9}, {
+  3.973869109531148*^9, 
+  3.973869120944152*^9}},ExpressionUUID->"456321d4-64b0-43ca-a78e-\
+b6d369846a31"]
+}, Open  ]],
+
+Cell[CellGroupData[{
+
+Cell["Initial \[Phi]", "Subsection",
+ CellChangeTimes->{{3.973781234286847*^9, 
+  3.973781240264105*^9}},ExpressionUUID->"6dcdf8f2-784d-4aea-8514-\
+d406da938fdd"],
+
+Cell[CellGroupData[{
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"(*", 
+   RowBox[{
+    RowBox[{"Compute", " ", "small"}], "-", 
+    RowBox[{
+    "phi", " ", "initial", " ", "conditions", " ", "in", " ", "parallel"}]}], 
+   "*)"}], 
+  RowBox[{
+   RowBox[{
+    RowBox[{"smallPhiInitial", "=", 
+     RowBox[{"ParallelTable", "[", 
+      RowBox[{
+       RowBox[{"Module", "[", 
+        RowBox[{
+         RowBox[{"{", 
+          RowBox[{
+           RowBox[{"name", "=", 
+            RowBox[{"names", "[", 
+             RowBox[{"[", "i", "]"}], "]"}]}], ",", 
+           RowBox[{"V", "=", 
+            RowBox[{"vals", "[", 
+             RowBox[{"[", "i", "]"}], "]"}]}], ",", 
+           RowBox[{"LambdaSmallPhi", "=", 
+            RowBox[{"lambdaLimitSmallPhi", "[", 
+             RowBox[{"[", "i", "]"}], "]"}]}], ",", "VSmallPhi", ",", "eqn", ",",
+            "result"}], "}"}], ",", 
+         RowBox[{"(*", 
+          RowBox[{
+           RowBox[{
+           "Asymptotic", " ", "form", " ", "of", " ", "V", " ", "as", " ", 
+            "\[Phi]"}], "\[RightArrow]", 
+           RowBox[{"0", " ", 
+            RowBox[{"(", 
+             RowBox[{"leading", " ", "term", " ", "only"}], ")"}]}]}], "*)"}], 
+         RowBox[{
+          RowBox[{"VSmallPhi", "=", 
+           RowBox[{"Normal", "@", 
+            RowBox[{"Series", "[", 
+             RowBox[{"V", ",", 
+              RowBox[{"{", 
+               RowBox[{"\[Phi]", ",", "0", ",", "1"}], "}"}]}], "]"}]}]}], ";",
+           "\[IndentingNewLine]", 
+          RowBox[{"(*", 
+           RowBox[{
+           "Construct", " ", "attractor", " ", "equation", " ", "using", " ", 
+            "asymptotic", " ", "Lambda", " ", "and", " ", "V"}], "*)"}], 
+          RowBox[{"eqn", "=", 
+           RowBox[{
+            RowBox[{
+             RowBox[{"2", " ", 
+              RowBox[{"VSmallPhi", "/", 
+               RowBox[{"(", 
+                RowBox[{"1", "-", "\[Omega]"}], ")"}]}]}], "==", 
+             RowBox[{"\[Rho]", " ", "3", " ", 
+              RowBox[{
+               RowBox[{"\[Gamma]", "/", 
+                RowBox[{
+                 RowBox[{"(", "LambdaSmallPhi", ")"}], "^", "2"}]}], "/", 
+               RowBox[{"(", 
+                RowBox[{"1", "-", 
+                 RowBox[{"3", " ", 
+                  RowBox[{"\[Gamma]", "/", 
+                   RowBox[{
+                    RowBox[{"(", "LambdaSmallPhi", ")"}], "^", "2"}]}]}]}], 
+                ")"}]}]}]}], "&&", 
+            RowBox[{"p", ">", "0"}], "&&", 
+            RowBox[{"\[Gamma]", ">", "0"}], "&&", 
+            RowBox[{"\[Rho]", ">", "0"}], "&&", 
+            RowBox[{"\[Omega]", ">", "0"}]}]}], ";", "\[IndentingNewLine]", 
+          RowBox[{"(*", 
+           RowBox[{
+           "Try", " ", "to", " ", "solve", " ", "for", " ", "\[Phi]"}], 
+           "*)"}], 
+          RowBox[{"If", "[", 
+           RowBox[{
+            RowBox[{"name", "===", "\"\<iPL\>\""}], ",", 
+            RowBox[{"(*", 
+             RowBox[{"Use", " ", "Reduce", " ", "for", " ", "iPL"}], "*)"}], 
+            RowBox[{"result", "=", 
+             RowBox[{"Quiet", "@", 
+              RowBox[{"Reduce", "[", 
+               RowBox[{"eqn", ",", "\[Phi]", ",", "Reals"}], "]"}]}]}], ",", 
+            "\[IndentingNewLine]", 
+            RowBox[{"(*", 
+             RowBox[{
+             "Use", " ", "Solve", " ", "for", " ", "all", " ", "other", " ", 
+              "potentials"}], "*)"}], 
+            RowBox[{"Module", "[", 
+             RowBox[{
+              RowBox[{"{", "soln", "}"}], ",", 
+              RowBox[{
+               RowBox[{"soln", "=", 
+                RowBox[{"Quiet", "@", 
+                 RowBox[{"Solve", "[", 
+                  RowBox[{"eqn", ",", "\[Phi]", ",", "Reals"}], "]"}]}]}], ";",
+                "\[IndentingNewLine]", 
+               RowBox[{"result", "=", 
+                RowBox[{"If", "[", 
+                 RowBox[{
+                  RowBox[{"soln", "=!=", 
+                   RowBox[{"{", "}"}]}], ",", 
+                  RowBox[{"First", "[", "soln", "]"}], 
+                  ",", "\"\<no real solution / \[Phi] unconstrained\>\""}], 
+                 "]"}]}]}]}], "]"}]}], "]"}], ";", "\[IndentingNewLine]", 
+          RowBox[{"{", 
+           RowBox[{"name", ",", "result"}], "}"}]}]}], "]"}], ",", 
+       RowBox[{"{", 
+        RowBox[{"i", ",", 
+         RowBox[{"Length", "[", "vals", "]"}]}], "}"}]}], "]"}]}], ";"}], 
+   "\n", "\[IndentingNewLine]", 
+   RowBox[{"(*", "Display", "*)"}], "\[IndentingNewLine]", 
+   RowBox[{"TableForm", "[", 
+    RowBox[{
+     RowBox[{"Transpose", "[", 
+      RowBox[{"{", 
+       RowBox[{"names", ",", 
+        RowBox[{"smallPhiInitial", "[", 
+         RowBox[{"[", 
+          RowBox[{"All", ",", "2"}], "]"}], "]"}]}], "  ", 
+       RowBox[{"(*", 
+        RowBox[{"extract", " ", "solutions"}], "*)"}], "}"}], "]"}], ",", 
+     RowBox[{"TableHeadings", "->", 
+      RowBox[{"{", 
+       RowBox[{"None", ",", 
+        RowBox[{"{", 
+         RowBox[{"\"\<Potential\>\"", 
+          ",", "\"\<small \!\(\*TemplateBox[<|\"boxes\" -> FormBox[
+SubscriptBox[\"\[Phi]\", \"ini\"], TraditionalForm], \"errors\" -> {}, \
+\"input\" -> \"\\\\phi_ {\\\\text {ini}}\", \"state\" -> \
+\"Boxes\"|>,\"TeXAssistantTemplate\"]\) attractor\>\""}], "}"}]}], "}"}]}]}], 
+    "]"}]}]}]], "Input",
+ CellChangeTimes->{{3.973781329100544*^9, 3.973781439020026*^9}, {
+  3.973869151341989*^9, 3.973869157144986*^9}, {3.973869607751976*^9, 
+  3.973869649876235*^9}},
+ CellLabel->"In[24]:=",ExpressionUUID->"ae719e32-9d7e-43dc-b6bc-048dfea479f1"],
+
+Cell[BoxData[
+ TemplateBox[{
+  "Power", "infy", 
+   "\"Infinite expression \\!\\(\\*FractionBox[\\\"1\\\", \\\"0\\\"]\\) \
+encountered.\"", None, 24, 15, 30513678247668644453, "Local"},
+  "MessageTemplate",
+  BaseStyle->"MSG"]], "Message", "MSG",
+ ShowCellLabel->True,
+ CellChangeTimes->{3.973869660279852*^9},
+ CellLabel->
+  "kernel 2 (Local)",ExpressionUUID->"2107fd08-d466-4e41-bb08-e0a2a674ecfc"],
+
+Cell[BoxData[
+ TemplateBox[{
+  "Power", "infy", 
+   "\"Infinite expression \\!\\(\\*FractionBox[\\\"1\\\", \\\"0\\\"]\\) \
+encountered.\"", None, 24, 16, 30513678247668644453, "Local"},
+  "MessageTemplate",
+  BaseStyle->"MSG"]], "Message", "MSG",
+ ShowCellLabel->True,
+ CellChangeTimes->{3.973869660294791*^9},
+ CellLabel->
+  "kernel 4 (Local)",ExpressionUUID->"b8b24b5e-a55c-45ca-a87f-f85192f8d8b5"],
+
+Cell[BoxData[
+ TemplateBox[{
+  "Power", "infy", 
+   "\"Infinite expression \\!\\(\\*FractionBox[\\\"1\\\", \\\"0\\\"]\\) \
+encountered.\"", None, 24, 17, 30513678247668644453, "Local"},
+  "MessageTemplate",
+  BaseStyle->"MSG"]], "Message", "MSG",
+ ShowCellLabel->True,
+ CellChangeTimes->{3.973869660308982*^9},
+ CellLabel->
+  "kernel 2 (Local)",ExpressionUUID->"7e3233fb-dee7-4fb7-9d9c-ce989cd8200c"],
+
+Cell[BoxData[
+ TemplateBox[{
+  "Power", "infy", 
+   "\"Infinite expression \\!\\(\\*FractionBox[\\\"1\\\", \\\"0\\\"]\\) \
+encountered.\"", None, 24, 18, 30513678247668644453, "Local"},
+  "MessageTemplate",
+  BaseStyle->"MSG"]], "Message", "MSG",
+ ShowCellLabel->True,
+ CellChangeTimes->{3.973869660327087*^9},
+ CellLabel->
+  "kernel 4 (Local)",ExpressionUUID->"eeb1b947-9849-4f13-9840-5e2856235c90"],
+
+Cell[BoxData[
+ TemplateBox[{
+  "Infinity", "indet", 
+   "\"Indeterminate expression \\!\\(\\*RowBox[{\\\"0\\\", \\\" \\\", \
+\\\"ComplexInfinity\\\"}]\\) encountered.\"", None, 24, 19, 
+   30513678247668644453, "Local"},
+  "MessageTemplate",
+  BaseStyle->"MSG"]], "Message", "MSG",
+ ShowCellLabel->True,
+ CellChangeTimes->{3.973869660351563*^9},
+ CellLabel->
+  "kernel 2 (Local)",ExpressionUUID->"164cd69b-0167-47d4-9e8f-c406949a39ae"],
+
+Cell[BoxData[
+ TemplateBox[{
+  "Infinity", "indet", 
+   "\"Indeterminate expression \\!\\(\\*RowBox[{\\\"0\\\", \\\" \\\", \
+\\\"ComplexInfinity\\\"}]\\) encountered.\"", None, 24, 20, 
+   30513678247668644453, "Local"},
+  "MessageTemplate",
+  BaseStyle->"MSG"]], "Message", "MSG",
+ ShowCellLabel->True,
+ CellChangeTimes->{3.9738696603727217`*^9},
+ CellLabel->
+  "kernel 4 (Local)",ExpressionUUID->"b0e5d1aa-1176-42dc-9650-52245b0a7857"],
+
+Cell[BoxData[
+ InterpretationBox[GridBox[{
+    {"\<\"Potential\"\>", "\<\"small \\!\\(\\*TemplateBox[<|\\\"boxes\\\" -> \
+FormBox[SubscriptBox[\\\"\[Phi]\\\", \\\"ini\\\"], TraditionalForm], \
+\\\"errors\\\" -> {}, \\\"input\\\" -> \\\"\\\\\\\\phi_ {\\\\\\\\text \
+{ini}}\\\", \\\"state\\\" -> \\\"Boxes\\\"|>,\\\"TeXAssistantTemplate\\\"]\\) \
+attractor\"\>"},
+    {"\<\"pl\"\>", "\<\"no real solution / \[Phi] unconstrained\"\>"},
+    {"\<\"cos\"\>", "\<\"no real solution / \[Phi] unconstrained\"\>"},
+    {"\<\"hyp\"\>", GridBox[{
+       {
+        RowBox[{"\[Phi]", "\[Rule]", 
+         TemplateBox[{
+           FractionBox[
+            RowBox[{
+              RowBox[{"2", " ", "c1", " ", 
+                SuperscriptBox["c2", "2"]}], "-", 
+              RowBox[{"6", " ", "c1", " ", "\[Gamma]"}], "-", 
+              RowBox[{"3", " ", "\[Gamma]", " ", "\[Rho]"}], "+", 
+              
+              RowBox[{"3", " ", "\[Gamma]", " ", "\[Rho]", " ", 
+                "\[Omega]"}]}], 
+            RowBox[{
+              RowBox[{"2", " ", "c1", " ", 
+                SuperscriptBox["c2", "3"]}], "-", 
+              RowBox[{"6", " ", "c1", " ", "c2", " ", "\[Gamma]"}]}]], 
+           RowBox[{
+             RowBox[{"p", ">", "0"}], "&&", 
+             RowBox[{"\[Gamma]", ">", "0"}], "&&", 
+             RowBox[{"\[Omega]", ">", "0"}], "&&", 
+             RowBox[{"\[Rho]", ">", "0"}]}]},
+          "ConditionalExpression"]}]}
+      },
+      GridBoxAlignment->{"Columns" -> {{Left}}, "Rows" -> {{Baseline}}},
+      GridBoxSpacings->{"Columns" -> {
+          Offset[0.27999999999999997`], {
+           Offset[0.7]}, 
+          Offset[0.27999999999999997`]}, "Rows" -> {
+          Offset[0.2], {
+           Offset[0.1]}, 
+          Offset[0.2]}}]},
+    {"\<\"pNG\"\>", "\<\"no real solution / \[Phi] unconstrained\"\>"},
+    {"\<\"iPL\"\>", "False"},
+    {"\<\"exp\"\>", GridBox[{
+       {
+        RowBox[{"\[Phi]", "\[Rule]", 
+         TemplateBox[{
+           FractionBox[
+            RowBox[{
+              RowBox[{"2", " ", "c1", " ", 
+                SuperscriptBox["c2", "2"]}], "-", 
+              RowBox[{"6", " ", "c1", " ", "\[Gamma]"}], "-", 
+              RowBox[{"3", " ", "\[Gamma]", " ", "\[Rho]"}], "+", 
+              
+              RowBox[{"3", " ", "\[Gamma]", " ", "\[Rho]", " ", 
+                "\[Omega]"}]}], 
+            RowBox[{
+              RowBox[{"2", " ", "c1", " ", 
+                SuperscriptBox["c2", "3"]}], "-", 
+              RowBox[{"6", " ", "c1", " ", "c2", " ", "\[Gamma]"}]}]], 
+           RowBox[{
+             RowBox[{"p", ">", "0"}], "&&", 
+             RowBox[{"\[Gamma]", ">", "0"}], "&&", 
+             RowBox[{"\[Omega]", ">", "0"}], "&&", 
+             RowBox[{"\[Rho]", ">", "0"}]}]},
+          "ConditionalExpression"]}]}
+      },
+      GridBoxAlignment->{"Columns" -> {{Left}}, "Rows" -> {{Baseline}}},
+      GridBoxSpacings->{"Columns" -> {
+          Offset[0.27999999999999997`], {
+           Offset[0.7]}, 
+          Offset[0.27999999999999997`]}, "Rows" -> {
+          Offset[0.2], {
+           Offset[0.1]}, 
+          Offset[0.2]}}]},
+    {"\<\"sqexp\"\>", "\<\"no real solution / \[Phi] unconstrained\"\>"},
+    {"\<\"bexp\"\>", GridBox[{
+       {
+        RowBox[{"\[Phi]", "\[Rule]", 
+         TemplateBox[{
+           FractionBox[
+            RowBox[{
+              RowBox[{"2", " ", "c1", " ", "c2", " ", 
+                SuperscriptBox["c3", "2"]}], "-", 
+              RowBox[{"6", " ", "c1", " ", "c2", " ", "\[Gamma]"}], "-", 
+              RowBox[{"3", " ", "\[Gamma]", " ", "\[Rho]"}], "+", 
+              
+              RowBox[{"3", " ", "\[Gamma]", " ", "\[Rho]", " ", 
+                "\[Omega]"}]}], 
+            RowBox[{
+              RowBox[{"2", " ", "c1", " ", "c2", " ", 
+                SuperscriptBox["c3", "3"]}], "-", 
+              
+              RowBox[{"6", " ", "c1", " ", "c2", " ", "c3", " ", 
+                "\[Gamma]"}]}]], 
+           RowBox[{
+             RowBox[{"p", ">", "0"}], "&&", 
+             RowBox[{"\[Gamma]", ">", "0"}], "&&", 
+             RowBox[{"\[Omega]", ">", "0"}], "&&", 
+             RowBox[{"\[Rho]", ">", "0"}]}]},
+          "ConditionalExpression"]}]}
+      },
+      GridBoxAlignment->{"Columns" -> {{Left}}, "Rows" -> {{Baseline}}},
+      GridBoxSpacings->{"Columns" -> {
+          Offset[0.27999999999999997`], {
+           Offset[0.7]}, 
+          Offset[0.27999999999999997`]}, "Rows" -> {
+          Offset[0.2], {
+           Offset[0.1]}, 
+          Offset[0.2]}}]},
+    {"\<\"dexp\"\>", GridBox[{
+       {
+        RowBox[{"\[Phi]", "\[Rule]", 
+         TemplateBox[{
+           RowBox[{
+             RowBox[{"(", 
+               RowBox[{
+                 RowBox[{"2", " ", 
+                   SuperscriptBox["c1", "3"], " ", 
+                   SuperscriptBox["c2", "2"]}], "+", 
+                 RowBox[{"2", " ", 
+                   SuperscriptBox["c1", "2"], " ", 
+                   SuperscriptBox["c2", "2"], " ", "c3"}], "+", 
+                 RowBox[{"4", " ", 
+                   SuperscriptBox["c1", "2"], " ", "c2", " ", "c3", " ", 
+                   "c4"}], "+", 
+                 RowBox[{"4", " ", "c1", " ", "c2", " ", 
+                   SuperscriptBox["c3", "2"], " ", "c4"}], "+", 
+                 RowBox[{"2", " ", "c1", " ", 
+                   SuperscriptBox["c3", "2"], " ", 
+                   SuperscriptBox["c4", "2"]}], "+", 
+                 RowBox[{"2", " ", 
+                   SuperscriptBox["c3", "3"], " ", 
+                   SuperscriptBox["c4", "2"]}], "-", 
+                 RowBox[{"6", " ", 
+                   SuperscriptBox["c1", "3"], " ", "\[Gamma]"}], "-", 
+                 RowBox[{"18", " ", 
+                   SuperscriptBox["c1", "2"], " ", "c3", " ", "\[Gamma]"}], 
+                 "-", 
+                 RowBox[{"18", " ", "c1", " ", 
+                   SuperscriptBox["c3", "2"], " ", "\[Gamma]"}], "-", 
+                 RowBox[{"6", " ", 
+                   SuperscriptBox["c3", "3"], " ", "\[Gamma]"}], "-", 
+                 RowBox[{"3", " ", 
+                   SuperscriptBox["c1", "2"], " ", "\[Gamma]", " ", 
+                   "\[Rho]"}], "-", 
+                 
+                 RowBox[{
+                  "6", " ", "c1", " ", "c3", " ", "\[Gamma]", " ", "\[Rho]"}],
+                  "-", 
+                 RowBox[{"3", " ", 
+                   SuperscriptBox["c3", "2"], " ", "\[Gamma]", " ", 
+                   "\[Rho]"}], "+", 
+                 RowBox[{"3", " ", 
+                   SuperscriptBox["c1", "2"], " ", "\[Gamma]", " ", "\[Rho]", 
+                   " ", "\[Omega]"}], "+", 
+                 
+                 RowBox[{
+                  "6", " ", "c1", " ", "c3", " ", "\[Gamma]", " ", "\[Rho]", 
+                   " ", "\[Omega]"}], "+", 
+                 RowBox[{"3", " ", 
+                   SuperscriptBox["c3", "2"], " ", "\[Gamma]", " ", "\[Rho]", 
+                   " ", "\[Omega]"}]}], ")"}], "/", 
+             RowBox[{"(", 
+               RowBox[{
+                 RowBox[{"2", " ", 
+                   SuperscriptBox["c1", "3"], " ", 
+                   SuperscriptBox["c2", "3"]}], "+", 
+                 RowBox[{"6", " ", 
+                   SuperscriptBox["c1", "2"], " ", 
+                   SuperscriptBox["c2", "2"], " ", "c3", " ", "c4"}], "+", 
+                 RowBox[{"6", " ", "c1", " ", "c2", " ", 
+                   SuperscriptBox["c3", "2"], " ", 
+                   SuperscriptBox["c4", "2"]}], "+", 
+                 RowBox[{"2", " ", 
+                   SuperscriptBox["c3", "3"], " ", 
+                   SuperscriptBox["c4", "3"]}], "-", 
+                 RowBox[{"6", " ", 
+                   SuperscriptBox["c1", "3"], " ", "c2", " ", "\[Gamma]"}], 
+                 "-", 
+                 RowBox[{"12", " ", 
+                   SuperscriptBox["c1", "2"], " ", "c2", " ", "c3", " ", 
+                   "\[Gamma]"}], "-", 
+                 RowBox[{"6", " ", "c1", " ", "c2", " ", 
+                   SuperscriptBox["c3", "2"], " ", "\[Gamma]"}], "-", 
+                 RowBox[{"6", " ", 
+                   SuperscriptBox["c1", "2"], " ", "c3", " ", "c4", " ", 
+                   "\[Gamma]"}], "-", 
+                 RowBox[{"12", " ", "c1", " ", 
+                   SuperscriptBox["c3", "2"], " ", "c4", " ", "\[Gamma]"}], 
+                 "-", 
+                 RowBox[{"6", " ", 
+                   SuperscriptBox["c3", "3"], " ", "c4", " ", "\[Gamma]"}]}], 
+               ")"}]}], 
+           RowBox[{
+             RowBox[{"p", ">", "0"}], "&&", 
+             RowBox[{"\[Gamma]", ">", "0"}], "&&", 
+             RowBox[{"\[Omega]", ">", "0"}], "&&", 
+             RowBox[{"\[Rho]", ">", "0"}]}]},
+          "ConditionalExpression"]}]}
+      },
+      GridBoxAlignment->{"Columns" -> {{Left}}, "Rows" -> {{Baseline}}},
+      GridBoxSpacings->{"Columns" -> {
+          Offset[0.27999999999999997`], {
+           Offset[0.7]}, 
+          Offset[0.27999999999999997`]}, "Rows" -> {
+          Offset[0.2], {
+           Offset[0.1]}, 
+          Offset[0.2]}}]}
+   },
+   GridBoxAlignment->{"Columns" -> {{Center}}, "Rows" -> {{Baseline}}},
+   GridBoxSpacings->{"Columns" -> {
+       Offset[0.27999999999999997`], {
+        Offset[2.0999999999999996`]}, 
+       Offset[0.27999999999999997`]}, "Rows" -> {
+       Offset[0.2], {
+        Offset[0.4]}, 
+       Offset[0.2]}}],
+  TableForm[{{"pl", "no real solution / \[Phi] unconstrained"}, {
+    "cos", "no real solution / \[Phi] unconstrained"}, {
+    "hyp", {$CellContext`\[Phi] -> 
+      ConditionalExpression[(2 $CellContext`c1 $CellContext`c2^3 - 
+          6 $CellContext`c1 $CellContext`c2 $CellContext`\[Gamma])^(-1) (
+         2 $CellContext`c1 $CellContext`c2^2 - 
+         6 $CellContext`c1 $CellContext`\[Gamma] - 
+         3 $CellContext`\[Gamma] $CellContext`\[Rho] + 
+         3 $CellContext`\[Gamma] $CellContext`\[Rho] $CellContext`\[Omega]), 
+        And[$CellContext`p > 0, $CellContext`\[Gamma] > 
+         0, $CellContext`\[Omega] > 0, $CellContext`\[Rho] > 0]]}}, {
+    "pNG", "no real solution / \[Phi] unconstrained"}, {"iPL", False}, {
+    "exp", {$CellContext`\[Phi] -> 
+      ConditionalExpression[(2 $CellContext`c1 $CellContext`c2^3 - 
+          6 $CellContext`c1 $CellContext`c2 $CellContext`\[Gamma])^(-1) (
+         2 $CellContext`c1 $CellContext`c2^2 - 
+         6 $CellContext`c1 $CellContext`\[Gamma] - 
+         3 $CellContext`\[Gamma] $CellContext`\[Rho] + 
+         3 $CellContext`\[Gamma] $CellContext`\[Rho] $CellContext`\[Omega]), 
+        And[$CellContext`p > 0, $CellContext`\[Gamma] > 
+         0, $CellContext`\[Omega] > 0, $CellContext`\[Rho] > 0]]}}, {
+    "sqexp", "no real solution / \[Phi] unconstrained"}, {
+    "bexp", {$CellContext`\[Phi] -> 
+      ConditionalExpression[(
+          2 $CellContext`c1 $CellContext`c2 $CellContext`c3^3 - 
+          6 $CellContext`c1 $CellContext`c2 $CellContext`c3 $CellContext`\
+\[Gamma])^(-1) (2 $CellContext`c1 $CellContext`c2 $CellContext`c3^2 - 
+         6 $CellContext`c1 $CellContext`c2 $CellContext`\[Gamma] - 
+         3 $CellContext`\[Gamma] $CellContext`\[Rho] + 
+         3 $CellContext`\[Gamma] $CellContext`\[Rho] $CellContext`\[Omega]), 
+        And[$CellContext`p > 0, $CellContext`\[Gamma] > 
+         0, $CellContext`\[Omega] > 0, $CellContext`\[Rho] > 0]]}}, {
+    "dexp", {$CellContext`\[Phi] -> 
+      ConditionalExpression[(2 $CellContext`c1^3 $CellContext`c2^3 + 
+          6 $CellContext`c1^2 $CellContext`c2^2 $CellContext`c3 \
+$CellContext`c4 + 
+          6 $CellContext`c1 $CellContext`c2 $CellContext`c3^2 \
+$CellContext`c4^2 + 2 $CellContext`c3^3 $CellContext`c4^3 - 
+          6 $CellContext`c1^3 $CellContext`c2 $CellContext`\[Gamma] - 
+          12 $CellContext`c1^2 $CellContext`c2 $CellContext`c3 $CellContext`\
+\[Gamma] - 
+          6 $CellContext`c1 $CellContext`c2 $CellContext`c3^2 $CellContext`\
+\[Gamma] - 
+          6 $CellContext`c1^2 $CellContext`c3 $CellContext`c4 $CellContext`\
+\[Gamma] - 
+          12 $CellContext`c1 $CellContext`c3^2 $CellContext`c4 $CellContext`\
+\[Gamma] - 6 $CellContext`c3^3 $CellContext`c4 $CellContext`\[Gamma])^(-1) (
+         2 $CellContext`c1^3 $CellContext`c2^2 + 
+         2 $CellContext`c1^2 $CellContext`c2^2 $CellContext`c3 + 
+         4 $CellContext`c1^2 $CellContext`c2 $CellContext`c3 $CellContext`c4 + 
+         4 $CellContext`c1 $CellContext`c2 $CellContext`c3^2 $CellContext`c4 + 
+         2 $CellContext`c1 $CellContext`c3^2 $CellContext`c4^2 + 
+         2 $CellContext`c3^3 $CellContext`c4^2 - 
+         6 $CellContext`c1^3 $CellContext`\[Gamma] - 
+         18 $CellContext`c1^2 $CellContext`c3 $CellContext`\[Gamma] - 
+         18 $CellContext`c1 $CellContext`c3^2 $CellContext`\[Gamma] - 
+         6 $CellContext`c3^3 $CellContext`\[Gamma] - 
+         3 $CellContext`c1^2 $CellContext`\[Gamma] $CellContext`\[Rho] - 
+         6 $CellContext`c1 $CellContext`c3 $CellContext`\[Gamma] \
+$CellContext`\[Rho] - 
+         3 $CellContext`c3^2 $CellContext`\[Gamma] $CellContext`\[Rho] + 
+         3 $CellContext`c1^2 $CellContext`\[Gamma] $CellContext`\[Rho] \
+$CellContext`\[Omega] + 
+         6 $CellContext`c1 $CellContext`c3 $CellContext`\[Gamma] \
+$CellContext`\[Rho] $CellContext`\[Omega] + 
+         3 $CellContext`c3^2 $CellContext`\[Gamma] $CellContext`\[Rho] \
+$CellContext`\[Omega]), 
+        And[$CellContext`p > 0, $CellContext`\[Gamma] > 
+         0, $CellContext`\[Omega] > 0, $CellContext`\[Rho] > 0]]}}}, 
+   TableHeadings -> {
+    None, {"Potential", 
+      "small \!\(\*TemplateBox[<|\"boxes\" -> \
+FormBox[SubscriptBox[\"\[Phi]\", \"ini\"], TraditionalForm], \"errors\" -> \
+{}, \"input\" -> \"\\\\phi_ {\\\\text {ini}}\", \"state\" -> \
+\"Boxes\"|>,\"TeXAssistantTemplate\"]\) attractor"}}]]], "Output",
+ CellChangeTimes->{3.9737814444805613`*^9, 3.973869366830482*^9, 
+  3.9738696603944473`*^9},
+ CellLabel->
+  "Out[25]//TableForm=",ExpressionUUID->"2d6400a0-1218-4313-a2e2-\
+4e4542596571"]
+}, Open  ]],
+
+Cell["\<\
+The conditions are always satisfied in our cosmological setting. This means \
+that either there is no solution for a given potential or that there is \
+always a solution.\
+\>", "Text",
+ CellChangeTimes->{{3.973781688331172*^9, 3.973781708930786*^9}, {
+  3.973869921520022*^9, 
+  3.973869940825568*^9}},ExpressionUUID->"fda93c26-ef7a-4090-adc8-\
+e5dc72ad6f22"]
+}, Open  ]]
+}, Open  ]]
+}, Open  ]]
+}, Open  ]]
+},
+PrintingStyleEnvironment->"Elegant Printout",
+RulerUnits->"Inches",
+WindowSize->{Full, Full},
+WindowMargins->{{236, Automatic}, {Automatic, 50}},
+PrintingCopies->1,
+PrintingStartingPageNumber->1,
+PrintingPageRange->{1, Automatic},
+PageHeaders->{{
+   Cell[
+    TextData[{
+      StyleBox[
+       CounterBox["Page"], "PageNumber"], "   ", "|", " ", 
+      ValueBox["FileName"]}], "Header", 
+    CellMargins -> {{0, Inherited}, {Inherited, Inherited}}], None, None}, {
+  None, None, 
+   Cell[
+    TextData[{
+      ValueBox["FileName"], " ", "|", "   ", 
+      StyleBox[
+       CounterBox["Page"], "PageNumber"]}], "Header", 
+    CellMargins -> {{Inherited, 0}, {Inherited, Inherited}}]}},
+PageFooters->{{
+   Cell[
+    TextData[
+     CounterBox["Page", CounterFunction :> Identity]], "Footer", 
+    CellMargins -> {{0, Inherited}, {Inherited, Inherited}}], None, None}, {
+  None, None, 
+   Cell[
+    TextData[
+     CounterBox["Page", CounterFunction :> Identity]], "Footer", 
+    CellMargins -> {{Inherited, 0}, {Inherited, Inherited}}]}},
+PageHeaderLines->{False, False},
+PageFooterLines->{False, False},
+PrintingOptions->{"FacingPages"->True,
+"FirstPageFace"->Right,
+"FirstPageFooter"->True,
+"FirstPageHeader"->True,
+"PaperOrientation"->"Portrait",
+"PaperSize"->{595, 842},
+"PrintCellBrackets"->False,
+"PrintMultipleHorizontalPages"->False,
+"PrintRegistrationMarks"->False,
+"PrintingMargins"->{{54, 54}, {72, 72}}},
+FrontEndVersion->"14.3 for Mac OS X ARM (64-bit) (July 8, 2025)",
+StyleDefinitions->"Default.nb",
+ExpressionUUID->"fab3e877-9ba9-499f-a5f7-7886ed0680b2"
+]
+(* End of Notebook Content *)
+
+(* Internal cache information *)
+(*CellTagsOutline
+CellTagsIndex->{}
+*)
+(*CellTagsIndex
+CellTagsIndex->{}
+*)
+(*NotebookFileOutline
+Notebook[{
+Cell[CellGroupData[{
+Cell[576, 22, 184, 3, 96, "Title",ExpressionUUID->"a7d88442-0652-456f-8418-6faf29af0775"],
+Cell[763, 27, 1998, 46, 88, "Text",ExpressionUUID->"14858ec1-8cbf-4150-bfb1-ec3cb3f19123"],
+Cell[CellGroupData[{
+Cell[2786, 77, 633, 17, 29, "Input",ExpressionUUID->"6d989914-5e6a-46a2-b7a2-de29f409f62e"],
+Cell[3422, 96, 460, 13, 46, "Output",ExpressionUUID->"2f292ffd-50ff-450d-9d03-2c9ee372365b"]
+}, Open  ]],
+Cell[3897, 112, 1295, 34, 48, "Text",ExpressionUUID->"d0b24a8f-8bd5-445b-bf48-77301e8f41f5"],
+Cell[CellGroupData[{
+Cell[5217, 150, 449, 11, 29, "Input",ExpressionUUID->"d90406f3-be87-4101-8615-50a7c1ab40c6"],
+Cell[5669, 163, 337, 8, 46, "Output",ExpressionUUID->"9266bafe-6358-4e0f-94e3-9089bca40f79"]
+}, Open  ]],
+Cell[6021, 174, 4031, 103, 93, "Text",ExpressionUUID->"0b8a2f93-8404-477a-b6f9-0ba9917d2793"],
+Cell[CellGroupData[{
+Cell[10077, 281, 956, 26, 29, "Input",ExpressionUUID->"053d6732-faf9-4d22-988f-f3de7b2ce484"],
+Cell[11036, 309, 536, 13, 49, "Output",ExpressionUUID->"8da7bf6e-dd3b-4e64-aee3-e7e5b40e7e59"]
+}, Open  ]],
+Cell[11587, 325, 1385, 31, 58, "Text",ExpressionUUID->"9133fd68-c29d-4f85-b895-88f00cf8450c"],
+Cell[CellGroupData[{
+Cell[12997, 360, 150, 3, 67, "Chapter",ExpressionUUID->"e5a6f5f2-f6cd-42da-830e-993778205dc9"],
+Cell[CellGroupData[{
+Cell[13172, 367, 157, 3, 66, "Section",ExpressionUUID->"0bf6b29c-a243-4c4d-b0ae-06034e7c91df"],
+Cell[13332, 372, 3297, 92, 294, "Input",ExpressionUUID->"4cac35ae-57b8-4847-8124-8ed1ef2b78be"]
+}, Open  ]],
+Cell[CellGroupData[{
+Cell[16666, 469, 186, 3, 66, "Section",ExpressionUUID->"ef17720d-ab1e-421e-8c27-73924daec18f"],
+Cell[16855, 474, 550, 12, 49, "Input",ExpressionUUID->"13b19608-b238-4e8b-bcfb-0d1032e58e59"]
+}, Open  ]]
+}, Open  ]],
+Cell[CellGroupData[{
+Cell[17454, 492, 165, 3, 67, "Chapter",ExpressionUUID->"e8610970-26ad-4649-b3c8-2e21b943f466"],
+Cell[CellGroupData[{
+Cell[17644, 499, 176, 3, 66, "Section",ExpressionUUID->"c880e9a2-2ec1-419f-a608-91a2fc00f969"],
+Cell[17823, 504, 959, 25, 52, "Text",ExpressionUUID->"240e1f83-297a-4df4-82b9-60ad3150eae1"],
+Cell[CellGroupData[{
+Cell[18807, 533, 2496, 69, 111, "Input",ExpressionUUID->"b155d4bf-f095-45d3-9257-d6d26df30312"],
+Cell[21306, 604, 10012, 288, 327, "Output",ExpressionUUID->"3cbaddbd-7789-4080-8e54-ac9d9113e68c"]
+}, Open  ]],
+Cell[31333, 895, 1126, 23, 77, "Text",ExpressionUUID->"f878bec1-03a7-4eaf-8522-cfae1bab991c"],
+Cell[32462, 920, 723, 18, 48, "Text",ExpressionUUID->"2f040234-728f-48ed-adac-657c1f5e2c72"],
+Cell[33188, 940, 619, 18, 29, "Input",ExpressionUUID->"0db4117b-c15f-4663-9f7d-1d8d377a6190"],
+Cell[33810, 960, 823, 20, 51, "Text",ExpressionUUID->"d4a5f0fd-4023-43cc-8a19-7a30e9e59f95"],
+Cell[34636, 982, 393, 11, 29, "Input",ExpressionUUID->"86fe35c5-ae82-4ba1-85ea-e0d9d056b880"],
+Cell[35032, 995, 1013, 24, 60, "Text",ExpressionUUID->"2d04383a-6586-41aa-9af3-71fc5014c149"],
+Cell[36048, 1021, 394, 10, 29, "Input",ExpressionUUID->"ed09a261-9977-4806-ae76-7d38442f8756"],
+Cell[CellGroupData[{
+Cell[36467, 1035, 628, 16, 29, "Input",ExpressionUUID->"4e7837b8-1ffe-4c0c-b1fa-f8e76d37a982"],
+Cell[37098, 1053, 9407, 277, 348, "Output",ExpressionUUID->"60b7931c-6ed3-4b00-814d-a680f488bc81"]
+}, Open  ]],
+Cell[46520, 1333, 422, 8, 55, "Text",ExpressionUUID->"548e60bb-7a88-42ba-acd8-578e9af9274d"]
+}, Open  ]],
+Cell[CellGroupData[{
+Cell[46979, 1346, 177, 3, 66, "Section",ExpressionUUID->"a764e3e9-361c-44da-81d3-3f44c26a778d"],
+Cell[CellGroupData[{
+Cell[47181, 1353, 531, 13, 53, "Subsection",ExpressionUUID->"5d8ef2d1-2e6a-4435-b370-747db1f46e15"],
+Cell[47715, 1368, 633, 14, 33, "Text",ExpressionUUID->"aa673a77-45aa-40e4-a3ca-3b669253de19"],
+Cell[48351, 1384, 714, 18, 29, "Input",ExpressionUUID->"7d53563b-5b37-4e56-bd66-b77aa7724ddb"],
+Cell[49068, 1404, 509, 14, 29, "Input",ExpressionUUID->"e5322845-576d-480a-8598-e3fdb6e09e27"],
+Cell[CellGroupData[{
+Cell[49602, 1422, 939, 20, 53, "Input",ExpressionUUID->"b3b5c11e-f685-4b73-982e-329623d98cda"],
+Cell[50544, 1444, 9430, 251, 320, "Output",ExpressionUUID->"6dd3126d-77dd-4e57-acd3-7fad65ab7117"]
+}, Open  ]],
+Cell[59989, 1698, 1089, 22, 77, "Text",ExpressionUUID->"7d3a414c-79b9-4e57-93b8-35315a2a6eea"]
+}, Open  ]],
+Cell[CellGroupData[{
+Cell[61115, 1725, 164, 3, 53, "Subsection",ExpressionUUID->"86ce9432-d6c4-4b88-9668-9e8d0969e64e"],
+Cell[61282, 1730, 2426, 63, 70, "Text",ExpressionUUID->"38d01ef4-48b4-44d6-a0b4-bbe191c3f126"],
+Cell[CellGroupData[{
+Cell[63733, 1797, 6217, 145, 297, "Input",ExpressionUUID->"efa1f7eb-5601-43c8-8fa3-e539e93f3116"],
+Cell[69953, 1944, 401, 10, 50, "Message",ExpressionUUID->"ccb39d60-02ac-4561-ad5e-e1fd03465373"],
+Cell[70357, 1956, 399, 10, 50, "Message",ExpressionUUID->"a7ef9577-7e5d-4622-9b28-300ffcdea78c"],
+Cell[70759, 1968, 399, 10, 50, "Message",ExpressionUUID->"51766364-83bd-47a9-a3aa-201f31855551"],
+Cell[71161, 1980, 434, 11, 35, "Message",ExpressionUUID->"7dfc2a07-c1dc-4e74-a169-95736d66993c"],
+Cell[71598, 1993, 399, 10, 50, "Message",ExpressionUUID->"6e613cb7-ca79-4204-b9ad-7fd0b2173633"],
+Cell[72000, 2005, 434, 11, 35, "Message",ExpressionUUID->"73679361-2012-478e-b9af-e5c59e4e0e52"],
+Cell[72437, 2018, 35546, 752, 421, "Output",ExpressionUUID->"ce78845c-5db8-46e4-8abc-eee9e55afb25"]
+}, Open  ]],
+Cell[107998, 2773, 554, 14, 55, "Text",ExpressionUUID->"c10dd203-beaa-4228-84a6-2f859d3601c9"]
+}, Open  ]]
+}, Open  ]],
+Cell[CellGroupData[{
+Cell[108601, 2793, 168, 3, 66, "Section",ExpressionUUID->"4035e146-7833-4486-b026-6d7a757f513e"],
+Cell[108772, 2798, 201, 3, 33, "Text",ExpressionUUID->"56bae2a3-91ec-4802-949c-c65a1cddcd28"],
+Cell[CellGroupData[{
+Cell[108998, 2805, 529, 13, 53, "Subsection",ExpressionUUID->"b023f42d-f24d-4365-b5af-295f12bc196e"],
+Cell[109530, 2820, 621, 16, 29, "Input",ExpressionUUID->"a3c13f8f-c64f-4639-8db7-3b5f12dbf8bc"],
+Cell[110154, 2838, 546, 15, 29, "Input",ExpressionUUID->"32a6c9ab-c827-4c50-9bd8-0aa96b990e57"],
+Cell[CellGroupData[{
+Cell[110725, 2857, 995, 21, 53, "Input",ExpressionUUID->"99a2dde5-40d1-4891-85b8-3229d655f1b9"],
+Cell[111723, 2880, 4014, 119, 270, "Output",ExpressionUUID->"16624952-71c1-431a-bbb6-0d9b868318c0"]
+}, Open  ]],
+Cell[115752, 3002, 405, 8, 55, "Text",ExpressionUUID->"456321d4-64b0-43ca-a78e-b6d369846a31"]
+}, Open  ]],
+Cell[CellGroupData[{
+Cell[116194, 3015, 162, 3, 53, "Subsection",ExpressionUUID->"6dcdf8f2-784d-4aea-8514-d406da938fdd"],
+Cell[CellGroupData[{
+Cell[116381, 3022, 5476, 135, 256, "Input",ExpressionUUID->"ae719e32-9d7e-43dc-b6bc-048dfea479f1"],
+Cell[121860, 3159, 400, 10, 50, "Message",ExpressionUUID->"2107fd08-d466-4e41-bb08-e0a2a674ecfc"],
+Cell[122263, 3171, 400, 10, 50, "Message",ExpressionUUID->"b8b24b5e-a55c-45ca-a87f-f85192f8d8b5"],
+Cell[122666, 3183, 400, 10, 50, "Message",ExpressionUUID->"7e3233fb-dee7-4fb7-9d9c-ce989cd8200c"],
+Cell[123069, 3195, 400, 10, 50, "Message",ExpressionUUID->"eeb1b947-9849-4f13-9840-5e2856235c90"],
+Cell[123472, 3207, 435, 11, 35, "Message",ExpressionUUID->"164cd69b-0167-47d4-9e8f-c406949a39ae"],
+Cell[123910, 3220, 437, 11, 35, "Message",ExpressionUUID->"b0e5d1aa-1176-42dc-9650-52245b0a7857"],
+Cell[124350, 3233, 13864, 297, 348, "Output",ExpressionUUID->"2d6400a0-1218-4313-a2e2-4e4542596571"]
+}, Open  ]],
+Cell[138229, 3533, 369, 8, 33, "Text",ExpressionUUID->"fda93c26-ef7a-4090-adc8-e5dc72ad6f22"]
+}, Open  ]]
+}, Open  ]]
+}, Open  ]]
+}, Open  ]]
+}
+]
+*)
+
