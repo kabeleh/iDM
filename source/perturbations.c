@@ -9192,6 +9192,7 @@ int perturbations_derivs(double tau,
 
   /* scale factor and other background quantities */
   double a, a2, a_prime_over_a, R;
+  double a_primeprime_over_a; // KBL from above to use in HDM velocity dispersion
 
   /* short-cut names for the fields of the input structure */
   struct perturbations_parameters_and_workspace *pppaw;
@@ -9307,6 +9308,7 @@ int perturbations_derivs(double tau,
   a2 = a * a;
   a_prime_over_a = pvecback[pba->index_bg_H] * a;
   R = 4. / 3. * pvecback[pba->index_bg_rho_g] / pvecback[pba->index_bg_rho_b];
+  a_primeprime_over_a = pvecback[pba->index_bg_H_prime] * pvecback[pba->index_bg_a] + 2. * a_prime_over_a * a_prime_over_a; // KBL Added definition from above to use in HDM velocity dispersion
 
   photon_scattering_rate = pvecthermo[pth->index_th_dkappa];
 
@@ -9693,6 +9695,19 @@ int perturbations_derivs(double tau,
         dy[pv->index_pt_delta_cdm] = -(y[pv->index_pt_theta_cdm] + metric_continuity); /* cdm density KBL: correct also for interacting DM*/
 
         dy[pv->index_pt_theta_cdm] = -a_prime_over_a * y[pv->index_pt_theta_cdm] + metric_euler; /* cdm velocity */
+        if (pba->model_cdm == 1)
+        {
+          // HDM contribution
+          dy[pv->index_pt_theta_cdm] += (a_primeprime_over_a - pow(a_prime_over_a, 2)) / a_prime_over_a * (y[pv->index_pt_theta_cdm] - 4 * ppw->pvecmetric[ppw->index_mt_phi_prime])                                                                                       // H'/H(-Psi'-3Phi'+Theta);
+                                        - pow((a_primeprime_over_a - pow(a_prime_over_a, 2)) / a_prime_over_a, 2) * (1 - 2 * pvecmetric[ppw->index_mt_psi])                                                                                                                //-(H'/H)^2(1-2Psi)
+                                        + (a_primeprime_over_a - pow(a_prime_over_a, 2)) * (2 - 4 * pvecmetric[ppw->index_mt_psi])                                                                                                                                         //+2H'(1-2Psi)
+                                        + (1 - 2 * pvecmetric[ppw->index_mt_psi]) / 2 / pvecback[pba->index_bg_rho_tot] * (                                                                                                                                                //(1-2Psi)/2rho_tot * [ ... ]
+                                                                                                                              -3 * (pvecback[pba->index_bg_rho_tot] + pvecback[pba->index_bg_p_tot]) * (a_primeprime_over_a - pow(a_prime_over_a, 2))                      //-3(rho_tot+p_tot)H'
+                                                                                                                              - 3 * a_prime_over_a * pvecback[pba->index_bg_p_tot_prime]                                                                                   //-3H p_tot'
+                                                                                                                              + 9 * pow(a_prime_over_a, 2) * (pvecback[pba->index_bg_rho_tot] + pvecback[pba->index_bg_p_tot])                                             //+9H^2(rho_tot+p_tot)
+                                                                                                                              - 9 * pow(a_prime_over_a, 2) * pow(pvecback[pba->index_bg_p_tot] + pvecback[pba->index_bg_rho_tot], 2) / pvecback[pba->index_bg_rho_tot] / 2 //-9H^2(rho_tot+p_tot)^2/2rho_tot
+                                                                                                                          );
+        }
         // KBL scalar field interaction contribution
         if (pba->model_cdm == 2)
         {
