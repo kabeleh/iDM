@@ -611,6 +611,7 @@ int background_functions(
      * rho_CDM can only be computed after H is known, for which rho_tot is needed
      * Since H depends on rho_CDM and rho_CDM depends on H, we must find the correct value iteratively
      */
+
     const double tol = 1.0e-12; // in the synchronous gauge, the minimum CDM value is e-10, so we should at least be that precises
     const int max_iter = 100;   // avoid infinite loops
     int iter = 0;
@@ -625,7 +626,7 @@ int background_functions(
     while (iter < max_iter && fabs(rho_cdm_new - rho_cdm_old) >= tol)
     {
       temp_rho_tot = temp_rho_tot - rho_cdm_old + rho_cdm_new;
-      rho_cdm_old = sqrt(3) * pba->Omega0_cdm * temp_H * pba->H0 / pow(a, 3);
+      rho_cdm_old = rho_cdm_new; // sqrt(3) * pba->Omega0_cdm * temp_H * pba->H0 / pow(a, 3);
       temp_H = sqrt(temp_rho_tot - pba->K / a / a);
       rho_cdm_new = sqrt(3) * pba->Omega0_cdm * temp_H * pba->H0 / pow(a, 3);
       iter++;
