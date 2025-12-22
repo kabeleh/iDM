@@ -99,6 +99,7 @@ setup.py
 ./main/class.c
 ./python/README
 ./python/cclassy.pxd
+./python/classy.cpp
 ./python/classy.pyx
 ./python/extract_errors.py
 ./python/interface_generator.py
@@ -223,6 +224,7 @@ include/trigonometric_integrals.h
 main/class.c
 python/README
 python/cclassy.pxd
+python/classy.cpp
 python/classy.pyx
 python/extract_errors.py
 python/interface_generator.py
