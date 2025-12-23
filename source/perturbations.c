@@ -7550,7 +7550,8 @@ int perturbations_total_stress_energy(
                         (1. / a2 * ppw->pvecback[pba->index_bg_phi_prime_scf] * y[ppw->pv->index_pt_phi_prime_scf] + ppw->pvecback[pba->index_bg_dV_scf] * y[ppw->pv->index_pt_phi_scf]);
         delta_p_scf = 1. / 3. *
                       (1. / a2 * ppw->pvecback[pba->index_bg_phi_prime_scf] * y[ppw->pv->index_pt_phi_prime_scf] - ppw->pvecback[pba->index_bg_dV_scf] * y[ppw->pv->index_pt_phi_scf]);*/
-        printf("Error: scalar field perturbations not implemented in synchronous gauge yet.\n");
+        // printf("Error: scalar field perturbations not implemented in synchronous gauge yet.\n");
+        class_stop(ppt->error_message, "Error: scalar field perturbations not implemented in synchronous gauge yet.\n");
       }
       else
       {
@@ -8271,8 +8272,7 @@ int perturbations_sources(
     {
       if (ppt->gauge == synchronous)
       {
-        class_stop(error_message,
-                   ppt->error_message,
+        class_stop(ppt->error_message,
                    "delta_scf source not implemented in synchronous gauge");
         /*delta_rho_scf = 1. / 3. *
                             (1. / a2 * ppw->pvecback[pba->index_bg_phi_prime_scf] * y[ppw->pv->index_pt_phi_prime_scf] + ppw->pvecback[pba->index_bg_dV_scf] * y[ppw->pv->index_pt_phi_scf]) +
@@ -9197,6 +9197,7 @@ int perturbations_derivs(double tau,
   /* scale factor and other background quantities */
   double a, a2, a_prime_over_a, R;
   double a_primeprime_over_a; // KBL from above to use in HDM velocity dispersion
+  double cosh_c_phi;          // KBL: cosh(pba->cdm_c * pvecback[pba->index_bg_phi_scf]) is used 4 times. Faster to compute value once.
 
   /* short-cut names for the fields of the input structure */
   struct perturbations_parameters_and_workspace *pppaw;
@@ -9905,9 +9906,10 @@ int perturbations_derivs(double tau,
                                  - 2 * a2 * pvecmetric[ppw->index_mt_psi] * pvecback[pba->index_bg_dV_scf]; // -2a^2 Psi V' (phi in xPand = psi in CLASS)
       if (pba->model_cdm == 2)                                                                              // KBL: for interacting DM, additional terms appear in the KG perturbation equation
       {
-        dy[pv->index_pt_mom_scf] += -a2 * (pvecback[pba->index_bg_rho_cdm] * ((16 * pba->cdm_c * pba->cdm_c * cosh(pba->cdm_c * pvecback[pba->index_bg_phi_scf]) * sinh(pba->cdm_c * pvecback[pba->index_bg_phi_scf])) / (6 * cosh(pba->cdm_c * pvecback[pba->index_bg_phi_scf]) * cosh(pba->cdm_c * pvecback[pba->index_bg_phi_scf]) + 2 * cosh(pba->cdm_c * pvecback[pba->index_bg_phi_scf]) * cosh(3 * pba->cdm_c * pvecback[pba->index_bg_phi_scf]) - 2 * sinh(2 * pba->cdm_c * pvecback[pba->index_bg_phi_scf]) - sinh(4 * pba->cdm_c * pvecback[pba->index_bg_phi_scf]))) * y[pv->index_pt_phi_scf] // -a^2 m'' n delta_phi
-                                           - 2 * pba->cdm_c / (1 + cosh(2 * pba->cdm_c * pvecback[pba->index_bg_phi_scf])) * y[pv->index_pt_delta_cdm]                                                                                                                                                                                                                                                                                                                                                                                                                                                    // -a^2 m' delta_n);
-                                           + 2 * pvecmetric[ppw->index_mt_psi] * pvecback[pba->index_bg_rho_cdm] * (-pba->cdm_c * (1 + tanh(pba->cdm_c * pvecback[pba->index_bg_phi_scf]))));                                                                                                                                                                                                                                                                                                                                                                                                             //-2a^2 psi *  m' n, Psi in CLASS = phi in xPand
+        cosh_c_phi = cosh(pba->cdm_c * pvecback[pba->index_bg_phi_scf]);                                                                                                                                                                                                                                                                                                                                                                  // this is used 4 times. Compute it once and reuse it for performance boost.
+        dy[pv->index_pt_mom_scf] += -a2 * (pvecback[pba->index_bg_rho_cdm] * ((16 * pba->cdm_c * pba->cdm_c * cosh_c_phi * sinh(pba->cdm_c * pvecback[pba->index_bg_phi_scf])) / (6 * cosh_c_phi * cosh_c_phi + 2 * cosh_c_phi * cosh(3 * pba->cdm_c * pvecback[pba->index_bg_phi_scf]) - 2 * sinh(2 * pba->cdm_c * pvecback[pba->index_bg_phi_scf]) - sinh(4 * pba->cdm_c * pvecback[pba->index_bg_phi_scf]))) * y[pv->index_pt_phi_scf] // -a^2 m'' n delta_phi
+                                           - 2 * pba->cdm_c / (1 + cosh(2 * pba->cdm_c * pvecback[pba->index_bg_phi_scf])) * y[pv->index_pt_delta_cdm]                                                                                                                                                                                                                                                                                    // -a^2 m' delta_n);
+                                           + 2 * pvecmetric[ppw->index_mt_psi] * pvecback[pba->index_bg_rho_cdm] * (-pba->cdm_c * (1 + tanh(pba->cdm_c * pvecback[pba->index_bg_phi_scf]))));                                                                                                                                                                                                                                             //-2a^2 psi *  m' n, Psi in CLASS = phi in xPand
       }
     }
 
