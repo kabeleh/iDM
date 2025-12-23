@@ -3534,7 +3534,7 @@ double coupling_scf(
 // # exponential:  V(phi) = c_1 * exp(-c_2*phi)
 // # SqE:          V(phi) = c_1^(c_2+4) * phi^(-c_2) * exp(-c_1*phi^2)
 // # Bean:         V(phi) = c_1 * [(c_4-phi)^2 + c_2] * exp(-c_3*phi)
-// # DoubleExp:    V(phi) = c_1 * exp(-c_2*phi) + c_3 * exp(-c_4*phi)
+// # DoubleExp:    V(phi) = c_1 * (exp(-c_2*phi) + c_3 * exp(-c_4*phi))
 
 double V_scf(
     struct background *pba,

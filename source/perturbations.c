@@ -7319,7 +7319,7 @@ int perturbations_total_stress_energy(
       }
       else if (pba->model_cdm == 2)
       {
-        ppw->delta_rho += ppw->pvecback[pba->index_bg_rho_cdm] * (-pba->cdm_c * (1 + tanh(pba->cdm_c * ppw->pvecback[pba->index_bg_phi_scf]))) * ppw->pv->y[ppw->pv->index_pt_phi_scf];
+        ppw->delta_rho += ppw->pvecback[pba->index_bg_rho_cdm] * (-pba->cdm_c * (1 + tanh(pba->cdm_c * ppw->pvecback[pba->index_bg_phi_scf]))) * y[ppw->pv->index_pt_phi_scf];
       }
       /* else standard CDM */
       if (ppt->gauge == newtonian)
@@ -8271,10 +8271,13 @@ int perturbations_sources(
     {
       if (ppt->gauge == synchronous)
       {
+        class_stop(error_message,
+                   ppt->error_message,
+                   "delta_scf source not implemented in synchronous gauge");
         /*delta_rho_scf = 1. / 3. *
                             (1. / a2 * ppw->pvecback[pba->index_bg_phi_prime_scf] * y[ppw->pv->index_pt_phi_prime_scf] + ppw->pvecback[pba->index_bg_dV_scf] * y[ppw->pv->index_pt_phi_scf]) +
                         3. * a_prime_over_a * (1. + pvecback[pba->index_bg_p_scf] / pvecback[pba->index_bg_rho_scf]) * theta_over_k2; // N-body gauge correction */
-        printf("Warning: delta_scf is not implemented in synchronous gauge.\n"); // KBL
+        // printf("Warning: delta_scf is not implemented in synchronous gauge.\n"); // KBL
       }
       else
       {
@@ -8838,7 +8841,8 @@ int perturbations_print_variables(double tau,
       {
         /*delta_rho_scf = 1. / 3. *
                         (1. / a2 * ppw->pvecback[pba->index_bg_phi_prime_scf] * y[ppw->pv->index_pt_phi_prime_scf] + ppw->pvecback[pba->index_bg_dV_scf] * y[ppw->pv->index_pt_phi_scf]); */
-        printf("delto_rho_scf is not yet implemented in synchronous gauge\n"); // KBL
+        // printf("delto_rho_scf is not yet implemented in synchronous gauge\n"); // KBL
+        class_stop(error_message, "delto_rho_scf is not yet implemented in synchronous gauge\n");
       }
       else
       {
@@ -9711,7 +9715,7 @@ int perturbations_derivs(double tau,
         // KBL scalar field interaction contribution
         if (pba->model_cdm == 2)
         {
-          dy[pv->index_pt_theta_cdm] += (pba->cdm_c * (1 + tanh(pba->cdm_c * ppw->pvecback[pba->index_bg_phi_scf]))) * (k2 * y[pv->index_pt_phi_scf] + y[pv->index_pt_theta_cdm] * pvecback[pba->index_bg_phi_prime_scf]);
+          dy[pv->index_pt_theta_cdm] += (pba->cdm_c * (1 + tanh(pba->cdm_c * ppw->pvecback[pba->index_bg_phi_scf]))) * (-k2 * y[pv->index_pt_phi_scf] + y[pv->index_pt_theta_cdm] * pvecback[pba->index_bg_phi_prime_scf]);
         }
       }
 
@@ -9895,15 +9899,15 @@ int perturbations_derivs(double tau,
       /*dy[pv->index_pt_phi_prime_scf] = -2. * a_prime_over_a * y[pv->index_pt_phi_prime_scf] - metric_continuity * pvecback[pba->index_bg_phi_prime_scf] //  metric_continuity = h'/2
                                        - (k2 + a2 * pvecback[pba->index_bg_ddV_scf]) * y[pv->index_pt_phi_scf];                                         // */
 
-      dy[pv->index_pt_mom_scf] = -2. * a_prime_over_a * y[pv->index_pt_mom_scf]                          //-2Hp
-                                 - y[pv->index_pt_phi_scf] * (k2 + a2 * pvecback[pba->index_bg_ddV_scf]) // -(k^2 + a^2 d^2V) delta_phi
-                                 - metric_continuity * pvecback[pba->index_bg_phi_prime_scf]             // +3 Psi * phi_prime (Psi in xPand = phi in CLASS)
-                                 - a2 * pvecmetric[ppw->index_mt_psi] * pvecback[pba->index_bg_dV_scf];  // -a^2 Psi V' (phi in xPand = psi in CLASS)
-      if (pba->model_cdm == 2)                                                                           // KBL: for interacting DM, additional terms appear in the KG perturbation equation
+      dy[pv->index_pt_mom_scf] = -2. * a_prime_over_a * y[pv->index_pt_mom_scf]                             //-2Hp
+                                 - y[pv->index_pt_phi_scf] * (k2 + a2 * pvecback[pba->index_bg_ddV_scf])    // -(k^2 + a^2 d^2V) delta_phi
+                                 - metric_continuity * pvecback[pba->index_bg_phi_prime_scf]                // +3 Psi_prime * phi_prime (Psi in xPand = phi in CLASS)
+                                 - 2 * a2 * pvecmetric[ppw->index_mt_psi] * pvecback[pba->index_bg_dV_scf]; // -2a^2 Psi V' (phi in xPand = psi in CLASS)
+      if (pba->model_cdm == 2)                                                                              // KBL: for interacting DM, additional terms appear in the KG perturbation equation
       {
         dy[pv->index_pt_mom_scf] += -a2 * (pvecback[pba->index_bg_rho_cdm] * ((16 * pba->cdm_c * pba->cdm_c * cosh(pba->cdm_c * pvecback[pba->index_bg_phi_scf]) * sinh(pba->cdm_c * pvecback[pba->index_bg_phi_scf])) / (6 * cosh(pba->cdm_c * pvecback[pba->index_bg_phi_scf]) * cosh(pba->cdm_c * pvecback[pba->index_bg_phi_scf]) + 2 * cosh(pba->cdm_c * pvecback[pba->index_bg_phi_scf]) * cosh(3 * pba->cdm_c * pvecback[pba->index_bg_phi_scf]) - 2 * sinh(2 * pba->cdm_c * pvecback[pba->index_bg_phi_scf]) - sinh(4 * pba->cdm_c * pvecback[pba->index_bg_phi_scf]))) * y[pv->index_pt_phi_scf] // -a^2 m'' n delta_phi
                                            - 2 * pba->cdm_c / (1 + cosh(2 * pba->cdm_c * pvecback[pba->index_bg_phi_scf])) * y[pv->index_pt_delta_cdm]                                                                                                                                                                                                                                                                                                                                                                                                                                                    // -a^2 m' delta_n);
-                                           + 2 * pvecmetric[ppw->index_mt_psi] * pvecback[pba->index_bg_rho_cdm] * (-pba->cdm_c * (1 + tanh(pba->cdm_c * pvecback[pba->index_bg_phi_scf]))));                                                                                                                                                                                                                                                                                                                                                                                                             //-2a^2 psi * (V' + m' n), Psi in CLASS = phi in xPand
+                                           + 2 * pvecmetric[ppw->index_mt_psi] * pvecback[pba->index_bg_rho_cdm] * (-pba->cdm_c * (1 + tanh(pba->cdm_c * pvecback[pba->index_bg_phi_scf]))));                                                                                                                                                                                                                                                                                                                                                                                                             //-2a^2 psi *  m' n, Psi in CLASS = phi in xPand
       }
     }
 

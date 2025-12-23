@@ -1309,9 +1309,9 @@ int input_get_guess(double *xguess,
        * Version 3: use attractor solution
        * Version KBL: use the passed value as xguess and set dxdy to 1, since this can be quite model-dependent.
        * */
-      /* Default: take the passed value as xguess and set dxdy to 1. */
+      /* Default: take the passed value as xguess. */
       xguess[index_guess] = ba.scf_parameters[ba.scf_tuning_index];
-      dxdy[index_guess] = 1.0;
+      dxdy[index_guess] = ba.scf_parameters[ba.scf_tuning_index] / 0.7; // assuming Omega_scf ~ 0.7 for scaling
       break;
     case omega_ini_dcdm:
       Omega0_dcdmdr = 1. / (ba.h * ba.h);
@@ -1561,13 +1561,14 @@ int input_try_unknown_parameters(double *unknown_parameter,
     case Omega_scf: // KBL: We split this and create
       /** In case scalar field is used to fill, pba->Omega0_scf is not equal to pfzw->target_value[i].*/
       {
-        achieved_Omega = ba.background_table[(ba.bt_size - 1) * ba.bg_size + ba.index_bg_rho_scf] / (ba.H0 * ba.H0);
-        output[i] = achieved_Omega - ba.Omega0_scf;
-        if (input_verbose > 1)
-        {
-          printf("Omega_scf shooting: before adjustment: c1=%e, achieved Omega=%e, target=%e, delta=%e\n",
-                 ba.scf_parameters[ba.scf_tuning_index], achieved_Omega, ba.Omega0_scf, output[i]);
-        }
+        output[i] = ba.background_table[(ba.bt_size - 1) * ba.bg_size + ba.index_bg_rho_tot] / (ba.H0 * ba.H0) - 1; // HVR
+        // achieved_Omega = ba.background_table[(ba.bt_size - 1) * ba.bg_size + ba.index_bg_rho_scf] / (ba.H0 * ba.H0);
+        // output[i] = achieved_Omega - ba.Omega0_scf;
+        // if (input_verbose > 1)
+        // {
+        //   printf("Omega_scf shooting: before adjustment: c1=%e, achieved Omega=%e, target=%e, delta=%e\n",
+        //          ba.scf_parameters[ba.scf_tuning_index], achieved_Omega, ba.Omega0_scf, output[i]);
+        // }
       }
       break;
     case Omega_ini_dcdm:
