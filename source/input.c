@@ -2700,10 +2700,13 @@ int input_read_parameters_species(struct file_content *pfc,
       class_call(parser_read_double(pfc, "cdm_c", &param2, &flag2, errmsg),
                  errmsg,
                  errmsg);
-      if (flag2 == _TRUE_)
-      {
-        pba->cdm_c = param2;
-      }
+      class_test(flag2 == _FALSE_,
+                 errmsg,
+                 "You must specify 'cdm_c' (the coupling constant in m(phi) = m0*(1-tanh(cdm_c*phi))) when using model_cdm = i (interacting).");
+      class_test(param2 == 0.0,
+                 errmsg,
+                 "cdm_c = 0 gives no DM-DE coupling (m(phi) = 0). Use standard CDM (model_cdm unset or = h) for non-interacting dark matter.");
+      pba->cdm_c = param2;
       class_test((ppt->gauge != newtonian) && (pba->model_cdm == 2), // KBL
                  errmsg,
                  "The interactive DM model is only implemented for the Newtonian gauge. Please set gauge = newtonian in your input file.");
