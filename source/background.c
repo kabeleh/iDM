@@ -3418,6 +3418,20 @@ double coupling_scf(
   double q4 = pba->scf_parameters[pba->scf_parameters_size - 5];
   double exp1 = pba->scf_parameters[pba->scf_parameters_size - 4];
   double exp2 = pba->scf_parameters[pba->scf_parameters_size - 3];
+
+  // Early return if no coupling is present to avoid numerical issues
+  if (q1 == 0.0 && q2 == 0.0 && q3 == 0.0 && q4 == 0.0)
+  {
+    return 0.0;
+  }
+
+  // Guard against division by zero or near-zero phi_prime
+  // Physical justification: if phi' is near zero, phi is not changing, and so it's energy density should not change by its own dynamics, only by the coupling to DM density evolution.
+  if (fabs(pvecback[pba->index_bg_phi_prime_scf]) < 1e-30)
+  {
+    return q3 * pvecback[pba->index_bg_rho_cdm] + q4 * rho_cdm_prime;
+  }
+
   return 3 * (pvecback[pba->index_bg_H] / pow(pvecback[pba->index_bg_rho_cdm] + pvecback[pba->index_bg_rho_scf], exp1 - 1)) * (q1 * pow(pvecback[pba->index_bg_rho_scf], exp1 - exp2) * pow(pvecback[pba->index_bg_rho_cdm], exp2) + q2 * pow(pvecback[pba->index_bg_rho_cdm], exp1 - exp2) * pow(pvecback[pba->index_bg_rho_scf], exp2)) / pvecback[pba->index_bg_phi_prime_scf] + q3 * pvecback[pba->index_bg_rho_cdm] + q4 * rho_cdm_prime;
 }
 

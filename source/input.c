@@ -974,6 +974,7 @@ int input_find_root(double *xzero,
 
   (*fevals)++;
   dx = 1.5 * f1 * dxdy;
+  printf("DEBUG input_find_root: x1=%e, f1=%e, dxdy=%e, dx=%e\n", x1, f1, dxdy, dx);
   if (fabs(dx) < x1 * _EPSILON_)
   {
     /* In this special case, we are very close to the correct location already
@@ -1306,18 +1307,11 @@ int input_get_guess(double *xguess,
        * xguess[index_guess] = 1.77835*pow(ba.Omega0_scf,-2./7.);
        * dxdy[index_guess] = -0.5081*pow(ba.Omega0_scf,-9./7.)`;
        * Version 3: use attractor solution
+       * Version KBL: use the passed value as xguess and set dxdy to 1, since this can be quite model-dependent.
        * */
-      if (ba.scf_tuning_index == 0)
-      {
-        xguess[index_guess] = sqrt(3.0 / ba.Omega0_scf);
-        dxdy[index_guess] = -0.5 * sqrt(3.0) * pow(ba.Omega0_scf, -1.5);
-      }
-      else
-      {
-        /* Default: take the passed value as xguess and set dxdy to 1. */
-        xguess[index_guess] = ba.scf_parameters[ba.scf_tuning_index];
-        dxdy[index_guess] = 1.;
-      }
+      /* Default: take the passed value as xguess and set dxdy to 1. */
+      xguess[index_guess] = ba.scf_parameters[ba.scf_tuning_index];
+      dxdy[index_guess] = 1.0;
       break;
     case omega_ini_dcdm:
       Omega0_dcdmdr = 1. / (ba.h * ba.h);
@@ -1407,6 +1401,8 @@ int input_try_unknown_parameters(double *unknown_parameter,
   int flag;
   int param;
   short compute_sigma8 = _FALSE_;
+
+  double achieved_Omega = 0.0; // KBL: created for debugging / printing
 
   /* Assume for now shooting did not fail */
   ba.shooting_failed = _FALSE_;
@@ -1562,9 +1558,17 @@ int input_try_unknown_parameters(double *unknown_parameter,
         rho_dr_today = 0.;
       output[i] = (rho_dcdm_today + rho_dr_today) / (ba.H0 * ba.H0) - pfzw->target_value[i] / ba.h / ba.h;
       break;
-    case Omega_scf:
+    case Omega_scf: // KBL: We split this and create
       /** In case scalar field is used to fill, pba->Omega0_scf is not equal to pfzw->target_value[i].*/
-      output[i] = ba.background_table[(ba.bt_size - 1) * ba.bg_size + ba.index_bg_rho_scf] / (ba.H0 * ba.H0) - ba.Omega0_scf;
+      {
+        achieved_Omega = ba.background_table[(ba.bt_size - 1) * ba.bg_size + ba.index_bg_rho_scf] / (ba.H0 * ba.H0);
+        output[i] = achieved_Omega - ba.Omega0_scf;
+        if (input_verbose > 1)
+        {
+          printf("Omega_scf shooting: before adjustment: c1=%e, achieved Omega=%e, target=%e, delta=%e\n",
+                 ba.scf_parameters[ba.scf_tuning_index], achieved_Omega, ba.Omega0_scf, output[i]);
+        }
+      }
       break;
     case Omega_ini_dcdm:
     case omega_ini_dcdm:
