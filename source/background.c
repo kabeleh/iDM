@@ -427,17 +427,23 @@ int background_functions(
   /** - pass value of \f$ a\f$ to output */
   pvecback[pba->index_bg_a] = a;
 
+  /* Precompute common factors for performance */
+  double a2 = a * a;
+  double a3 = a2 * a;
+  double a4 = a3 * a;
+  double H0_sq = pba->H0 * pba->H0;
+
   /** - compute each component's density and pressure */
 
   /* photons */
-  pvecback[pba->index_bg_rho_g] = pba->Omega0_g * pow(pba->H0, 2) / pow(a, 4);
+  pvecback[pba->index_bg_rho_g] = pba->Omega0_g * H0_sq / a4;
   rho_tot += pvecback[pba->index_bg_rho_g];
   p_tot += (1. / 3.) * pvecback[pba->index_bg_rho_g];
   dp_dloga += -(4. / 3.) * pvecback[pba->index_bg_rho_g];
   rho_r += pvecback[pba->index_bg_rho_g];
 
   /* baryons */
-  pvecback[pba->index_bg_rho_b] = pba->Omega0_b * pow(pba->H0, 2) / pow(a, 3);
+  pvecback[pba->index_bg_rho_b] = pba->Omega0_b * H0_sq / a3;
   rho_tot += pvecback[pba->index_bg_rho_b];
   p_tot += 0;
   rho_m += pvecback[pba->index_bg_rho_b];
@@ -448,16 +454,16 @@ int background_functions(
     if (pba->model_cdm == 1) // Hubbleian DM model KBL
     {
       // Can only be computed after H is known, for which rho_tot is needed
-      // pvecback[pba->index_bg_rho_cdm] = pba->Omega0_cdm * pvecback[pba->index_bg_H] * pba->H0 / pow(a, 3);
+      // pvecback[pba->index_bg_rho_cdm] = pba->Omega0_cdm * pvecback[pba->index_bg_H] * pba->H0 / a3;
       pvecback[pba->index_bg_rho_cdm] = 0; // placeholder
     }
     else if (pba->model_cdm == 2) // Interacting DM model
     {
-      pvecback[pba->index_bg_rho_cdm] = pba->Omega0_cdm * pow(pba->H0, 2) / pow(a, 3) * (1 - tanh(pba->cdm_c * pvecback_B[pba->index_bi_phi_scf]));
+      pvecback[pba->index_bg_rho_cdm] = pba->Omega0_cdm * H0_sq / a3 * (1.0 - tanh(pba->cdm_c * pvecback_B[pba->index_bi_phi_scf]));
     }
     else // Standard CDM model
     {
-      pvecback[pba->index_bg_rho_cdm] = pba->Omega0_cdm * pow(pba->H0, 2) / pow(a, 3);
+      pvecback[pba->index_bg_rho_cdm] = pba->Omega0_cdm * H0_sq / a3;
     }
     rho_tot += pvecback[pba->index_bg_rho_cdm];
     p_tot += 0.;
@@ -467,7 +473,7 @@ int background_functions(
   /* idm */
   if (pba->has_idm == _TRUE_)
   {
-    pvecback[pba->index_bg_rho_idm] = pba->Omega0_idm * pow(pba->H0, 2) / pow(a, 3);
+    pvecback[pba->index_bg_rho_idm] = pba->Omega0_idm * H0_sq / a3;
     rho_tot += pvecback[pba->index_bg_rho_idm];
     p_tot += 0.;
     rho_m += pvecback[pba->index_bg_rho_idm];
@@ -560,7 +566,7 @@ int background_functions(
   /* Lambda */
   if (pba->has_lambda == _TRUE_)
   {
-    pvecback[pba->index_bg_rho_lambda] = pba->Omega0_lambda * pow(pba->H0, 2);
+    pvecback[pba->index_bg_rho_lambda] = pba->Omega0_lambda * H0_sq;
     rho_tot += pvecback[pba->index_bg_rho_lambda];
     p_tot -= pvecback[pba->index_bg_rho_lambda];
   }
@@ -588,7 +594,7 @@ int background_functions(
   /* relativistic neutrinos (and all relativistic relics) */
   if (pba->has_ur == _TRUE_)
   {
-    pvecback[pba->index_bg_rho_ur] = pba->Omega0_ur * pow(pba->H0, 2) / pow(a, 4);
+    pvecback[pba->index_bg_rho_ur] = pba->Omega0_ur * H0_sq / a4;
     rho_tot += pvecback[pba->index_bg_rho_ur];
     p_tot += (1. / 3.) * pvecback[pba->index_bg_rho_ur];
     dp_dloga += -(4. / 3.) * pvecback[pba->index_bg_rho_ur];
@@ -598,7 +604,7 @@ int background_functions(
   /* interacting dark radiation */
   if (pba->has_idr == _TRUE_)
   {
-    pvecback[pba->index_bg_rho_idr] = pba->Omega0_idr * pow(pba->H0, 2) / pow(a, 4);
+    pvecback[pba->index_bg_rho_idr] = pba->Omega0_idr * H0_sq / a4;
     rho_tot += pvecback[pba->index_bg_rho_idr];
     p_tot += (1. / 3.) * pvecback[pba->index_bg_rho_idr];
     rho_r += pvecback[pba->index_bg_rho_idr];
@@ -616,19 +622,21 @@ int background_functions(
     const int max_iter = 100;   // avoid infinite loops
     int iter = 0;
     double rho_cdm_old = 0;
-    double temp_H = sqrt(fmax(0.0, rho_tot - pba->K / a / a));
+    double K_over_a2 = pba->K / a2;                                                 /* Precompute K/a^2 */
+    double sqrt3_Omega_cdm_H0_over_a3 = sqrt(3.0) * pba->Omega0_cdm * pba->H0 / a3; /* Precompute constant factor */
+    double temp_H = sqrt(fmax(0.0, rho_tot - K_over_a2));
     if (temp_H <= 0.0)
     {
       temp_H = pba->H0;
     }
-    double rho_cdm_new = sqrt(3) * pba->Omega0_cdm * temp_H * pba->H0 / pow(a, 3);
+    double rho_cdm_new = sqrt3_Omega_cdm_H0_over_a3 * temp_H;
     double temp_rho_tot = rho_tot;
     while (iter < max_iter && fabs(rho_cdm_new - rho_cdm_old) >= tol)
     {
       temp_rho_tot = temp_rho_tot - rho_cdm_old + rho_cdm_new;
-      rho_cdm_old = rho_cdm_new; // sqrt(3) * pba->Omega0_cdm * temp_H * pba->H0 / pow(a, 3);
-      temp_H = sqrt(temp_rho_tot - pba->K / a / a);
-      rho_cdm_new = sqrt(3) * pba->Omega0_cdm * temp_H * pba->H0 / pow(a, 3);
+      rho_cdm_old = rho_cdm_new;
+      temp_H = sqrt(temp_rho_tot - K_over_a2);
+      rho_cdm_new = sqrt3_Omega_cdm_H0_over_a3 * temp_H;
       iter++;
     }
     rho_tot += rho_cdm_new;
@@ -642,7 +650,7 @@ int background_functions(
     only place where the Friedmann equation is assumed. Remember
     that densities are all expressed in units of \f$ [3c^2/8\pi G] \f$, ie
     \f$ \rho_{class} = [8 \pi G \rho_{physical} / 3 c^2]\f$ */
-  pvecback[pba->index_bg_H] = sqrt(rho_tot - pba->K / a / a);
+  pvecback[pba->index_bg_H] = sqrt(rho_tot - pba->K / a2);
   // printf("rho_cdm is %e while H=%e \n", pvecback[pba->index_bg_rho_cdm], pvecback[pba->index_bg_H]);
 
   /** - compute derivative of H with respect to conformal time */
@@ -3379,7 +3387,7 @@ double rho_cdm_prime(
 {
   if (pba->model_cdm == 2) // Interacting DM model
   {
-    return -pba->cdm_c * (1 + tanh(pba->cdm_c * phi)) * pvecback[pba->index_bg_rho_cdm];
+    return -pba->cdm_c * (1. + tanh(pba->cdm_c * phi)) * pvecback[pba->index_bg_rho_cdm];
   }
   // else if (pba->model_cdm == 1) // Hubbleian DM model: rho_cdm_prime is wrt the scalar field, since it's for the coupling. d rho / d H is not coupled to the scalar field.
   // {
