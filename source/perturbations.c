@@ -9198,6 +9198,7 @@ int perturbations_derivs(double tau,
   double a, a2, a_prime_over_a, R;
   double a_primeprime_over_a; // KBL from above to use in HDM velocity dispersion
   double cosh_c_phi;          // KBL: cosh(pba->cdm_c * pvecback[pba->index_bg_phi_scf]) is used 4 times. Faster to compute value once.
+  double tanh_c_phi;          // KBL: tanh(pba->cdm_c * pvecback[pba->index_bg_phi_scf]) is used 2 times. Faster to compute value once.
 
   /* short-cut names for the fields of the input structure */
   struct perturbations_parameters_and_workspace *pppaw;
@@ -9906,10 +9907,11 @@ int perturbations_derivs(double tau,
                                  - 2 * a2 * pvecmetric[ppw->index_mt_psi] * pvecback[pba->index_bg_dV_scf]; // -2a^2 Psi V' (phi in xPand = psi in CLASS)
       if (pba->model_cdm == 2)                                                                              // KBL: for interacting DM, additional terms appear in the KG perturbation equation
       {
-        cosh_c_phi = cosh(pba->cdm_c * pvecback[pba->index_bg_phi_scf]);                                                                                                                                                                                                                                                                                                                                                                  // this is used 4 times. Compute it once and reuse it for performance boost.
+        cosh_c_phi = cosh(pba->cdm_c * pvecback[pba->index_bg_phi_scf]);
+        tanh_c_phi = tanh(pba->cdm_c * pvecback[pba->index_bg_phi_scf]);                                                                                                                                                                                                                                                                                                                                                                  // this is used 4 times. Compute it once and reuse it for performance boost.
         dy[pv->index_pt_mom_scf] += -a2 * (pvecback[pba->index_bg_rho_cdm] * ((16 * pba->cdm_c * pba->cdm_c * cosh_c_phi * sinh(pba->cdm_c * pvecback[pba->index_bg_phi_scf])) / (6 * cosh_c_phi * cosh_c_phi + 2 * cosh_c_phi * cosh(3 * pba->cdm_c * pvecback[pba->index_bg_phi_scf]) - 2 * sinh(2 * pba->cdm_c * pvecback[pba->index_bg_phi_scf]) - sinh(4 * pba->cdm_c * pvecback[pba->index_bg_phi_scf]))) * y[pv->index_pt_phi_scf] // -a^2 m'' n delta_phi
-                                           - 2 * pba->cdm_c / (1 + cosh(2 * pba->cdm_c * pvecback[pba->index_bg_phi_scf])) * y[pv->index_pt_delta_cdm]                                                                                                                                                                                                                                                                                    // -a^2 m' delta_n);
-                                           + 2 * pvecmetric[ppw->index_mt_psi] * pvecback[pba->index_bg_rho_cdm] * (-pba->cdm_c * (1 + tanh(pba->cdm_c * pvecback[pba->index_bg_phi_scf]))));                                                                                                                                                                                                                                             //-2a^2 psi *  m' n, Psi in CLASS = phi in xPand
+                                           - pba->cdm_c * (1 + tanh_c_phi) * pvecback[pba->index_bg_rho_cdm] * y[pv->index_pt_delta_cdm]                                                                                                                                                                                                                                                                                                  // -a^2 m' delta_n, using m'/m = c (1 + tanh(c phi)) and delta_cdm = delta_n/n
+                                           + 2 * pvecmetric[ppw->index_mt_psi] * pvecback[pba->index_bg_rho_cdm] * (-pba->cdm_c * (1 + tanh_c_phi)));                                                                                                                                                                                                                                                                                     //-2a^2 psi *  m' n, Psi in CLASS = phi in xPand
       }
     }
 
