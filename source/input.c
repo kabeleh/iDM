@@ -1311,7 +1311,7 @@ int input_get_guess(double *xguess,
        * */
       /* Default: take the passed value as xguess. */
       xguess[index_guess] = ba.scf_parameters[ba.scf_tuning_index];
-      dxdy[index_guess] = ba.scf_parameters[ba.scf_tuning_index] / 0.7; // assuming Omega_scf ~ 0.7 for scaling
+      dxdy[index_guess] = ba.scf_parameters[ba.scf_tuning_index] / ba.Omega0_scf;
       break;
     case omega_ini_dcdm:
       Omega0_dcdmdr = 1. / (ba.h * ba.h);
