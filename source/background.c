@@ -2451,79 +2451,92 @@ int background_initial_conditions(
         break;
       case 3: // hyperbolic
         scf_lambda = -c2;
-        rho_tracking = rho_background * 3. * scf_gamma / (scf_lambda * scf_lambda) / (1. - 3. * scf_gamma / scf_lambda / scf_lambda);
-        pvecback_integration[pba->index_bi_phi_prime_scf] = a * sqrt(rho_tracking * (1. + omega_background));
-        // Under certain conditions, an attractor solution for large phi exists.
-        if (c2 > 0.0 && (
-                            /* c1 > 0 branches */
-                            (
-                                c1 > 0.0 &&
-                                scf_gamma > (4.0 / 3.0) * c2 * c2 &&
-                                rho_tracking > 0.0 &&
-                                omega_background > 1.0 &&
-                                omega_background < (1.0 / (3.0 * scf_gamma * rho_tracking)) * (-16.0 * c1 * c2 * c2 + 12.0 * c1 * scf_gamma + 3.0 * scf_gamma * rho_tracking)) ||
-                            (c1 > 0.0 &&
-                             scf_gamma > 0.0 && scf_gamma < (4.0 / 3.0) * c2 * c2 &&
-                             rho_tracking > (1.0 / (3.0 * scf_gamma)) * (16.0 * c1 * c2 * c2 - 12.0 * c1 * scf_gamma) &&
-                             omega_background > (1.0 / (3.0 * scf_gamma * rho_tracking)) * (-16.0 * c1 * c2 * c2 + 12.0 * c1 * scf_gamma + 3.0 * scf_gamma * rho_tracking) &&
-                             omega_background < 1.0) ||
-                            (c1 > 0.0 &&
-                             scf_gamma > 0.0 && scf_gamma < (4.0 / 3.0) * c2 * c2 &&
-                             rho_tracking > 0.0 && rho_tracking <= (1.0 / (3.0 * scf_gamma)) * (16.0 * c1 * c2 * c2 - 12.0 * c1 * scf_gamma) &&
-                             omega_background > 0.0 && omega_background < 1.0) ||
-                            /* c1 < 0 branches */
-                            (
-                                c1 < 0.0 &&
-                                scf_gamma > (4.0 / 3.0) * c2 * c2 &&
-                                rho_tracking > (1.0 / (3.0 * scf_gamma)) * (16.0 * c1 * c2 * c2 - 12.0 * c1 * scf_gamma) &&
-                                omega_background > (1.0 / (3.0 * scf_gamma * rho_tracking)) * (-16.0 * c1 * c2 * c2 + 12.0 * c1 * scf_gamma + 3.0 * scf_gamma * rho_tracking) &&
-                                omega_background < 1.0) ||
-                            (c1 < 0.0 &&
-                             scf_gamma > (4.0 / 3.0) * c2 * c2 &&
-                             rho_tracking > 0.0 && rho_tracking <= (1.0 / (3.0 * scf_gamma)) * (16.0 * c1 * c2 * c2 - 12.0 * c1 * scf_gamma) &&
-                             omega_background > 0.0 && omega_background < 1.0) ||
-                            (c1 < 0.0 &&
-                             scf_gamma > 0.0 && scf_gamma < (4.0 / 3.0) * c2 * c2 &&
-                             rho_tracking > 0.0 &&
-                             omega_background > 1.0 &&
-                             omega_background < (1.0 / (3.0 * scf_gamma * rho_tracking)) * (-16.0 * c1 * c2 * c2 + 12.0 * c1 * scf_gamma + 3.0 * scf_gamma * rho_tracking))))
+        if (1. <= 3. * scf_gamma / scf_lambda / scf_lambda)
         {
-          pvecback_integration[pba->index_bi_phi_scf] = atanh(
-                                                            (8.0 * c1 * c2 * c2 - 6.0 * c1 * scf_gamma - 3.0 * scf_gamma * rho_tracking + 3.0 * scf_gamma * rho_tracking * omega_background) / (2.0 * c1 * (4.0 * c2 * c2 - 3.0 * scf_gamma))) /
-                                                        c2;
+          if (pba->background_verbose > 0)
+          {
+            printf("scf_lambda is too small compared to scf_gamma. The root would be negative. Using phi_ini_scf and phi_prime_ini_scf instead of tracking solution.\n");
+          }
+          /** - --> If no attractor initial conditions are assigned, gets the provided ones. */
+          pvecback_integration[pba->index_bi_phi_scf] = pba->phi_ini_scf;
+          pvecback_integration[pba->index_bi_phi_prime_scf] = pba->phi_prime_ini_scf;
         }
-        // if none of those conditions are met, there are weaker conditions under which an approximate attractor solution --- the one of the simple exponential potential --- exists. Phi_prime_ini is identical and does not need to be changed.
-        else if (
-            /* c1 > 0 branches */
-            (
-                c1 > 0.0 &&
-                scf_gamma > (1.0 / 3.0) * c2 * c2 &&
-                rho_tracking > 0.0 &&
-                omega_background > 1.0) ||
-            (c1 > 0.0 &&
-             scf_gamma > 0.0 && scf_gamma < (1.0 / 3.0) * c2 * c2 &&
-             rho_tracking > 0.0 &&
-             omega_background > 0.0 && omega_background < 1.0) ||
-            /* c1 < 0 branches */
-            (
-                c1 < 0.0 &&
-                scf_gamma > (1.0 / 3.0) * c2 * c2 &&
-                rho_tracking > 0.0 &&
-                omega_background > 0.0 && omega_background < 1.0) ||
-            (c1 < 0.0 &&
-             scf_gamma > 0.0 && scf_gamma < (1.0 / 3.0) * c2 * c2 &&
-             rho_tracking > 0.0 &&
-             omega_background > 1.0))
-        {
-          pvecback_integration[pba->index_bi_phi_scf] =
-              log(
-                  -2.0 * (c1 * c2 * c2 - 3.0 * c1 * scf_gamma) / (3.0 * scf_gamma * rho_tracking * (-1.0 + omega_background))) /
-              c2;
-        }
-        // If these conditions are not met as well, we still need to assign some value. The small-field attractor solution avoids NaN.
         else
-          pvecback_integration[pba->index_bi_phi_scf] = (2.0 * c1 * c2 * c2 - 6.0 * c1 * scf_gamma - 3.0 * scf_gamma * rho_tracking + 3.0 * scf_gamma * rho_tracking * omega_background) /
-                                                        (2.0 * c1 * c2 * c2 * c2 - 6.0 * c1 * c2 * scf_gamma);
+        {
+          rho_tracking = rho_background * 3. * scf_gamma / (scf_lambda * scf_lambda) / (1. - 3. * scf_gamma / scf_lambda / scf_lambda);
+          pvecback_integration[pba->index_bi_phi_prime_scf] = a * sqrt(rho_tracking * (1. + omega_background));
+          // Under certain conditions, an attractor solution for large phi exists.
+          if (c2 > 0.0 && (
+                              /* c1 > 0 branches */
+                              (
+                                  c1 > 0.0 &&
+                                  scf_gamma > (4.0 / 3.0) * c2 * c2 &&
+                                  rho_tracking > 0.0 &&
+                                  omega_background > 1.0 &&
+                                  omega_background < (1.0 / (3.0 * scf_gamma * rho_tracking)) * (-16.0 * c1 * c2 * c2 + 12.0 * c1 * scf_gamma + 3.0 * scf_gamma * rho_tracking)) ||
+                              (c1 > 0.0 &&
+                               scf_gamma > 0.0 && scf_gamma < (4.0 / 3.0) * c2 * c2 &&
+                               rho_tracking > (1.0 / (3.0 * scf_gamma)) * (16.0 * c1 * c2 * c2 - 12.0 * c1 * scf_gamma) &&
+                               omega_background > (1.0 / (3.0 * scf_gamma * rho_tracking)) * (-16.0 * c1 * c2 * c2 + 12.0 * c1 * scf_gamma + 3.0 * scf_gamma * rho_tracking) &&
+                               omega_background < 1.0) ||
+                              (c1 > 0.0 &&
+                               scf_gamma > 0.0 && scf_gamma < (4.0 / 3.0) * c2 * c2 &&
+                               rho_tracking > 0.0 && rho_tracking <= (1.0 / (3.0 * scf_gamma)) * (16.0 * c1 * c2 * c2 - 12.0 * c1 * scf_gamma) &&
+                               omega_background > 0.0 && omega_background < 1.0) ||
+                              /* c1 < 0 branches */
+                              (
+                                  c1 < 0.0 &&
+                                  scf_gamma > (4.0 / 3.0) * c2 * c2 &&
+                                  rho_tracking > (1.0 / (3.0 * scf_gamma)) * (16.0 * c1 * c2 * c2 - 12.0 * c1 * scf_gamma) &&
+                                  omega_background > (1.0 / (3.0 * scf_gamma * rho_tracking)) * (-16.0 * c1 * c2 * c2 + 12.0 * c1 * scf_gamma + 3.0 * scf_gamma * rho_tracking) &&
+                                  omega_background < 1.0) ||
+                              (c1 < 0.0 &&
+                               scf_gamma > (4.0 / 3.0) * c2 * c2 &&
+                               rho_tracking > 0.0 && rho_tracking <= (1.0 / (3.0 * scf_gamma)) * (16.0 * c1 * c2 * c2 - 12.0 * c1 * scf_gamma) &&
+                               omega_background > 0.0 && omega_background < 1.0) ||
+                              (c1 < 0.0 &&
+                               scf_gamma > 0.0 && scf_gamma < (4.0 / 3.0) * c2 * c2 &&
+                               rho_tracking > 0.0 &&
+                               omega_background > 1.0 &&
+                               omega_background < (1.0 / (3.0 * scf_gamma * rho_tracking)) * (-16.0 * c1 * c2 * c2 + 12.0 * c1 * scf_gamma + 3.0 * scf_gamma * rho_tracking))))
+          {
+            pvecback_integration[pba->index_bi_phi_scf] = atanh(
+                                                              (8.0 * c1 * c2 * c2 - 6.0 * c1 * scf_gamma - 3.0 * scf_gamma * rho_tracking + 3.0 * scf_gamma * rho_tracking * omega_background) / (2.0 * c1 * (4.0 * c2 * c2 - 3.0 * scf_gamma))) /
+                                                          c2;
+          }
+          // if none of those conditions are met, there are weaker conditions under which an approximate attractor solution --- the one of the simple exponential potential --- exists. Phi_prime_ini is identical and does not need to be changed.
+          else if (
+              /* c1 > 0 branches */
+              (
+                  c1 > 0.0 &&
+                  scf_gamma > (1.0 / 3.0) * c2 * c2 &&
+                  rho_tracking > 0.0 &&
+                  omega_background > 1.0) ||
+              (c1 > 0.0 &&
+               scf_gamma > 0.0 && scf_gamma < (1.0 / 3.0) * c2 * c2 &&
+               rho_tracking > 0.0 &&
+               omega_background > 0.0 && omega_background < 1.0) ||
+              /* c1 < 0 branches */
+              (
+                  c1 < 0.0 &&
+                  scf_gamma > (1.0 / 3.0) * c2 * c2 &&
+                  rho_tracking > 0.0 &&
+                  omega_background > 0.0 && omega_background < 1.0) ||
+              (c1 < 0.0 &&
+               scf_gamma > 0.0 && scf_gamma < (1.0 / 3.0) * c2 * c2 &&
+               rho_tracking > 0.0 &&
+               omega_background > 1.0))
+          {
+            pvecback_integration[pba->index_bi_phi_scf] =
+                log(
+                    -2.0 * (c1 * c2 * c2 - 3.0 * c1 * scf_gamma) / (3.0 * scf_gamma * rho_tracking * (-1.0 + omega_background))) /
+                c2;
+          }
+          // If these conditions are not met as well, we still need to assign some value. The small-field attractor solution avoids NaN.
+          else
+            pvecback_integration[pba->index_bi_phi_scf] = (2.0 * c1 * c2 * c2 - 6.0 * c1 * scf_gamma - 3.0 * scf_gamma * rho_tracking + 3.0 * scf_gamma * rho_tracking * omega_background) /
+                                                          (2.0 * c1 * c2 * c2 * c2 - 6.0 * c1 * c2 * scf_gamma);
+        }
         break;
         // pvecback_integration[pba->index_bi_phi_scf] = atanh((6. * c1 * scf_gamma - 2. * c1 * scf_lambda * scf_lambda + 3. * scf_gamma * rho_tracking - 3. * omega_background * scf_gamma * rho_tracking) / (2. * c1 * (3. * scf_gamma - scf_lambda * scf_lambda))) / c2;
       case 4: // pNG
@@ -2536,39 +2549,52 @@ int background_initial_conditions(
         break;
       case 6: // exponential
         scf_lambda = -c2;
-        rho_tracking = rho_background * 3. * scf_gamma / (scf_lambda * scf_lambda) / (1. - 3. * scf_gamma / scf_lambda / scf_lambda);
-        pvecback_integration[pba->index_bi_phi_prime_scf] = a * sqrt(rho_tracking * (1. + omega_background));
-        if (
-            /* c1 > 0 branches */
-            (
-                c1 > 0.0 &&
-                scf_gamma > (1.0 / 3.0) * c2 * c2 &&
-                rho_tracking > 0.0 &&
-                omega_background > 1.0) ||
-            (c1 > 0.0 &&
-             scf_gamma > 0.0 && scf_gamma < (1.0 / 3.0) * c2 * c2 &&
-             rho_tracking > 0.0 &&
-             omega_background > 0.0 && omega_background < 1.0) ||
-            /* c1 < 0 branches */
-            (
-                c1 < 0.0 &&
-                scf_gamma > (1.0 / 3.0) * c2 * c2 &&
-                rho_tracking > 0.0 &&
-                omega_background > 0.0 && omega_background < 1.0) ||
-            (c1 < 0.0 &&
-             scf_gamma > 0.0 && scf_gamma < (1.0 / 3.0) * c2 * c2 &&
-             rho_tracking > 0.0 &&
-             omega_background > 1.0))
+        if (1. <= 3. * scf_gamma / scf_lambda / scf_lambda)
         {
-          pvecback_integration[pba->index_bi_phi_scf] =
-              log(
-                  -2.0 * (c1 * c2 * c2 - 3.0 * c1 * scf_gamma) / (3.0 * scf_gamma * rho_tracking * (-1.0 + omega_background))) /
-              c2;
+          if (pba->background_verbose > 0)
+          {
+            printf("scf_lambda is too small compared to scf_gamma. The root would be negative. Using phi_ini_scf and phi_prime_ini_scf instead of tracking solution.\n");
+          }
+          /** - --> If no attractor initial conditions are assigned, gets the provided ones. */
+          pvecback_integration[pba->index_bi_phi_scf] = pba->phi_ini_scf;
+          pvecback_integration[pba->index_bi_phi_prime_scf] = pba->phi_prime_ini_scf;
         }
-        // If these conditions are not met, we still need to assign some value. The small-field attractor solution avoids NaN.
         else
-          pvecback_integration[pba->index_bi_phi_scf] = (2.0 * c1 * c2 * c2 - 6.0 * c1 * scf_gamma - 3.0 * scf_gamma * rho_tracking + 3.0 * scf_gamma * rho_tracking * omega_background) /
-                                                        (2.0 * c1 * c2 * c2 * c2 - 6.0 * c1 * c2 * scf_gamma);
+        {
+          rho_tracking = rho_background * 3. * scf_gamma / (scf_lambda * scf_lambda) / (1. - 3. * scf_gamma / scf_lambda / scf_lambda);
+          pvecback_integration[pba->index_bi_phi_prime_scf] = a * sqrt(rho_tracking * (1. + omega_background));
+          if (
+              /* c1 > 0 branches */
+              (
+                  c1 > 0.0 &&
+                  scf_gamma > (1.0 / 3.0) * c2 * c2 &&
+                  rho_tracking > 0.0 &&
+                  omega_background > 1.0) ||
+              (c1 > 0.0 &&
+               scf_gamma > 0.0 && scf_gamma < (1.0 / 3.0) * c2 * c2 &&
+               rho_tracking > 0.0 &&
+               omega_background > 0.0 && omega_background < 1.0) ||
+              /* c1 < 0 branches */
+              (
+                  c1 < 0.0 &&
+                  scf_gamma > (1.0 / 3.0) * c2 * c2 &&
+                  rho_tracking > 0.0 &&
+                  omega_background > 0.0 && omega_background < 1.0) ||
+              (c1 < 0.0 &&
+               scf_gamma > 0.0 && scf_gamma < (1.0 / 3.0) * c2 * c2 &&
+               rho_tracking > 0.0 &&
+               omega_background > 1.0))
+          {
+            pvecback_integration[pba->index_bi_phi_scf] =
+                log(
+                    -2.0 * (c1 * c2 * c2 - 3.0 * c1 * scf_gamma) / (3.0 * scf_gamma * rho_tracking * (-1.0 + omega_background))) /
+                c2;
+          }
+          // If these conditions are not met, we still need to assign some value. The small-field attractor solution avoids NaN.
+          else
+            pvecback_integration[pba->index_bi_phi_scf] = (2.0 * c1 * c2 * c2 - 6.0 * c1 * scf_gamma - 3.0 * scf_gamma * rho_tracking + 3.0 * scf_gamma * rho_tracking * omega_background) /
+                                                          (2.0 * c1 * c2 * c2 * c2 - 6.0 * c1 * c2 * scf_gamma);
+        }
         break;
       case 7: // SqE
         // pvecback_integration[pba->index_bi_phi_prime_scf] = 0.;
@@ -2577,40 +2603,53 @@ int background_initial_conditions(
         break;
       case 8: // Bean
         scf_lambda = -c3;
-        rho_tracking = rho_background * 3. * scf_gamma / (scf_lambda * scf_lambda) / (1. - 3. * scf_gamma / scf_lambda / scf_lambda);
-        pvecback_integration[pba->index_bi_phi_prime_scf] = a * sqrt(rho_tracking * (1. + omega_background));
-        // There is no analytic solution for the large-field attractor in this potential. It is approximated by the exponential potential attractor.
-        if (
-            /* c1 > 0 branches */
-            (
-                c1 > 0.0 &&
-                scf_gamma > (1.0 / 3.0) * c3 * c3 &&
-                rho_tracking > 0.0 &&
-                omega_background > 1.0) ||
-            (c1 > 0.0 &&
-             scf_gamma > 0.0 && scf_gamma < (1.0 / 3.0) * c3 * c3 &&
-             rho_tracking > 0.0 &&
-             omega_background > 0.0 && omega_background < 1.0) ||
-            /* c1 < 0 branches */
-            (
-                c1 < 0.0 &&
-                scf_gamma > (1.0 / 3.0) * c3 * c3 &&
-                rho_tracking > 0.0 &&
-                omega_background > 0.0 && omega_background < 1.0) ||
-            (c1 < 0.0 &&
-             scf_gamma > 0.0 && scf_gamma < (1.0 / 3.0) * c3 * c3 &&
-             rho_tracking > 0.0 &&
-             omega_background > 1.0))
+        if (1. <= 3. * scf_gamma / scf_lambda / scf_lambda)
         {
-          pvecback_integration[pba->index_bi_phi_scf] =
-              log(
-                  -2.0 * (c1 * c3 * c3 - 3.0 * c1 * scf_gamma) / (3.0 * scf_gamma * rho_tracking * (-1.0 + omega_background))) /
-              c3;
+          if (pba->background_verbose > 0)
+          {
+            printf("scf_lambda is too small compared to scf_gamma. The root would be negative. Using phi_ini_scf and phi_prime_ini_scf instead of tracking solution.\n");
+          }
+          /** - --> If no attractor initial conditions are assigned, gets the provided ones. */
+          pvecback_integration[pba->index_bi_phi_scf] = pba->phi_ini_scf;
+          pvecback_integration[pba->index_bi_phi_prime_scf] = pba->phi_prime_ini_scf;
         }
-        // If these conditions are not met, we still need to assign some value. The small-field attractor solution---which exists for this potential and is not equal to the small-field attractor of the exponential---avoids NaN. Phi_prime_ini is identical and does not need to be changed.
         else
-          pvecback_integration[pba->index_bi_phi_scf] = (-2.0 * c1 * c2 * c2 * c2 * c3 * c3 + 6.0 * c1 * c2 * c2 * c2 * scf_gamma + 3.0 * c2 * c2 * scf_gamma * rho_tracking - 3.0 * c2 * c2 * scf_gamma * rho_tracking * omega_background) /
-                                                        (-2.0 * c1 * c2 * c2 * c2 * c3 * c3 * c3 + 6.0 * c1 * c2 * c2 * c2 * c3 * scf_gamma);
+        {
+          rho_tracking = rho_background * 3. * scf_gamma / (scf_lambda * scf_lambda) / (1. - 3. * scf_gamma / scf_lambda / scf_lambda);
+          pvecback_integration[pba->index_bi_phi_prime_scf] = a * sqrt(rho_tracking * (1. + omega_background));
+          // There is no analytic solution for the large-field attractor in this potential. It is approximated by the exponential potential attractor.
+          if (
+              /* c1 > 0 branches */
+              (
+                  c1 > 0.0 &&
+                  scf_gamma > (1.0 / 3.0) * c3 * c3 &&
+                  rho_tracking > 0.0 &&
+                  omega_background > 1.0) ||
+              (c1 > 0.0 &&
+               scf_gamma > 0.0 && scf_gamma < (1.0 / 3.0) * c3 * c3 &&
+               rho_tracking > 0.0 &&
+               omega_background > 0.0 && omega_background < 1.0) ||
+              /* c1 < 0 branches */
+              (
+                  c1 < 0.0 &&
+                  scf_gamma > (1.0 / 3.0) * c3 * c3 &&
+                  rho_tracking > 0.0 &&
+                  omega_background > 0.0 && omega_background < 1.0) ||
+              (c1 < 0.0 &&
+               scf_gamma > 0.0 && scf_gamma < (1.0 / 3.0) * c3 * c3 &&
+               rho_tracking > 0.0 &&
+               omega_background > 1.0))
+          {
+            pvecback_integration[pba->index_bi_phi_scf] =
+                log(
+                    -2.0 * (c1 * c3 * c3 - 3.0 * c1 * scf_gamma) / (3.0 * scf_gamma * rho_tracking * (-1.0 + omega_background))) /
+                c3;
+          }
+          // If these conditions are not met, we still need to assign some value. The small-field attractor solution---which exists for this potential and is not equal to the small-field attractor of the exponential---avoids NaN. Phi_prime_ini is identical and does not need to be changed.
+          else
+            pvecback_integration[pba->index_bi_phi_scf] = (-2.0 * c1 * c2 * c2 * c2 * c3 * c3 + 6.0 * c1 * c2 * c2 * c2 * scf_gamma + 3.0 * c2 * c2 * scf_gamma * rho_tracking - 3.0 * c2 * c2 * scf_gamma * rho_tracking * omega_background) /
+                                                          (-2.0 * c1 * c2 * c2 * c2 * c3 * c3 * c3 + 6.0 * c1 * c2 * c2 * c2 * c3 * scf_gamma);
+        }
         break;
       case 9: // DoubleExp
         // scf_lambda = -(c1 * c2 + c3 * c4) / (c1 + c3);
