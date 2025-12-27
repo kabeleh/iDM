@@ -3,10 +3,10 @@
 NotebookFileLineBreakTest
 NotebookFileLineBreakTest
 NotebookDataPosition[         0,          0]
-NotebookDataLength[    317161,       8318]
+NotebookDataLength[    317198,       8319]
 NotebookOptionsPosition[    302480,       8063]
-NotebookOutlinePosition[    304311,       8118]
-CellTagsIndexPosition[    304268,       8115]
+NotebookOutlinePosition[    304348,       8119]
+CellTagsIndexPosition[    304305,       8116]
 WindowFrame->Normal*)
 
 (* Beginning of Notebook Content *)
@@ -8062,11 +8062,12 @@ f8d431f5d070"]
 }, Open  ]]
 },
 PrintingStyleEnvironment->"Elegant Printout",
+RulerUnits->"Inches",
 WindowSize->{699, 740},
 WindowMargins->{{251, Automatic}, {3, Automatic}},
 PrintingCopies->1,
 PrintingStartingPageNumber->1,
-PrintingPageRange->{Automatic, Automatic},
+PrintingPageRange->{1, Automatic},
 PageHeaders->{{
    Cell[
     TextData[
@@ -8099,7 +8100,7 @@ PrintingOptions->{"FacingPages"->True,
 "PrintCellBrackets"->False,
 "PrintMultipleHorizontalPages"->False,
 "PrintRegistrationMarks"->False,
-"PrintingMargins"->0},
+"PrintingMargins"->{{7.2, 7.2}, {7.2, 7.2}}},
 TaggingRules->{"TryRealOnly" -> False},
 Magnification:>1.25 Inherited,
 FrontEndVersion->"14.3 for Mac OS X ARM (64-bit) (July 8, 2025)",
