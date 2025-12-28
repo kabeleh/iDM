@@ -974,7 +974,7 @@ int input_find_root(double *xzero,
 
   (*fevals)++;
   dx = 1.5 * f1 * dxdy;
-  printf("DEBUG input_find_root: x1=%e, f1=%e, dxdy=%e, dx=%e\n", x1, f1, dxdy, dx);
+
   if (fabs(dx) < x1 * _EPSILON_)
   {
     /* In this special case, we are very close to the correct location already
@@ -1302,14 +1302,10 @@ int input_get_guess(double *xguess,
       break;
     case Omega_scf:
       /* *
-       * This guess is arbitrary, something nice using WKB should be implemented.
-       * Version 2 uses a fit
-       * xguess[index_guess] = 1.77835*pow(ba.Omega0_scf,-2./7.);
-       * dxdy[index_guess] = -0.5081*pow(ba.Omega0_scf,-9./7.)`;
-       * Version 3: use attractor solution
-       * Version KBL: use the passed value as xguess and set dxdy to 1, since this can be quite model-dependent.
-       * */
-      /* Default: take the passed value as xguess. */
+       * KBL: Take user provided tuning parameter and use it as initial guess.
+       * For the derivative, assume linear relationship between tuning parameter
+       * and Omega_scf today to fill universe with scalar field.
+       */
       xguess[index_guess] = ba.scf_parameters[ba.scf_tuning_index];
       dxdy[index_guess] = ba.scf_parameters[ba.scf_tuning_index] / ba.Omega0_scf;
       break;
@@ -1402,8 +1398,6 @@ int input_try_unknown_parameters(double *unknown_parameter,
   int param;
   short compute_sigma8 = _FALSE_;
 
-  double achieved_Omega = 0.0; // KBL: created for debugging / printing
-
   /* Assume for now shooting did not fail */
   ba.shooting_failed = _FALSE_;
 
@@ -1476,7 +1470,10 @@ int input_try_unknown_parameters(double *unknown_parameter,
     if (input_verbose > 2)
       printf("Stage 1: background\n");
     ba.background_verbose = 0;
-    class_call_except(background_init(&pr, &ba), ba.error_message, errmsg, background_free_input(&ba); thermodynamics_free_input(&th); perturbations_free_input(&pt););
+
+    class_call_except(background_init(&pr, &ba), ba.error_message, errmsg,
+                      background_free_input(&ba);
+                      thermodynamics_free_input(&th); perturbations_free_input(&pt););
   }
 
   if (pfzw->required_computation_stage >= cs_thermodynamics)
@@ -1558,18 +1555,9 @@ int input_try_unknown_parameters(double *unknown_parameter,
         rho_dr_today = 0.;
       output[i] = (rho_dcdm_today + rho_dr_today) / (ba.H0 * ba.H0) - pfzw->target_value[i] / ba.h / ba.h;
       break;
-    case Omega_scf: // KBL: We split this and create
+    case Omega_scf:
       /** In case scalar field is used to fill, pba->Omega0_scf is not equal to pfzw->target_value[i].*/
-      {
-        output[i] = ba.background_table[(ba.bt_size - 1) * ba.bg_size + ba.index_bg_rho_tot] / (ba.H0 * ba.H0) - 1; // HVR
-        // achieved_Omega = ba.background_table[(ba.bt_size - 1) * ba.bg_size + ba.index_bg_rho_scf] / (ba.H0 * ba.H0);
-        // output[i] = achieved_Omega - ba.Omega0_scf;
-        // if (input_verbose > 1)
-        // {
-        //   printf("Omega_scf shooting: before adjustment: c1=%e, achieved Omega=%e, target=%e, delta=%e\n",
-        //          ba.scf_parameters[ba.scf_tuning_index], achieved_Omega, ba.Omega0_scf, output[i]);
-        // }
-      }
+      output[i] = ba.background_table[(ba.bt_size - 1) * ba.bg_size + ba.index_bg_rho_scf] / (ba.H0 * ba.H0) - ba.Omega0_scf;
       break;
     case Omega_ini_dcdm:
     case omega_ini_dcdm:

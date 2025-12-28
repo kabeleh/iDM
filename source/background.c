@@ -2226,9 +2226,9 @@ int background_solve(
       printf("                    [ ");
       for (index_scf = 0; index_scf < pba->scf_parameters_size - 1; index_scf++)
       {
-        printf("%.3f, ", pba->scf_parameters[index_scf]);
+        printf("%.3e, ", pba->scf_parameters[index_scf]);
       }
-      printf("%.3f]\n", pba->scf_parameters[pba->scf_parameters_size - 1]);
+      printf("%.3e]\n", pba->scf_parameters[pba->scf_parameters_size - 1]);
     }
   }
 

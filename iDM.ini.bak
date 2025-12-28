@@ -248,7 +248,7 @@ Omega_Lambda = 0.0
 scf_potential = DoubleExp
 
 # 8.b.1) Scalar field (scf) potential parameters and initial conditions
-#        (scf_parameters = 1e-7, 50., 5.0, 0.04, 0.0, 0.0, 1.0, 1.0, 0.0, 0.0, 2e-4, 0.1
+#        (scf_parameters = [scf_lambda, scf_alpha, scf_A, scf_B, phi,
 #        phi_prime]). V = ((\phi-B)^\alpha + A)exp(-lambda*phi), see
 #        http://arxiv.org/abs/astro-ph/9908085.
 #        If 'attractor_ic_scf' is set to
@@ -270,9 +270,9 @@ scf_potential = DoubleExp
 #        [9]     = coupling_exponent_2
 #        [10]    = phi_ini
 #        [11]    = phi_prime_ini
-#scf_parameters = 1e-7, 50., 5.0, 0.04, 0.0, 0.0, 1.0, 1.0, 0.0, 0.0, 2e-4, 0.1
-scf_parameters = 1e-7, 50., 1.1, 0.04, 0.0, 0.0, 1.0, 1.0, 0.0, 0.0, 2e-4, 0.1
-#scf_parameters = 1e-7, 50., 5.0, 0.04, 0.0, 0.0, 1.0, 1.0, 0.0, 0.0, 2e-4, 0.1
+#scf_parameters = 1, 10.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 100.0, 0.0
+scf_parameters = 1e-7, 50., 0.510, 0.04, 0.0, 0.0, 1.0, 1.0, 0.0, 0.0, 0.0002, 0.1
+#scf_parameters = 1e-7, 50., 1, 0.04, 0.0, 0.0, 1.2, 0.0, 0.0, 0.0, 7.1, 0.1
 
 
 # 8.b.2) Scalar field (scf) initial conditions from attractor solution (assuming

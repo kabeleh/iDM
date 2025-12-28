@@ -5,11 +5,13 @@ README.md
 __init__.py
 pyproject.toml
 setup.py
+test_cobaya_params.py
 ./CLASS_rename.py
 ./CPU.py
 ./Makefile
 ./__init__.py
 ./setup.py
+./test_cobaya_params.py
 ./external/HMcode/hmcode.c
 ./external/HMcode/hmcode.h
 ./external/Halofit/halofit.c
