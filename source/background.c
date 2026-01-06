@@ -3474,9 +3474,22 @@ double coupling_scf(
 
   // Guard against division by zero or near-zero phi_prime
   // Physical justification: if phi' is near zero, phi is not changing, and so it's energy density should not change by its own dynamics, only by the coupling to DM density evolution.
-  if (fabs(pvecback[pba->index_bg_phi_prime_scf]) < 1e-30)
+  if (fabs(pvecback[pba->index_bg_phi_prime_scf]) < 1e-20)
   {
+    if (pba->background_verbose > 2)
+    {
+      printf("Warning: phi' is very small (%e). Using only the direct coupling terms q3=%e and q4=%e.\n", pvecback[pba->index_bg_phi_prime_scf], q3 * pvecback[pba->index_bg_rho_cdm], q4 * rho_cdm_prime);
+    }
     return q3 * pvecback[pba->index_bg_rho_cdm] + q4 * rho_cdm_prime;
+  }
+  if (pba->background_verbose > 6)
+  {
+    printf("Coupling term Xi/phi': %e\nComponents: %e, %e, %e, %e\n",
+           3 * (pvecback[pba->index_bg_H] / pow(pvecback[pba->index_bg_rho_cdm] + pvecback[pba->index_bg_rho_scf], exp1 - 1)) * (q1 * pow(pvecback[pba->index_bg_rho_scf], exp1 - exp2) * pow(pvecback[pba->index_bg_rho_cdm], exp2) + q2 * pow(pvecback[pba->index_bg_rho_cdm], exp1 - exp2) * pow(pvecback[pba->index_bg_rho_scf], exp2)) / pvecback[pba->index_bg_phi_prime_scf] + q3 * pvecback[pba->index_bg_rho_cdm] + q4 * rho_cdm_prime,
+           3 * (pvecback[pba->index_bg_H] / pow(pvecback[pba->index_bg_rho_cdm] + pvecback[pba->index_bg_rho_scf], exp1 - 1)) * (q1 * pow(pvecback[pba->index_bg_rho_scf], exp1 - exp2) * pow(pvecback[pba->index_bg_rho_cdm], exp2)) / pvecback[pba->index_bg_phi_prime_scf],
+           3 * (pvecback[pba->index_bg_H] / pow(pvecback[pba->index_bg_rho_cdm] + pvecback[pba->index_bg_rho_scf], exp1 - 1)) * (q2 * pow(pvecback[pba->index_bg_rho_cdm], exp1 - exp2) * pow(pvecback[pba->index_bg_rho_scf], exp2)) / pvecback[pba->index_bg_phi_prime_scf],
+           q3 * pvecback[pba->index_bg_rho_cdm],
+           q4 * rho_cdm_prime);
   }
 
   return 3 * (pvecback[pba->index_bg_H] / pow(pvecback[pba->index_bg_rho_cdm] + pvecback[pba->index_bg_rho_scf], exp1 - 1)) * (q1 * pow(pvecback[pba->index_bg_rho_scf], exp1 - exp2) * pow(pvecback[pba->index_bg_rho_cdm], exp2) + q2 * pow(pvecback[pba->index_bg_rho_cdm], exp1 - exp2) * pow(pvecback[pba->index_bg_rho_scf], exp2)) / pvecback[pba->index_bg_phi_prime_scf] + q3 * pvecback[pba->index_bg_rho_cdm] + q4 * rho_cdm_prime;
