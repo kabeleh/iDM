@@ -5,11 +5,11 @@ from ruamel.yaml import YAML
 import re
 
 # Specify the parameters
-sampler = "mcmc"
+sampler = "mcmc_fast"
 likelihood = "Run3_Planck_PP_SH0ES_DESIDR2"
-potential = "cosine"
-attractor = "no"
-coupling = "uncoupled"
+potential = "DoubleExp"
+attractor = "yes"
+coupling = "coupled"
 
 yaml = YAML()
 # yaml.version = (1, 2)  # Specify YAML version
@@ -147,6 +147,21 @@ def create_cobaya_yaml(
         },
     }
 
+    # # Request sigma_R(z) for R=12 Mpc at z=0 as a dummy likelihood to compute derived parameters
+    # requires = {
+    #     "likelihood": {
+    #         "one": {
+    #             "requires": {
+    #                 "sigma_R": {
+    #                     "z": [0.0],
+    #                     "R": [12.0],
+    #                     "k_max": 5.0,  # Ensure k_max is large enough for the integral
+    #                 }
+    #             }
+    #         }
+    #     }
+    # }
+
     LIKELIHOODS = {
         "Run1_Planck_2018": Run1_Planck_2018,
         "Run2_PP_SH0ES_DESIDR2": Run2_PP_SH0ES_DESIDR2,
@@ -236,20 +251,20 @@ def create_cobaya_yaml(
         "Omega_m": {"latex": "\\Omega_\\mathrm{m}"},  # Ensure latex only
     }
 
-    # Custom Derived Parameters for sigma12 and S12
-    parameters_S12 = {
-        # Lambda function to extract sigma_R at z=0, R=12 Mpc.
-        # The provider.get_sigma_R() returns (z, R, sigma_R_grid).
-        # We access the grid [2] at index [0, 0]
-        "sigma12": {
-            "derived": "lambda _self: _self.provider.get_sigma_R()[2][0, 0]",
-            "latex": "\\sigma_{12}",
-        },
-        "S12": {
-            "derived": "lambda sigma12, omegamh2: sigma12 * ((omegamh2/0.14)**0.4 if (omegamh2>0) else 0)",
-            "latex": "S_{12}",
-        },
-    }
+    # # Custom Derived Parameters for sigma12 and S12
+    # parameters_S12 = {
+    #     # Lambda function to extract sigma_R at z=0, R=12 Mpc.
+    #     # The provider.get_sigma_R() returns (z, R, sigma_R_grid).
+    #     # We access the grid [2] at index [0, 0]
+    #     "sigma12": {
+    #         "derived": "lambda _self: _self.provider.get_sigma_R()[2][0, 0]",
+    #         "latex": "\\sigma_{12}",
+    #     },
+    #     "S12": {
+    #         "derived": "lambda sigma12, omegamh2: sigma12 * ((omegamh2/0.14)**0.4 if (omegamh2>0) else 0)",
+    #         "latex": "S_{12}",
+    #     },
+    # }
 
     # Scalar Field Parameters for iDM model
     cdm_c = {"prior": {"min": -3, "max": 3}}
@@ -375,15 +390,12 @@ def create_cobaya_yaml(
         "Omega_Lambda": {"value": 0.0, "latex": "\\Omega_\\Lambda"},
     }
 
-    # params = parameters_base.copy()
-    # if likelihood in ["Run1_Planck_2018", "Run3_Planck_PP_SH0ES_DESIDR2"]:
-    #     params.update(parameters_planck)
-    # params.update(parameters_iDM)
+    # Combine all parameters
     params = parameters_iDM.copy()
     params.update(parameters_base)
     if likelihood in ["Run1_Planck_2018", "Run3_Planck_PP_SH0ES_DESIDR2"]:
         params.update(parameters_planck)
-    params.update(parameters_S12)
+    # params.update(parameters_S12)
 
     parameters = {"params": params}
 
@@ -404,21 +416,12 @@ def create_cobaya_yaml(
     if likelihood in ["Run1_Planck_2018", "Run3_Planck_PP_SH0ES_DESIDR2"]:
         extra_args["non linear"] = "halofit"
 
-    # Request sigma_R(z) for R=12 Mpc at z=0
-    requires = {
-        "sigma_R": {
-            "z": [0.0],
-            "R": [12.0],
-            "k_max": 5.0,  # Ensure k_max is large enough for the integral
-        }
-    }
-
     theorycode = {
         "theory": {
             "classy": {
                 "path": class_path,
                 "extra_args": extra_args,
-                "requires": requires,
+                # "requires": requires,
             }
         }
     }
@@ -427,6 +430,7 @@ def create_cobaya_yaml(
     config = {}
     config.update(SAMPLERS[sampler])  # Adds "sampler" key
     config.update(LIKELIHOODS[likelihood])  # Adds "likelihood" key
+    # config.update(requires)  # Adds dummy likelihood for sigma_R
     config.update(parameters)  # Add "params"
     if coupling in ("coupled",):
         config.update(scf_exp_f)  # Add constraint on scf_exp2 < scf_exp1 / 2
@@ -439,7 +443,7 @@ configuration = create_cobaya_yaml(sampler, likelihood, potential, attractor, co
 
 # Generate filename
 attractor_name = "InitCond" if attractor in ("no", "No", "NO") else "tracking"
-filename = f"Cobaya_{sampler}_{likelihood}_{potential}_{attractor_name}_{coupling}.yml"
+filename = f"cobaya_{sampler}_{likelihood}_{potential}_{attractor_name}_{coupling}.yml"
 
 # Writing nested data to a YAML file
 try:
@@ -464,4 +468,4 @@ except Exception as e:
     print(f"Unexpected error during YAML processing: {e}")
     raise
 
-print(f"Cobaya configuration has been written to '{filename}'")
+print(f"cobaya configuration has been written to '{filename}'")
