@@ -18,7 +18,6 @@ module load Python
 module load Cython
 module load OpenMPI
 module load OpenBLAS
-module load mpi4py
 
 #Check Python version
 python -c  'import sys; print(sys.version)'
@@ -34,7 +33,7 @@ source my_python-env/bin/activate
 python -m pip install pip --upgrade
 
 #Install MPI for Python from source to ensure compatibility with OpenMPI
-# python -m pip install "mpi4py>=3" --upgrade --no-binary :all:
+python -m pip install "mpi4py>=3" --upgrade --no-binary :all:
 
 #Check mpi4py installation
 srun -n 2 python -c "from mpi4py import MPI, __version__; print(__version__ if MPI.COMM_WORLD.Get_rank() else '')"
