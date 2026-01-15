@@ -20,8 +20,8 @@ module load OpenBLAS
 #Activate Python virtual environment
 source my_python-env/bin/activate
 
-#Install cosmo likelihoods for cobaya
-srun cobaya-install polychord --packages-path $HOME/cobaya_cosmo_packages/
+#Install polychord for cobaya
+cobaya-install polychord --packages-path $HOME/cobaya_cosmo_packages/
 
 #Check energy consumption after job completion
 sacct -j $SLURM_JOB_ID -o jobid,jobname,partition,account,state,consumedenergyraw
