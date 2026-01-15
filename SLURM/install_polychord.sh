@@ -4,7 +4,7 @@
 #SBATCH --partition cpu
 #SBATCH --qos dev
 #SBATCH --nodes 1
-#SBATCH --time 00:15:00
+#SBATCH --time 00:05:00
 #SBATCH --output install_polychord.%j.out
 #SBATCH --error install_polychord.%j.err
 #SBATCH --mail-user kay.lehnert.2023@mumail.ie
@@ -16,6 +16,7 @@ module load Python
 module load Cython
 module load OpenMPI/5.0.3-GCC-13.3.0
 module load OpenBLAS
+module load libpciaccess
 
 #Activate Python virtual environment
 source my_python-env/bin/activate
