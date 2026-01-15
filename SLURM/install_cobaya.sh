@@ -16,16 +16,11 @@
 module load GCC
 module load Python
 module load Cython
-module load OpenMPI
+module load OpenMPI/5.0.3-GCC-13.3.0
 module load OpenBLAS
 
 #Check MPI compiler
 which mpicc
-
-#Set MPI compiler variables
-export MPICC=$(which gcc)
-export MPICXX=$(which g++)
-
 
 #Check Python version
 python -c  'import sys; print(sys.version)'
