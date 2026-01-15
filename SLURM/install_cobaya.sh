@@ -4,9 +4,9 @@
 #SBATCH --partition cpu
 #SBATCH --qos dev
 #SBATCH --nodes 1
-#SBATCH --ntasks 128
+#SBATCH --ntasks 4
 #SBATCH --cpus-per-task 1
-#SBATCH --time 00:15:00
+#SBATCH --time 00:05:00
 #SBATCH --output install_cobaya.%j.out
 #SBATCH --error install_cobaya.%j.err
 #SBATCH --mail-user kay.lehnert.2023@mumail.ie
@@ -18,6 +18,14 @@ module load Python
 module load Cython
 module load OpenMPI
 module load OpenBLAS
+
+#Check MPI compiler
+which mpicc
+
+#Set MPI compiler variables
+export MPICC=$(which gcc)
+export MPICXX=$(which g++)
+
 
 #Check Python version
 python -c  'import sys; print(sys.version)'
