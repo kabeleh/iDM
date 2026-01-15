@@ -29,9 +29,6 @@ params = ["H0", "s8h5"]  # Hubble constant and S8
 colours = [tuple(c) for c in cm.batlowKS.colors]
 
 # %%
-# Configure the plotter settings
-# - solid_colors: set the colors used for filled contours and lines
-g.settings.solid_colors = colours[2:]
 
 # Generate the triangle plot showing:
 # - 1D marginalized distributions on the diagonal
@@ -40,7 +37,8 @@ g.triangle_plot(
     roots,  # List of chain roots to include
     params,  # Parameters to plot
     filled=True,  # Fill the contour regions
-    colors=colours[2:],  # Colors for contour lines and fills
+    colors=colours[2:],  # Colors for contour lines and fills in 2D plot
+    diag1d_kwargs={"colors": colours[2:]},  # Colors for 1D plots
     contour_lws=3,  # Line width for contours
     legend_loc="lower left",  # Legend position
     figure_legend_outside=True,  # Place legend outside the plot area
