@@ -14,7 +14,7 @@
 #SBATCH --mail-type END,FAIL
 
 ## Load software environment
-module load gcc
+module load GCC
 
 #Check GCC version
 gcc --version
