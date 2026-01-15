@@ -25,7 +25,7 @@ CC       = gcc
 CPP      = g++ --std=c++11 -fpermissive -Wno-write-strings
 
 # your tool for creating static libraries:
-AR        = ar rv
+AR        = gcc-ar rv
 
 # Your python interpreter.
 # In order to use Python 3, you can manually
