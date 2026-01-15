@@ -15,6 +15,7 @@
 
 ## Load software environment
 module load GCC
+module load Python
 
 #Check GCC version
 gcc --version
