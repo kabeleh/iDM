@@ -6,7 +6,7 @@
 #SBATCH --nodes 1
 #SBATCH --ntasks 1
 #SBATCH --ntasks-per-node 1
-#SBATCH --cpus-per-task 64
+#SBATCH --cpus-per-task 128
 #SBATCH --time 00:05:00
 #SBATCH --output compile_CLASS.%j.out
 #SBATCH --error compile_CLASS.%j.err
@@ -16,6 +16,11 @@
 ## Load software environment
 module load GCC
 module load Python
+module load Cython
+module load OpenMPI/5.0.3-GCC-13.3.0
+module load OpenBLAS
+#Activate Python virtual environment
+source my_python-env/bin/activate
 
 #Check GCC version
 gcc --version
