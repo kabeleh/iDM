@@ -24,7 +24,7 @@ source my_python-env/bin/activate
 
 #iNumber of OpenMP threads
 export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
-srun --cpus-per-task=$SLURM_CPUS_PER_TASK cobaya-run /home/users/u103677/iDM/cobaya_mcmc_fast_Run1_Planck_2018_DoubleExp_tracking_uncoupled.yml --debug --force
+srun --cpus-per-task=$SLURM_CPUS_PER_TASK cobaya-run /home/users/u103677/iDM/cobaya_mcmc_fast_Run1_Planck_2018_DoubleExp_tracking_uncoupled.yml --resume
 
 #Check energy consumption after job completion
 sacct -j $SLURM_JOB_ID -o jobid,jobname,partition,account,state,consumedenergyraw
