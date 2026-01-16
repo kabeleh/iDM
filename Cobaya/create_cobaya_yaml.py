@@ -6,10 +6,10 @@ import re
 
 # Specify the parameters
 sampler = "mcmc_fast"
-likelihood = "Run3_Planck_PP_SH0ES_DESIDR2"
+likelihood = "Run1_Planck_2018"
 potential = "DoubleExp"
 attractor = "yes"
-coupling = "coupled"
+coupling = "uncoupled"
 
 yaml = YAML()
 # yaml.version = (1, 2)  # Specify YAML version
