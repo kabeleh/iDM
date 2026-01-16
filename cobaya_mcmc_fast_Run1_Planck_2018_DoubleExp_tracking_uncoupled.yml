@@ -186,4 +186,5 @@ theory:
       scf_potential: DoubleExp
       attractor_ic_scf: yes
       non linear: halofit
-output: $PROJECT/cobaya_mcmc_fast_Run1_Planck_2018_DoubleExp_tracking_uncoupled
+output: 
+  /project/home/p201176/cobaya_mcmc_fast_Run1_Planck_2018_DoubleExp_tracking_uncoupled

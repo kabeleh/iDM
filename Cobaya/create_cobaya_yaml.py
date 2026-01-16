@@ -448,7 +448,7 @@ filename = f"cobaya_{sampler}_{likelihood}_{potential}_{attractor_name}_{couplin
 
 # Specify the output filename in the YAML file
 output = {
-    "output": "$PROJECT/" + filename.replace(".yml", ""),
+    "output": "/project/home/p201176/" + filename.replace(".yml", ""),
 }
 configuration.update(output)
 
