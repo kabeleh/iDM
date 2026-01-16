@@ -427,8 +427,6 @@ def create_cobaya_yaml(
         }
     }
 
-    output = {"output": "$PROJECT/"}
-
     # Return one dict that represents user choice
     config = {}
     config.update(SAMPLERS[sampler])  # Adds "sampler" key
@@ -438,7 +436,6 @@ def create_cobaya_yaml(
     if coupling in ("coupled",):
         config.update(scf_exp_f)  # Add constraint on scf_exp2 < scf_exp1 / 2
     config.update(theorycode)  # Add "theory"
-    config.update(output)  # Add "output"
 
     return config
 
@@ -448,6 +445,12 @@ configuration = create_cobaya_yaml(sampler, likelihood, potential, attractor, co
 # Generate filename
 attractor_name = "InitCond" if attractor in ("no", "No", "NO") else "tracking"
 filename = f"cobaya_{sampler}_{likelihood}_{potential}_{attractor_name}_{coupling}.yml"
+
+# Specify the output filename in the YAML file
+output = {
+    "output": "$PROJECT/" + filename.replace(".yml", ""),
+}
+configuration.update(output)
 
 # Writing nested data to a YAML file
 try:
