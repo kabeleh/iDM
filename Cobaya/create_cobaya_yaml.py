@@ -401,7 +401,7 @@ def create_cobaya_yaml(
 
     # CLASS settings
     # class_path = "/Users/klmba/kDrive/Sci/PhD/Research/HDM/class_public"
-    class_path = "$HOME/iDM/"
+    class_path = "/home/users/u103677/iDM/"
 
     extra_args = {
         "N_ncdm": 1,
