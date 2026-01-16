@@ -174,7 +174,7 @@ params:
       scale: 0.0004
 theory:
   classy:
-    path: $HOME/iDM/
+    path: /home/users/u103677/iDM/
     extra_args:
       N_ncdm: 1
       N_ur: 2.0328
