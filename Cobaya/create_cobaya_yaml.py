@@ -427,6 +427,8 @@ def create_cobaya_yaml(
         }
     }
 
+    output = {"output": "$PROJECT/"}
+
     # Return one dict that represents user choice
     config = {}
     config.update(SAMPLERS[sampler])  # Adds "sampler" key
@@ -436,6 +438,7 @@ def create_cobaya_yaml(
     if coupling in ("coupled",):
         config.update(scf_exp_f)  # Add constraint on scf_exp2 < scf_exp1 / 2
     config.update(theorycode)  # Add "theory"
+    config.update(output)  # Add "output"
 
     return config
 

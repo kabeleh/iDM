@@ -186,3 +186,4 @@ theory:
       scf_potential: DoubleExp
       attractor_ic_scf: yes
       non linear: halofit
+output: $PROJECT/
