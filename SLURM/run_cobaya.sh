@@ -24,8 +24,26 @@ source my_python-env/bin/activate
 
 #iNumber of OpenMP threads
 export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
-srun --cpus-per-task=$SLURM_CPUS_PER_TASK cobaya-run /home/users/u103677/iDM/cobaya_mcmc_fast_Run1_Planck_2018_DoubleExp_tracking_uncoupled.yml --resume
-echo "Exit code: $?"
+
+# Retry logic for exit code 143 (SIGTERM)
+MAX_RETRIES=10
+RETRY_COUNT=0
+EXIT_CODE=143
+
+while [ $EXIT_CODE -eq 143 ] && [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+    RETRY_COUNT=$((RETRY_COUNT + 1))
+    echo "Attempt $RETRY_COUNT of $MAX_RETRIES"
+    srun --cpus-per-task=$SLURM_CPUS_PER_TASK cobaya-run /home/users/u103677/iDM/cobaya_mcmc_fast_Run1_Planck_2018_DoubleExp_tracking_uncoupled.yml --resume
+    EXIT_CODE=$?
+    echo "Exit code: $EXIT_CODE"
+    if [ $EXIT_CODE -eq 143 ]; then
+        echo "Received exit code 143, will retry..."
+    fi
+done
+
+if [ $EXIT_CODE -eq 143 ]; then
+    echo "Max retries ($MAX_RETRIES) reached with exit code 143"
+fi
 
 #Check energy consumption after job completion
 sacct -j $SLURM_JOB_ID -o jobid,jobname,partition,account,state,consumedenergyraw
