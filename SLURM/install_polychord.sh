@@ -22,7 +22,11 @@ module load libpciaccess
 source my_python-env/bin/activate
 
 #Install polychord for cobaya
-cobaya-install polychord --packages-path $HOME/cobaya_cosmo_packages/
+# cobaya-install polychord --packages-path $HOME/cobaya_cosmo_packages/
+
+cd /home/users/u103677/cobaya_cosmo_packages/code/PolyChordLite
+make pypolychord MPI=1
+python setup.py build
 
 #Check energy consumption after job completion
 sacct -j $SLURM_JOB_ID -o jobid,jobname,partition,account,state,consumedenergyraw
