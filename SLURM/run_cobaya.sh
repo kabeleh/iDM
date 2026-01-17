@@ -7,7 +7,7 @@
 #SBATCH --ntasks 16
 #SBATCH --ntasks-per-node 16
 #SBATCH --cpus-per-task 16
-#SBATCH --time 06:00:00
+#SBATCH --time 03:00:00
 #SBATCH --output cobaya_run.%j.out
 #SBATCH --error cobaya_run.%j.err
 #SBATCH --mail-user kay.lehnert.2023@mumail.ie
