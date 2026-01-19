@@ -8,102 +8,218 @@ from matplotlib.patches import Patch
 from cmcrameri import cm
 from getdist import plots
 
-# Initialize the getdist subplot plotter
-# - chain_dir: directory where MCMC chain files are stored
-# - analysis_settings: ignore_rows to skip burn-in (first 20% of samples)
-g = plots.get_subplot_plotter(
-    chain_dir=r"/Users/klmba/kDrive/Sci/PhD/Research/HDM/MCMCfast/p201176",
-    analysis_settings={"ignore_rows": 0.33},
-)
+# ============================================================================
+# COMMON CONFIGURATION
+# ============================================================================
+
+# Directory where MCMC chain files are stored
+CHAIN_DIR = r"/Users/klmba/kDrive/Sci/PhD/Research/HDM/MCMCfast/p201176"
+ANALYSIS_SETTINGS = {"ignore_rows": 0.33}
 
 # Define the root names of the MCMC chains (file prefixes without extensions)
-roots = [
+ROOTS = [
     # "Cobaya_mcmc_Run3_Planck_PP_SH0ES_DESIDR2_DoubleExp_tracking_uncoupled",
     # "cobaya_iDM_20251230_dexp",
     "cobaya_mcmc_fast_Run1_Planck_2018_DoubleExp_tracking_uncoupled"
 ]
 
-# Specify the parameters to plot in the triangle plot
-params = ["H0", "s8h5"]  # Hubble constant and S8
+# Extract a list of colors from the categorical batlowKS colourmap
+# Reserve indices 0, 1 for observational bands; 2+ for MCMC chains
+ALL_COLOURS = [tuple(c) for c in cm.batlowKS.colors]
+BAND_COLOURS = ALL_COLOURS[:2]  # colours[0] for H0, colours[1] for S8
+CHAIN_COLOURS = ALL_COLOURS[2 : 2 + len(ROOTS)]  # consistent chain colours
 
-# Extract a list of colors from the categorical bamako colourmap for coloring the chains
-colours = [tuple(c) for c in cm.batlowKS.colors]
 
-# %%
+# ============================================================================
+# PLOTTING FUNCTIONS
+# ============================================================================
 
-# Generate the triangle plot showing:
-# - 1D marginalized distributions on the diagonal
-# - 2D contour plots on the off-diagonal
-g.triangle_plot(
-    roots,  # List of chain roots to include
-    params,  # Parameters to plot
-    filled=True,  # Fill the contour regions
-    colors=colours[2:],  # Colors for contour lines and fills in 2D plot
-    diag1d_kwargs={"colors": colours[2:]},  # Colors for 1D plots
-    contour_lws=3,  # Line width for contours
-    legend_loc="lower left",  # Legend position
-    figure_legend_outside=True,  # Place legend outside the plot area
-)
 
-# Add reference bands for observational data
-# SH0ES 2020b measurement of H0: 73.2 ± 1.3 km/s/Mpc
-g.add_x_bands(73.2, 1.3, ax=0, color=colours[0])  # Vertical band on H0 1D plot
-g.add_x_bands(73.2, 1.3, ax=2, color=colours[0])  # Vertical band on H0 axis of 2D plot
+def make_triangle_plot(params, annotations=None, param_labels=None, title=None):
+    """
+    Create a triangle plot for the given parameters.
 
-# KiDS-1000 2023 measurement of S8: 0.776 ± 0.031
-g.add_x_bands(0.776, 0.031, ax=3, color=colours[1])  # Vertical band on S8 1D plot
-g.add_y_bands(
-    0.776, 0.031, ax=2, color=colours[1]
-)  # Horizontal band on S8 axis of 2D plot
+    Parameters
+    ----------
+    params : list of str
+        Parameter names to plot.
+    annotations : callable or None
+        A function with signature `annotations(g) -> list[Patch]` that:
+        - Receives the GetDistPlotter `g` after the triangle plot is drawn
+        - Adds any desired annotations (bands, lines, shading, masks, etc.)
+        - Returns a list of matplotlib Patch/Line2D handles for the legend
+        If None, no extra annotations are added.
+    param_labels : dict or None
+        A dictionary mapping parameter names to custom LaTeX labels.
+        E.g., {'cdm_c': r'$c_\text{DM}$', 'scf_c2': r'$c_2$'}
+        If None, default labels from the chain files are used.
+    title : str, optional
+        Title for the figure.
 
-# Create legend entries manually
-fig = g.fig
+    Returns
+    -------
+    g : getdist.plots.GetDistPlotter
+        The plotter object.
+    """
+    g = plots.get_subplot_plotter(
+        chain_dir=CHAIN_DIR,
+        analysis_settings=ANALYSIS_SETTINGS,
+    )
 
-# Create patches for the MCMC chains (matching the contour colors)
-chain_handles = [
-    Patch(facecolor=colours[i + 2], label=roots[i]) for i in range(len(roots))
-]
+    # Load samples and apply custom labels if provided
+    if param_labels:
+        samples_list = [g.sample_analyser.samples_for_root(root) for root in ROOTS]
+        for samples in samples_list:
+            for param_name, label in param_labels.items():
+                p = samples.paramNames.parWithName(param_name)
+                if p is not None:
+                    p.label = label
+        roots_to_plot = samples_list
+    else:
+        roots_to_plot = ROOTS
 
-# Create patches for the observational bands
-band_handles = [
-    Patch(facecolor=colours[0], alpha=0.5, label=r"$H_0$ SH0ES 2020"),
-    Patch(facecolor=colours[1], label=r"$S_8$ KiDS-1000"),
-]
+    # Generate the triangle plot
+    g.triangle_plot(
+        roots_to_plot,
+        params,
+        filled=True,
+        colors=CHAIN_COLOURS,
+        diag1d_kwargs={"colors": CHAIN_COLOURS},
+        contour_lws=3,
+        legend_loc="lower left",
+        figure_legend_outside=True,
+    )
 
-# Combine all handles and labels
-all_handles = chain_handles + band_handles
-all_labels = [h.get_label() for h in all_handles]
+    fig = g.fig
 
-# Remove any existing legends
-for legend in fig.legends:
-    legend.remove()
-for ax in fig.axes:
-    legend = ax.get_legend()
-    if legend:
+    # Build legend handles for MCMC chains
+    chain_handles = [
+        Patch(facecolor=CHAIN_COLOURS[i], label=ROOTS[i]) for i in range(len(ROOTS))
+    ]
+
+    # Apply custom annotations and collect their legend handles
+    annotation_handles = []
+    if annotations is not None:
+        annotation_handles = annotations(g) or []
+
+    all_handles = chain_handles + annotation_handles
+    all_labels = [h.get_label() for h in all_handles]
+
+    # Remove any existing legends
+    for legend in fig.legends:
         legend.remove()
+    for ax in fig.axes:
+        legend = ax.get_legend()
+        if legend:
+            legend.remove()
 
-# Adjust layout: plot on left, make room for legend on right
-fig.subplots_adjust(left=0.1, right=0.6)
+    # Adjust layout: plot on left, make room for legend on right
+    fig.subplots_adjust(left=0.1, right=0.6)
 
+    # Position legend aligned to top-right of first subplot
+    first_ax = g.subplots[0, 0]
+    ax_bbox = first_ax.get_position()
+    fig.legend(
+        all_handles,
+        all_labels,
+        loc="upper left",
+        bbox_to_anchor=(ax_bbox.x1, ax_bbox.y1 + 0.017),
+        frameon=True,
+    )
+
+    if title:
+        fig.suptitle(title, y=1.02)
+
+    return g
+
+
+# ============================================================================
+# ANNOTATION FUNCTIONS
+# ============================================================================
+
+
+def annotate_H0_S8(g):
+    """
+    Add H0 (SH0ES) and S8 (KiDS-1000) observational bands.
+    Returns legend handles for these annotations.
+    """
+    # SH0ES 2020b: H0 = 73.2 ± 1.3 km/s/Mpc
+    g.add_x_bands(73.2, 1.3, ax=0, color=BAND_COLOURS[0])
+    g.add_x_bands(73.2, 1.3, ax=2, color=BAND_COLOURS[0])
+
+    # KiDS-1000 2023: S8 = 0.776 ± 0.031
+    g.add_x_bands(0.776, 0.031, ax=3, color=BAND_COLOURS[1])
+    g.add_y_bands(0.776, 0.031, ax=2, color=BAND_COLOURS[1])
+
+    return [
+        Patch(facecolor=BAND_COLOURS[0], alpha=0.5, label=r"$H_0$ SH0ES 2020"),
+        Patch(facecolor=BAND_COLOURS[1], label=r"$S_8$ KiDS-1000"),
+    ]
+
+
+def annotate_scf_constraints(g):
+    """
+    Add constraints for scalar field parameters.
+    Customize this function to add lines, shaded regions, masks, etc.
+    Returns legend handles for these annotations.
+
+    Examples of what you can do here:
+    - g.add_x_bands(value, sigma, ax=idx, color=...)  # vertical band
+    - g.add_y_bands(value, sigma, ax=idx, color=...)  # horizontal band
+    - ax = g.subplots[row, col]; ax.axvline(x, ...)   # vertical line
+    - ax = g.subplots[row, col]; ax.axhline(y, ...)   # horizontal line
+    - ax = g.subplots[row, col]; ax.fill_between(...) # shaded region
+    - ax = g.subplots[row, col]; ax.fill_betweenx(...)# shaded region (vertical)
+    """
+    handles = []
+
+    # Example: add a vertical line constraint on cdm_c (param index 0, 1D plot at ax=0)
+    # ax = g.subplots[0, 0]
+    # line = ax.axvline(0.5, color=BAND_COLOURS[0], ls='--', lw=2, label='cdm_c limit')
+    # handles.append(Line2D([0], [0], color=BAND_COLOURS[0], ls='--', lw=2, label='cdm_c limit'))
+
+    # Example: shade excluded region on a 2D subplot
+    # ax = g.subplots[1, 0]  # scf_c2 vs cdm_c
+    # ax.fill_betweenx([y_min, y_max], x_excluded_min, x_excluded_max,
+    #                  color='gray', alpha=0.3, label='Excluded')
+    # handles.append(Patch(facecolor='gray', alpha=0.3, label='Excluded'))
+
+    return handles
+
+
+# ============================================================================
+# PLOT 1: H0 & S8 with observational bands
+# ============================================================================
 # %%
-# Get the position of the first subplot (H0 1D plot) to align the legend
-first_ax = g.subplots[0, 0]
-ax_bbox = first_ax.get_position()
+params_cosmology = ["H0", "s8h5"]
+g1 = make_triangle_plot(params_cosmology, annotations=annotate_H0_S8, title=None)
 
-# Position legend with upper left corner aligned to upper right corner of first subplot
-leg = fig.legend(
-    all_handles,
-    all_labels,
-    loc="upper left",
-    bbox_to_anchor=(ax_bbox.x1, ax_bbox.y1 + 0.017),  # Slight gap from subplot edge
-    frameon=True,
+# Export example:
+# g1.fig.savefig("plot_H0_S8.png", bbox_inches="tight", dpi=300)
+
+plt.show()
+
+# ============================================================================
+# PLOT 2: Scalar field parameters with constraints
+# ============================================================================
+# %%
+params_scf = ["cdm_c", "scf_c2", "scf_c3", "scf_c4"]
+scf_labels = {
+    "cdm_c": r"c_\mathrm{DM}",
+    "scf_c2": r"c_2",
+    "scf_c3": r"c_3",
+    "scf_c4": r"c_4",
+}
+g2 = make_triangle_plot(
+    params_scf,
+    annotations=annotate_scf_constraints,
+    param_labels=scf_labels,
+    title=None,
 )
 
-# Export the plot to default file format (usually PDF/PNG)
-# Use bbox_extra_artists and bbox_inches='tight' to include the legend
-fig.savefig("test.png", bbox_extra_artists=[leg], bbox_inches="tight", dpi=300)
+# Export example:
+# g2.fig.savefig("plot_scf_params.png", bbox_inches="tight", dpi=300)
 
-# Display the plot in the output
 plt.show()
 
 # %%
