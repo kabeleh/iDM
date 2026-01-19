@@ -7,7 +7,7 @@
 #SBATCH --ntasks 1
 #SBATCH --ntasks-per-node 1
 #SBATCH --cpus-per-task 8
-#SBATCH --time 00:05:00
+#SBATCH --time 00:15:00
 #SBATCH --output test_cobaya_mcmc_fast_Run1_Planck_2018_cosine_InitCond_uncoupled.%j.out
 #SBATCH --error test_cobaya_mcmc_fast_Run1_Planck_2018_cosine_InitCond_uncoupled.%j.err
 #SBATCH --mail-user kay.lehnert.2023@mumail.ie
