@@ -4,7 +4,7 @@
 #SBATCH --partition cpu
 #SBATCH --qos dev
 #SBATCH --nodes 1
-#SBATCH --time 00:05:00
+#SBATCH --time 00:15:00
 #SBATCH --output install_polychord.%j.out
 #SBATCH --error install_polychord.%j.err
 #SBATCH --mail-user kay.lehnert.2023@mumail.ie
@@ -25,7 +25,7 @@ source my_python-env/bin/activate
 # cobaya-install polychord --packages-path $HOME/cobaya_cosmo_packages/
 
 cd /home/users/u103677/cobaya_cosmo_packages/code/PolyChordLite
-make pypolychord MPI=1
+make pypolychord MPI=1 COMPILER_TYPE=gnu
 python setup.py build
 
 #Check energy consumption after job completion
