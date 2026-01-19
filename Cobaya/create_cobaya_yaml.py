@@ -7,7 +7,7 @@ import re
 # Specify the parameters
 sampler = "mcmc_fast"
 likelihood = "Run1_Planck_2018"
-potential = "DoubleExp"
+potential = "Bean"
 attractor = "yes"
 coupling = "uncoupled"
 
