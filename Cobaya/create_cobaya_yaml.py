@@ -476,3 +476,93 @@ except Exception as e:
     raise
 
 print(f"cobaya configuration has been written to '{filename}'")
+
+# Now, we create the bash script to run the cobaya test job on the cluster and save it as test_<filename>.sh
+
+
+def create_slurm_test_script(
+    yaml_filename: str,
+    account: str = "p201176",
+    partition: str = "cpu",
+    qos: str = "test",
+    nodes: int = 1,
+    ntasks: int = 1,
+    ntasks_per_node: int = 1,
+    cpus_per_task: int = 8,
+    time: str = "00:05:00",
+    mail_user: str = "kay.lehnert.2023@mumail.ie",
+    yaml_base_path: str = "/home/users/u103677/iDM/Cobaya/MCMC/",
+) -> str:
+    """
+    Create a SLURM bash script for running a Cobaya test job.
+
+    Parameters:
+    - yaml_filename (str): The YAML configuration filename (e.g., 'cobaya_mcmc_fast_Run1_Planck_2018_Bean_tracking_uncoupled.yml').
+    - account (str): SLURM account.
+    - partition (str): SLURM partition.
+    - qos (str): SLURM quality of service.
+    - nodes (int): Number of nodes.
+    - ntasks (int): Number of tasks.
+    - ntasks_per_node (int): Tasks per node.
+    - cpus_per_task (int): CPUs per task.
+    - time (str): Job time limit (HH:MM:SS).
+    - mail_user (str): Email for notifications.
+    - yaml_base_path (str): Base path where YAML files are located on the cluster.
+
+    Returns:
+    - str: The shell script filename that was created.
+    """
+    # Derive job name from yaml filename
+    job_name = "test_" + yaml_filename.replace(".yml", "")
+
+    # Generate script filename based on yaml filename
+    script_filename = f"test_{yaml_filename.replace('.yml', '.sh')}"
+
+    # Full path to the YAML file on the cluster
+    yaml_full_path = yaml_base_path + yaml_filename
+
+    script_content = f"""#!/bin/bash -l
+#SBATCH --job-name={job_name}
+#SBATCH --account {account}
+#SBATCH --partition {partition}
+#SBATCH --qos {qos}
+#SBATCH --nodes {nodes}
+#SBATCH --ntasks {ntasks}
+#SBATCH --ntasks-per-node {ntasks_per_node}
+#SBATCH --cpus-per-task {cpus_per_task}
+#SBATCH --time {time}
+#SBATCH --output {job_name}.%j.out
+#SBATCH --error {job_name}.%j.err
+#SBATCH --mail-user {mail_user}
+#SBATCH --mail-type END,FAIL
+
+## Load software environment
+module load GCC
+module load Python
+module load Cython
+module load OpenMPI/5.0.3-GCC-13.3.0
+module load OpenBLAS
+#Activate Python virtual environment
+source my_python-env/bin/activate
+
+#iNumber of OpenMP threads
+export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
+srun --cpus-per-task=$SLURM_CPUS_PER_TASK cobaya-run {yaml_full_path} --test --debug
+
+#Check energy consumption after job completion
+sacct -j $SLURM_JOB_ID -o jobid,jobname,partition,account,state,consumedenergyraw
+"""
+
+    try:
+        with open(script_filename, "w") as file:
+            file.write(script_content)
+    except IOError as e:
+        print(f"Error writing shell script: {e}")
+        raise
+
+    return script_filename
+
+
+# Create the SLURM test script
+slurm_script_filename = create_slurm_test_script(yaml_filename=filename)
+print(f"SLURM test script has been written to '{slurm_script_filename}'")
