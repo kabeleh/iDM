@@ -24,6 +24,8 @@ source my_python-env/bin/activate
 #Install polychord for cobaya
 # cobaya-install polychord --packages-path $HOME/cobaya_cosmo_packages/
 
+cd /home/users/u103677/cobaya_cosmo_packages/code/
+git clone https://github.com/PolyChord/PolyChordLite.git
 cd /home/users/u103677/cobaya_cosmo_packages/code/PolyChordLite
 make pypolychord MPI=1 COMPILER_TYPE=gnu
 python setup.py build
