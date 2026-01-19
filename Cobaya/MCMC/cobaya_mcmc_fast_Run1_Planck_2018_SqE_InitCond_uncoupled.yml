@@ -31,8 +31,12 @@ params:
       min: -4.0
       max: 4.0
     drop: true
-  scf_c3: 0.0
-  scf_c4: 0.0
+  scf_c3:
+    value: 0.0
+    drop: true
+  scf_c4:
+    value: 0.0
+    drop: true
   scf_q1:
     value: 0
     drop: true

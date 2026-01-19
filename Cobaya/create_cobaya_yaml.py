@@ -7,7 +7,7 @@ import re
 # Specify the parameters
 sampler = "mcmc_fast"
 likelihood = "Run1_Planck_2018"
-potential = "Bean"
+potential = "exponential"
 attractor = "yes"
 coupling = "uncoupled"
 
@@ -282,37 +282,37 @@ def create_cobaya_yaml(
         scf_c1 = {"value": 1e-2, "drop": True}
         scf_c2 = {"prior": {"min": 0.5, "max": 3.5}, "drop": True}
         scf_c3 = {"prior": {"dist": "loguniform", "a": 1e-6, "b": 1e4}, "drop": True}
-        scf_c4 = 0.0
+        scf_c4 = {"value": 0.0, "drop": True}
     elif potential in ("cosine",):
         scf_c1 = {"value": 1e-7, "drop": True}
         scf_c2 = {"prior": {"min": 0.0, "max": 6.2832}, "drop": True}
-        scf_c3 = 0.0
-        scf_c4 = 0.0
+        scf_c3 = {"value": 0.0, "drop": True}
+        scf_c4 = {"value": 0.0, "drop": True}
     elif potential in ("hyperbolic",):
         scf_c1 = {"value": 1e-7, "drop": True}
         scf_c2 = {"prior": {"min": 0.0, "max": 3.0}, "drop": True}
-        scf_c3 = 0.0
-        scf_c4 = 0.0
+        scf_c3 = {"value": 0.0, "drop": True}
+        scf_c4 = {"value": 0.0, "drop": True}
     elif potential in ("pNG",):
         scf_c1 = {"value": 1e-1, "drop": True}
         scf_c2 = {"prior": {"dist": "loguniform", "a": 1e-6, "b": 1e1}, "drop": True}
-        scf_c3 = 0.0
-        scf_c4 = 0.0
+        scf_c3 = {"value": 0.0, "drop": True}
+        scf_c4 = {"value": 0.0, "drop": True}
     elif potential in ("iPL",):
         scf_c1 = {"value": 1e-2, "drop": True}
         scf_c2 = {"prior": {"min": 0.0, "max": 4.0}, "drop": True}
-        scf_c3 = 0.0
-        scf_c4 = 0.0
+        scf_c3 = {"value": 0.0, "drop": True}
+        scf_c4 = {"value": 0.0, "drop": True}
     elif potential in ("exponential",):
         scf_c1 = {"value": 1e-7, "drop": True}
         scf_c2 = {"prior": {"dist": "loguniform", "a": 1e-2, "b": 1e1}, "drop": True}
-        scf_c3 = 0.0
-        scf_c4 = 0.0
+        scf_c3 = {"value": 0.0, "drop": True}
+        scf_c4 = {"value": 0.0, "drop": True}
     elif potential in ("SqE",):
         scf_c1 = {"prior": {"dist": "loguniform", "a": 1e-10, "b": 1e1}, "drop": True}
         scf_c2 = {"prior": {"min": -4.0, "max": 4.0}, "drop": True}
-        scf_c3 = 0.0
-        scf_c4 = 0.0
+        scf_c3 = {"value": 0.0, "drop": True}
+        scf_c4 = {"value": 0.0, "drop": True}
     elif potential in ("Bean",):
         scf_c1 = {"value": 1e-7, "drop": True}
         scf_c2 = {"prior": {"dist": "loguniform", "a": 1e-24, "b": 1e6}, "drop": True}

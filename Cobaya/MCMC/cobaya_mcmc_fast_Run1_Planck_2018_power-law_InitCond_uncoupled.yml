@@ -34,7 +34,9 @@ params:
       a: 1e-06
       b: 10000.0
     drop: true
-  scf_c4: 0.0
+  scf_c4:
+    value: 0.0
+    drop: true
   scf_q1:
     value: 0
     drop: true
