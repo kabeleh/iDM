@@ -12,14 +12,15 @@ from getdist import plots
 # - chain_dir: directory where MCMC chain files are stored
 # - analysis_settings: ignore_rows to skip burn-in (first 20% of samples)
 g = plots.get_subplot_plotter(
-    chain_dir=r"/Users/klmba",
-    analysis_settings={"ignore_rows": 0.2},
+    chain_dir=r"/Users/klmba/kDrive/Sci/PhD/Research/HDM/MCMCfast/p201176",
+    analysis_settings={"ignore_rows": 0.33},
 )
 
 # Define the root names of the MCMC chains (file prefixes without extensions)
 roots = [
-    "Cobaya_mcmc_Run3_Planck_PP_SH0ES_DESIDR2_DoubleExp_tracking_uncoupled",
-    "cobaya_iDM_20251230_dexp",
+    # "Cobaya_mcmc_Run3_Planck_PP_SH0ES_DESIDR2_DoubleExp_tracking_uncoupled",
+    # "cobaya_iDM_20251230_dexp",
+    "cobaya_mcmc_fast_Run1_Planck_2018_DoubleExp_tracking_uncoupled"
 ]
 
 # Specify the parameters to plot in the triangle plot
