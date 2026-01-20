@@ -6,7 +6,7 @@ import re
 
 # Specify the parameters
 sampler = "mcmc_fast"
-likelihood = "Run1_Planck_2018"
+likelihood = "Run3_Planck_PP_SH0ES_DESIDR2"
 potential = "DoubleExp"
 attractor = "yes"
 coupling = "uncoupled"
@@ -28,6 +28,7 @@ def create_cobaya_yaml(
     Parameters:
     - sampler (str): Sampling method. Options: 'polychord', 'mcmc', 'mcmc_fast'.
     - likelihood (str): Likelihood combination. Options: 'Run1_Planck_2018', 'Run2_PP_SH0ES_DESIDR2', 'Run3_Planck_PP_SH0ES_DESIDR2'.
+      Note: 'Run3_Planck_PP_SH0ES_DESIDR2' is a post-processing run that adds likelihoods to Run 1 chains.
     - potential (str): Scalar field potential. Options: 'power-law', 'cosine', 'hyperbolic', 'pNG', 'iPL', 'SqE', 'exponential', 'Bean', 'DoubleExp'.
       Note: 'power-law', 'cosine', 'pNG', 'iPL', 'SqE' do not support attractor initial conditions.
     - attractor (str): Initial condition type. Options: 'yes', 'Yes', 'YES' (tracking), 'no', 'No', 'NO' (phi_ini).
@@ -129,19 +130,12 @@ def create_cobaya_yaml(
         },
     }
 
-    Run3_Planck_PP_SH0ES_DESIDR2 = {
+    # Run 3 is a post-processing run that adds likelihoods to Run 1 chains
+    # These are the likelihoods to ADD (Run 1 already has Planck)
+    Run3_Planck_PP_SH0ES_DESIDR2_add = {
         "likelihood": {
             "H0.riess2020Mb": None,
             "bao.desi_dr2": None,
-            "planck_2018_lowl.EE": None,
-            "planck_2018_lowl.TT": None,
-            "planck_NPIPE_highl_CamSpec.TTTEEE": None,
-            "planckpr4lensing": {
-                "package_install": {
-                    "github_repository": "carronj/planck_PR4_lensing",
-                    "min_version": "1.0.2",
-                }
-            },
             "sn.pantheon": {"use_abs_mag": True},
             "sn.pantheonplus": None,
         },
@@ -165,7 +159,7 @@ def create_cobaya_yaml(
     LIKELIHOODS = {
         "Run1_Planck_2018": Run1_Planck_2018,
         "Run2_PP_SH0ES_DESIDR2": Run2_PP_SH0ES_DESIDR2,
-        "Run3_Planck_PP_SH0ES_DESIDR2": Run3_Planck_PP_SH0ES_DESIDR2,
+        "Run3_Planck_PP_SH0ES_DESIDR2": Run3_Planck_PP_SH0ES_DESIDR2_add,
     }
 
     # Define cosmological Parameters
@@ -429,13 +423,30 @@ def create_cobaya_yaml(
 
     # Return one dict that represents user choice
     config = {}
-    config.update(SAMPLERS[sampler])  # Adds "sampler" key
-    config.update(LIKELIHOODS[likelihood])  # Adds "likelihood" key
-    # config.update(requires)  # Adds dummy likelihood for sigma_R
-    config.update(parameters)  # Add "params"
-    if coupling in ("coupled",):
-        config.update(scf_exp_f)  # Add constraint on scf_exp2 < scf_exp1 / 2
-    config.update(theorycode)  # Add "theory"
+
+    # Run 3 is a post-processing run - it has a different structure
+    if likelihood == "Run3_Planck_PP_SH0ES_DESIDR2":
+        # Build the Run 1 output path that Run 3 will post-process
+        attractor_name = (
+            "tracking" if attractor in ("yes", "Yes", "YES") else "InitCond"
+        )
+        run1_output_path = f"/project/home/p201176/cobaya_{sampler}_Run1_Planck_2018_{potential}_{attractor_name}_{coupling}"
+
+        # Post-processing configuration
+        config["output"] = run1_output_path  # Points to Run 1 chains
+        config["post"] = {
+            "suffix": "SN_BAO",
+            "add": LIKELIHOODS[likelihood],  # Adds the new likelihoods
+        }
+    else:
+        # Standard sampling run (Run 1 or Run 2)
+        config.update(SAMPLERS[sampler])  # Adds "sampler" key
+        config.update(LIKELIHOODS[likelihood])  # Adds "likelihood" key
+        # config.update(requires)  # Adds dummy likelihood for sigma_R
+        config.update(parameters)  # Add "params"
+        if coupling in ("coupled",):
+            config.update(scf_exp_f)  # Add constraint on scf_exp2 < scf_exp1 / 2
+        config.update(theorycode)  # Add "theory"
 
     return config
 
@@ -447,10 +458,12 @@ attractor_name = "InitCond" if attractor in ("no", "No", "NO") else "tracking"
 filename = f"cobaya_{sampler}_{likelihood}_{potential}_{attractor_name}_{coupling}.yml"
 
 # Specify the output filename in the YAML file
-output = {
-    "output": "/project/home/p201176/" + filename.replace(".yml", ""),
-}
-configuration.update(output)
+# For Run 3 (post-processing), output is already set to point to Run 1 chains
+if likelihood != "Run3_Planck_PP_SH0ES_DESIDR2":
+    output = {
+        "output": "/project/home/p201176/" + filename.replace(".yml", ""),
+    }
+    configuration.update(output)
 
 # Writing nested data to a YAML file
 try:

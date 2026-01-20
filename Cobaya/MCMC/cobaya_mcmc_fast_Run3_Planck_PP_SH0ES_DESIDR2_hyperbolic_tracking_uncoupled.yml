@@ -1,0 +1,11 @@
+output: 
+  /project/home/p201176/cobaya_mcmc_fast_Run1_Planck_2018_hyperbolic_tracking_uncoupled
+post:
+  suffix: SN_BAO
+  add:
+    likelihood:
+      H0.riess2020Mb:
+      bao.desi_dr2:
+      sn.pantheon:
+        use_abs_mag: true
+      sn.pantheonplus:
