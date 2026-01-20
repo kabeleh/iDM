@@ -1,0 +1,4 @@
+# minimize_override.yaml
+sampler:
+  minimize:
+    best_of: 32
