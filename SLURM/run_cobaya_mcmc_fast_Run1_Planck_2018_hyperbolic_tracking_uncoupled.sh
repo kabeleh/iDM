@@ -2,12 +2,12 @@
 #SBATCH --job-name=run_cobaya_mcmc_fast_Run1_Planck_2018_hyperbolic_tracking_uncoupled
 #SBATCH --account p201176
 #SBATCH --partition cpu
-#SBATCH --qos short
+#SBATCH --qos default
 #SBATCH --nodes 1
 #SBATCH --ntasks 32
 #SBATCH --ntasks-per-node 32
 #SBATCH --cpus-per-task 8
-#SBATCH --time 06:00:00
+#SBATCH --time 48:00:00
 #SBATCH --output run_cobaya_mcmc_fast_Run1_Planck_2018_hyperbolic_tracking_uncoupled.%j.out
 #SBATCH --error run_cobaya_mcmc_fast_Run1_Planck_2018_hyperbolic_tracking_uncoupled.%j.err
 #SBATCH --mail-user kay.lehnert.2023@mumail.ie

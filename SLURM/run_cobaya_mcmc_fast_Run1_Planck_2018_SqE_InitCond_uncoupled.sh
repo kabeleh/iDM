@@ -4,9 +4,9 @@
 #SBATCH --partition cpu
 #SBATCH --qos short
 #SBATCH --nodes 1
-#SBATCH --ntasks 32
-#SBATCH --ntasks-per-node 32
-#SBATCH --cpus-per-task 8
+#SBATCH --ntasks 4
+#SBATCH --ntasks-per-node 4
+#SBATCH --cpus-per-task 64
 #SBATCH --time 06:00:00
 #SBATCH --output run_cobaya_mcmc_fast_Run1_Planck_2018_SqE_InitCond_uncoupled.%j.out
 #SBATCH --error run_cobaya_mcmc_fast_Run1_Planck_2018_SqE_InitCond_uncoupled.%j.err
@@ -26,7 +26,7 @@ source my_python-env/bin/activate
 export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
 
 # Retry logic for exit code 143 (SIGTERM)
-MAX_RETRIES=99
+MAX_RETRIES=199
 RETRY_COUNT=0
 EXIT_CODE=143
 

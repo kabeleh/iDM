@@ -4,9 +4,9 @@
 #SBATCH --partition cpu
 #SBATCH --qos default
 #SBATCH --nodes 1
-#SBATCH --ntasks 32
-#SBATCH --ntasks-per-node 32
-#SBATCH --cpus-per-task 8
+#SBATCH --ntasks 16
+#SBATCH --ntasks-per-node 16
+#SBATCH --cpus-per-task 16
 #SBATCH --time 48:00:00
 #SBATCH --output run_cobaya_mcmc_fast_Run1_Planck_2018_DoubleExp_tracking_uncoupled.%j.out
 #SBATCH --error run_cobaya_mcmc_fast_Run1_Planck_2018_DoubleExp_tracking_uncoupled.%j.err

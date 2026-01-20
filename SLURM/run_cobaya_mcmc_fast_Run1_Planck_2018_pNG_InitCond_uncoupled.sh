@@ -4,9 +4,9 @@
 #SBATCH --partition cpu
 #SBATCH --qos short
 #SBATCH --nodes 1
-#SBATCH --ntasks 32
-#SBATCH --ntasks-per-node 32
-#SBATCH --cpus-per-task 8
+#SBATCH --ntasks 8
+#SBATCH --ntasks-per-node 8
+#SBATCH --cpus-per-task 32
 #SBATCH --time 06:00:00
 #SBATCH --output run_cobaya_mcmc_fast_Run1_Planck_2018_pNG_InitCond_uncoupled.%j.out
 #SBATCH --error run_cobaya_mcmc_fast_Run1_Planck_2018_pNG_InitCond_uncoupled.%j.err
