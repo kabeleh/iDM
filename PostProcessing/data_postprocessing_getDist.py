@@ -20,7 +20,9 @@ ANALYSIS_SETTINGS = {"ignore_rows": 0.33}
 ROOTS = [
     # "Cobaya_mcmc_Run3_Planck_PP_SH0ES_DESIDR2_DoubleExp_tracking_uncoupled",
     # "cobaya_iDM_20251230_dexp",
-    "cobaya_mcmc_fast_Run1_Planck_2018_DoubleExp_tracking_uncoupled"
+    "cobaya_mcmc_fast_Run1_Planck_2018_DoubleExp_tracking_uncoupled",
+    "cobaya_mcmc_fast_Run1_Planck_2018_hyperbolic_tracking_uncoupled",
+    # "cobaya_mcmc_fast_Run1_Planck_2018_exponential_tracking_uncoupled",
 ]
 
 # Extract a list of colors from the categorical batlowKS colourmap
