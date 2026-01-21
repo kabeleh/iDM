@@ -404,11 +404,11 @@ def create_cobaya_yaml(
         "tol_initial_Omega_r": 1e-3,
         "scf_tuning_index": 0,
         "gauge": "newtonian",
-        "P_k_max_h/Mpc": 1.0,
         "scf_potential": potential,
         "attractor_ic_scf": attractor,
     }
     if likelihood in ["Run1_Planck_2018", "Run3_Planck_PP_SH0ES_DESIDR2"]:
+        extra_args["P_k_max_h/Mpc"] = 1.0
         extra_args["non linear"] = "halofit"
 
     theorycode = {
