@@ -154,7 +154,6 @@ theory:
       tol_initial_Omega_r: 0.001
       scf_tuning_index: 0
       gauge: newtonian
-      P_k_max_h/Mpc: 1.0
       scf_potential: hyperbolic
       attractor_ic_scf: yes
 output: 

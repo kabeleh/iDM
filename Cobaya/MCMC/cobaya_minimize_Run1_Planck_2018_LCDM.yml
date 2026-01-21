@@ -1,24 +1,17 @@
 sampler:
-  mcmc:
-    Rminus1_cl_stop: 0.2
-    Rminus1_stop: 0.01
-    covmat: auto
-    drag: true
-    oversample_power: 0.4
-    proposal_scale: 1.9
-    learn_proposal: true
-    measure_speeds: true
+  minimize:
+    best_of: 32
 likelihood:
-  H0.riess2020Mb:
-  bao.desi_dr2:
-  sn.pantheon:
-    use_abs_mag: true
-  sn.pantheonplus:
+  planck_2018_lowl.EE:
+  planck_2018_lowl.TT:
+  planck_NPIPE_highl_CamSpec.TTTEEE:
+  planckpr4lensing:
+    package_install:
+      github_repository: carronj/planck_PR4_lensing
+      min_version: 1.0.2
 params:
   Omega_fld: 0.0
-  Omega_scf:
-    value: 0.0
-    latex: \Omega_\phi
+  Omega_scf: 0.0
   Omega_Lambda:
     latex: \Omega_\Lambda
   A_s:
@@ -26,14 +19,6 @@ params:
     value: 'lambda logA: 1e-10*np.exp(logA)'
   H0:
     latex: H_0
-    prior:
-      max: 100
-      min: 20
-    proposal: 2
-    ref:
-      dist: norm
-      loc: 67
-      scale: 2
   Omega_m:
     latex: \Omega_\mathrm{m}
   YHe:
@@ -97,6 +82,37 @@ params:
       scale: 0.006
   z_reio:
     latex: z_\mathrm{re}
+  A:
+    derived: 'lambda A_s: 1e9*A_s'
+    latex: 10^9 A_\mathrm{s}
+  age:
+    latex: '{\rm{Age}}/\mathrm{Gyr}'
+  clamp:
+    derived: 'lambda A_s, tau_reio: 1e9*A_s*np.exp(-2*tau_reio)'
+    latex: 10^9 A_\mathrm{s} e^{-2\tau}
+  rs_drag:
+    latex: r_\mathrm{drag}
+  s8h5:
+    derived: 'lambda sigma8, H0: (sigma8*(H0*1e-2)**(-0.5) if (H0>0) else 0)'
+    latex: \sigma_8/h^{0.5}
+  s8omegamp25:
+    derived: 'lambda sigma8, Omega_m: (sigma8*Omega_m**0.25 if (Omega_m>0) else 0)'
+    latex: \sigma_8 \Omega_\mathrm{m}^{0.25}
+  s8omegamp5:
+    derived: 'lambda sigma8, Omega_m: (sigma8*Omega_m**0.5 if (Omega_m>0) else 0)'
+    latex: \sigma_8 \Omega_\mathrm{m}^{0.5}
+  sigma8:
+    latex: \sigma_8
+  theta_s_100:
+    latex: 100\theta_\mathrm{s}
+    prior:
+      max: 10
+      min: 0.5
+    proposal: 0.0002
+    ref:
+      dist: norm
+      loc: 1.0416
+      scale: 0.0004
 theory:
   classy:
     path: /home/users/u103677/iDM/
@@ -105,5 +121,7 @@ theory:
       N_ur: 2.0328
       tol_initial_Omega_r: 0.001
       gauge: newtonian
+      P_k_max_h/Mpc: 1.0
+      non linear: halofit
 output: 
-  /project/home/p201176/cobaya_mcmc_Run2_PP_SH0ES_DESIDR2_LCDM
+  /project/home/p201176/cobaya_mcmc_fast_Run1_Planck_2018_LCDM
