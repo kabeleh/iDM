@@ -1,0 +1,23 @@
+# Run 3 can be realied by post-processing the chains from Run 1 to add the new likelihoods.
+
+# 1. Point to the original chain files of Run 1
+# YES, this needs to point to Run 1!
+output: 
+  /project/home/p201176/cobaya_mcmc_fast_Run1_Planck_2018_LCDM
+
+post:
+  # 2. Define a suffix for the new chain files (e.g., chains/run_1.post.SN_BAO.1.txt)
+  suffix: SN_BAO
+  
+  # 3. Add the new likelihoods
+  add:
+    likelihood:
+      H0.riess2020Mb:  
+      bao.desi_dr2:
+      sn.pantheon: 
+        use_abs_mag: True
+      sn.pantheonplus:
+      
+# No 'params' block needed.
+# No 'theory' block needed (unless changing precision).
+# No 'sampler' block needed.
