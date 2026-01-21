@@ -12,10 +12,8 @@ post:
   # 3. Add the new likelihoods
   add:
     likelihood:
-      H0.riess2020Mb:  
+      H0.riess2020:
       bao.desi_dr2:
-      sn.pantheon: 
-        use_abs_mag: True
       sn.pantheonplus:
       
 # No 'params' block needed.

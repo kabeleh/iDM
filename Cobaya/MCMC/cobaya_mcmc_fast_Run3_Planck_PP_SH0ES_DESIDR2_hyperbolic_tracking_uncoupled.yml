@@ -4,8 +4,6 @@ post:
   suffix: SN_BAO
   add:
     likelihood:
-      H0.riess2020Mb:
+      H0.riess2020:
       bao.desi_dr2:
-      sn.pantheon:
-        use_abs_mag: true
       sn.pantheonplus:
