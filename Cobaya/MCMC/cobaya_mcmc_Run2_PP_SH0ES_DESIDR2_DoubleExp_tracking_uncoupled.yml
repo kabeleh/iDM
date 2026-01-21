@@ -1,0 +1,165 @@
+sampler:
+  mcmc:
+    Rminus1_cl_stop: 0.2
+    Rminus1_stop: 0.01
+    covmat: auto
+    drag: true
+    oversample_power: 0.4
+    proposal_scale: 1.9
+    learn_proposal: true
+    measure_speeds: true
+likelihood:
+  H0.riess2020Mb:
+  bao.desi_dr2:
+  sn.pantheon:
+    use_abs_mag: true
+  sn.pantheonplus:
+params:
+  cdm_c:
+    prior:
+      min: -3
+      max: 3
+  scf_c1:
+    value: 1e-07
+    drop: true
+  scf_c2:
+    prior:
+      min: 0.0
+      max: 500
+    drop: true
+  scf_c3:
+    prior:
+      min: 0.0
+      max: 10.0
+    drop: true
+  scf_c4:
+    prior:
+      min: 0.0
+      max: 2.0
+    drop: true
+  scf_q1:
+    value: 0
+    drop: true
+  scf_q2:
+    value: 0
+    drop: true
+  scf_q3:
+    value: 0
+    drop: true
+  scf_q4:
+    value: 0
+    drop: true
+  scf_exp1:
+    value: 0
+    drop: true
+  scf_exp2:
+    value: 0
+    drop: true
+  scf_phi_ini:
+    value: 0.001
+    drop: true
+  scf_phi_prime_ini:
+    value: 0.1
+    drop: true
+  scf_parameters:
+    value: 'lambda scf_c1,scf_c2,scf_c3,scf_c4,scf_q1,scf_q2,scf_q3,scf_q4,scf_exp1,scf_exp2,scf_phi_ini,scf_phi_prime_ini:
+      ",".join([str(scf_c1),str(scf_c2),str(scf_c3),str(scf_c4),str(scf_q1),str(scf_q2),str(scf_q3),str(scf_q4),str(scf_exp1),str(scf_exp2),str(scf_phi_ini),str(scf_phi_prime_ini)])'
+    derived: false
+  Omega_fld: 0.0
+  Omega_scf:
+    value: -0.7
+    latex: \Omega_\phi
+  Omega_Lambda:
+    value: 0.0
+    latex: \Omega_\Lambda
+  A_s:
+    latex: A_\mathrm{s}
+    value: 'lambda logA: 1e-10*np.exp(logA)'
+  H0:
+    latex: H_0
+    prior:
+      max: 100
+      min: 20
+    proposal: 2
+    ref:
+      dist: norm
+      loc: 67
+      scale: 2
+  Omega_m:
+    latex: \Omega_\mathrm{m}
+  YHe:
+    latex: Y_\mathrm{P}
+  logA:
+    drop: true
+    latex: \log(10^{10} A_\mathrm{s})
+    prior:
+      max: 3.91
+      min: 1.61
+    proposal: 0.001
+    ref:
+      dist: norm
+      loc: 3.05
+      scale: 0.001
+  m_ncdm:
+    renames: mnu
+    value: 0.06
+  n_s:
+    latex: n_\mathrm{s}
+    prior:
+      max: 1.2
+      min: 0.8
+    proposal: 0.002
+    ref:
+      dist: norm
+      loc: 0.965
+      scale: 0.004
+  omega_b:
+    latex: \Omega_\mathrm{b} h^2
+    prior:
+      max: 0.1
+      min: 0.005
+    proposal: 0.0001
+    ref:
+      dist: norm
+      loc: 0.0224
+      scale: 0.0001
+  omega_cdm:
+    latex: \Omega_\mathrm{c} h^2
+    prior:
+      max: 0.99
+      min: 0.001
+    proposal: 0.0005
+    ref:
+      dist: norm
+      loc: 0.12
+      scale: 0.001
+  omegamh2:
+    derived: 'lambda Omega_m, H0: Omega_m*(H0/100)**2'
+    latex: \Omega_\mathrm{m} h^2
+  tau_reio:
+    latex: \tau_\mathrm{reio}
+    prior:
+      max: 0.8
+      min: 0.01
+    proposal: 0.003
+    ref:
+      dist: norm
+      loc: 0.055
+      scale: 0.006
+  z_reio:
+    latex: z_\mathrm{re}
+theory:
+  classy:
+    path: /home/users/u103677/iDM/
+    extra_args:
+      N_ncdm: 1
+      N_ur: 2.0328
+      model_cdm: i
+      tol_initial_Omega_r: 0.001
+      scf_tuning_index: 0
+      gauge: newtonian
+      P_k_max_h/Mpc: 1.0
+      scf_potential: DoubleExp
+      attractor_ic_scf: yes
+output: 
+  /project/home/p201176/cobaya_mcmc_Run2_PP_SH0ES_DESIDR2_DoubleExp_tracking_uncoupled

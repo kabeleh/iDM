@@ -5,9 +5,9 @@ from ruamel.yaml import YAML
 import re
 
 # Specify the parameters
-sampler = "mcmc_fast"
-likelihood = "Run3_Planck_PP_SH0ES_DESIDR2"
-potential = "DoubleExp"
+sampler = "mcmc"
+likelihood = "Run2_PP_SH0ES_DESIDR2"
+potential = "hyperbolic"
 attractor = "yes"
 coupling = "uncoupled"
 
