@@ -2,12 +2,12 @@
 #SBATCH --job-name=run_cobaya_mcmc_Run2_PP_SH0ES_DESIDR2_LCDM
 #SBATCH --account p201176
 #SBATCH --partition cpu
-#SBATCH --qos default
+#SBATCH --qos short
 #SBATCH --nodes 1
 #SBATCH --ntasks 32
 #SBATCH --ntasks-per-node 32
 #SBATCH --cpus-per-task 8
-#SBATCH --time 48:00:00
+#SBATCH --time 6:00:00
 #SBATCH --output run_cobaya_mcmc_Run2_PP_SH0ES_DESIDR2_LCDM.%j.out
 #SBATCH --error run_cobaya_mcmc_Run2_PP_SH0ES_DESIDR2_LCDM.%j.err
 #SBATCH --mail-user kay.lehnert.2023@mumail.ie
