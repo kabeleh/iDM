@@ -2,10 +2,8 @@ sampler:
   minimize:
     best_of: 32
 likelihood:
-  H0.riess2020Mb:
+  H0.riess2020:
   bao.desi_dr2:
-  sn.pantheon:
-    use_abs_mag: true
   sn.pantheonplus:
 params:
   Omega_fld: 0.0
@@ -99,4 +97,4 @@ theory:
       tol_initial_Omega_r: 0.001
       gauge: newtonian
 output: 
-  /project/home/p201176/cobaya_mcmc_Run2_PP_SH0ES_DESIDR2_LCDM
+  /project/home/p201176/cobaya_mcmc_Run2_PP_SH0ES_DESIDR2_LCDM_noMb
