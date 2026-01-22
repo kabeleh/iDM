@@ -5,9 +5,9 @@ from ruamel.yaml import YAML
 import re
 
 # Specify the parameters
-sampler = "mcmc"
+sampler = "polychord"
 likelihood = "Run2_PP_SH0ES_DESIDR2"
-potential = "hyperbolic"
+potential = "DoubleExp"
 attractor = "yes"
 coupling = "uncoupled"
 
@@ -123,9 +123,8 @@ def create_cobaya_yaml(
 
     Run2_PP_SH0ES_DESIDR2 = {
         "likelihood": {
-            "H0.riess2020Mb": None,
+            "H0.riess2020": None,
             "bao.desi_dr2": None,
-            "sn.pantheon": {"use_abs_mag": True},
             "sn.pantheonplus": None,
         },
     }
@@ -134,9 +133,8 @@ def create_cobaya_yaml(
     # These are the likelihoods to ADD (Run 1 already has Planck)
     Run3_Planck_PP_SH0ES_DESIDR2_add = {
         "likelihood": {
-            "H0.riess2020Mb": None,
+            "H0.riess2020": None,
             "bao.desi_dr2": None,
-            "sn.pantheon": {"use_abs_mag": True},
             "sn.pantheonplus": None,
         },
     }
@@ -407,7 +405,7 @@ def create_cobaya_yaml(
         "scf_potential": potential,
         "attractor_ic_scf": attractor,
     }
-    if likelihood in ["Run1_Planck_2018", "Run3_Planck_PP_SH0ES_DESIDR2"]:
+    if likelihood in ["Run1_Planck_2018"]:
         extra_args["P_k_max_h/Mpc"] = 1.0
         extra_args["non linear"] = "halofit"
 
