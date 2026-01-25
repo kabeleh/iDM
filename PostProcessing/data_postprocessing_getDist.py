@@ -13,7 +13,7 @@ from getdist import plots
 # ============================================================================
 
 # Directory where MCMC chain files are stored
-CHAIN_DIR = r"/Users/klmba/kDrive/Sci/PhD/Research/HDM/MCMCfast/p201176"
+CHAIN_DIR = r"/Users/klmba/kDrive/Sci/PhD/Research/HDM/MCMCfast/"
 ANALYSIS_SETTINGS = {"ignore_rows": 0.33}
 
 # Define the root names of the MCMC chains (file prefixes without extensions)
@@ -22,7 +22,10 @@ ROOTS = [
     # "cobaya_iDM_20251230_dexp",
     "cobaya_mcmc_fast_Run1_Planck_2018_DoubleExp_tracking_uncoupled",
     "cobaya_mcmc_fast_Run1_Planck_2018_hyperbolic_tracking_uncoupled",
-    # "cobaya_mcmc_fast_Run1_Planck_2018_exponential_tracking_uncoupled",
+    "cobaya_mcmc_fast_Run1_Planck_2018_LCDM",
+    "cobaya_mcmc_Run2_PP_SH0ES_DESIDR2_hyperbolic_tracking_uncoupled",
+    "cobaya_mcmc_Run2_PP_SH0ES_DESIDR2_DoubleExp_tracking_uncoupled",
+    "cobaya_mcmc_Run2_PP_SH0ES_DESIDR2_LCDM",
 ]
 
 # Extract a list of colors from the categorical batlowKS colourmap
@@ -174,6 +177,10 @@ def annotate_scf_constraints(g):
     - ax = g.subplots[row, col]; ax.fill_betweenx(...)# shaded region (vertical)
     """
     handles = []
+
+    # c_2 should be of order 1. As a visual aid, we add a line at c_2=1 and another line at c_2=0.5
+    g.add_y_marker(1.0, ax=0, color="black", ls="--")
+    g.add_y_marker(0.5, ax=0, color="black", ls="--")
 
     # Example: add a vertical line constraint on cdm_c (param index 0, 1D plot at ax=0)
     # ax = g.subplots[0, 0]

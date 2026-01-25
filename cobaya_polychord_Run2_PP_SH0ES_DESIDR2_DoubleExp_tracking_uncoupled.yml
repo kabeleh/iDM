@@ -141,6 +141,11 @@ params:
       scale: 0.006
   z_reio:
     latex: z_\mathrm{re}
+  Mb:
+    prior:
+      min: -20
+      max: -18
+    latex: M_b
 theory:
   classy:
     path: /home/users/u103677/iDM/
