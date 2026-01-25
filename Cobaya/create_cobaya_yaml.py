@@ -216,8 +216,8 @@ def create_cobaya_yaml(
             "ref": {"dist": "norm", "loc": 0.055, "scale": 0.006},
         },
         "z_reio": {"latex": "z_\\mathrm{re}"},
+        "Mb": {"prior": {"min": -20, "max": -18}, "latex": "M_b"},
     }
-
     parameters_planck = {
         "A": {"derived": "lambda A_s: 1e9*A_s", "latex": "10^9 A_\\mathrm{s}"},
         "age": {"latex": "{\\rm{Age}}/\\mathrm{Gyr}"},
