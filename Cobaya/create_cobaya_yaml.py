@@ -6,7 +6,7 @@ import re
 
 # Specify the parameters
 sampler = "polychord"
-likelihood = "Run2_PP_SH0ES_DESIDR2"
+likelihood = "Run1_Planck_2018"
 potential = "DoubleExp"
 attractor = "yes"
 coupling = "uncoupled"
