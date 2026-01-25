@@ -159,4 +159,4 @@ theory:
       scf_potential: DoubleExp
       attractor_ic_scf: yes
 output: 
-  /project/home/p201176/cobaya_polychord_Run2_PP_SH0ES_DESIDR2_DoubleExp_tracking_uncoupled
+  /project/home/p201176/cobaya_polychord_Run2_PP_SH0ES_DESIDR2_DoubleExp_tracking_uncoupled_Mb2
