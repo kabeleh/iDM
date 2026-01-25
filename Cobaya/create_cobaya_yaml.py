@@ -5,9 +5,9 @@ from ruamel.yaml import YAML
 import re
 
 # Specify the parameters
-sampler = "polychord"
-likelihood = "Run1_Planck_2018"
-potential = "DoubleExp"
+sampler = "minimize_polychord"
+likelihood = "Run2_PP_SH0ES_DESIDR2"
+potential = "hyperbolic"
 attractor = "yes"
 coupling = "uncoupled"
 
@@ -26,7 +26,8 @@ def create_cobaya_yaml(
     Create a Cobaya YAML configuration dictionary for iDM model runs.
 
     Parameters:
-    - sampler (str): Sampling method. Options: 'polychord', 'mcmc', 'mcmc_fast'.
+    - sampler (str): Sampling method. Options: 'polychord', 'mcmc', 'mcmc_fast', 'minimize_polychord', 'minimize_mcmc', 'minimize_mcmc_fast'.
+      Note: 'minimize_*' samplers use the minimize sampler but output paths point to corresponding sampler chains.
     - likelihood (str): Likelihood combination. Options: 'Run1_Planck_2018', 'Run2_PP_SH0ES_DESIDR2', 'Run3_Planck_PP_SH0ES_DESIDR2'.
       Note: 'Run3_Planck_PP_SH0ES_DESIDR2' is a post-processing run that adds likelihoods to Run 1 chains.
     - potential (str): Scalar field potential. Options: 'power-law', 'cosine', 'hyperbolic', 'pNG', 'iPL', 'SqE', 'exponential', 'Bean', 'DoubleExp'.
@@ -39,9 +40,16 @@ def create_cobaya_yaml(
     """
 
     # Validate inputs
-    if sampler not in ["polychord", "mcmc", "mcmc_fast"]:
+    if sampler not in [
+        "polychord",
+        "mcmc",
+        "mcmc_fast",
+        "minimize_polychord",
+        "minimize_mcmc",
+        "minimize_mcmc_fast",
+    ]:
         raise ValueError(
-            f"Unknown sampler '{sampler}'. Must be one of: polychord, mcmc, mcmc_fast"
+            f"Unknown sampler '{sampler}'. Must be one of: polychord, mcmc, mcmc_fast, minimize_polychord, minimize_mcmc, minimize_mcmc_fast"
         )
     if likelihood not in [
         "Run1_Planck_2018",
@@ -107,7 +115,22 @@ def create_cobaya_yaml(
         },
     }
 
-    SAMPLERS = {"polychord": polychord, "mcmc": mcmc, "mcmc_fast": mcmc_fast}
+    minimize = {
+        "sampler": {
+            "minimize": {
+                "best_of": 32,
+            }
+        },
+    }
+
+    SAMPLERS = {
+        "polychord": polychord,
+        "mcmc": mcmc,
+        "mcmc_fast": mcmc_fast,
+        "minimize_polychord": minimize,
+        "minimize_mcmc": minimize,
+        "minimize_mcmc_fast": minimize,
+    }
 
     # Define Likelihoods
 
@@ -505,8 +528,14 @@ filename = f"cobaya_{sampler}_{likelihood}_{potential}_{attractor_name}_{couplin
 # Specify the output filename in the YAML file
 # For Run 3 (post-processing), output is already set to point to Run 1 chains
 if likelihood != "Run3_Planck_PP_SH0ES_DESIDR2":
+    # For minimize variants, output points to corresponding sampler's chains
+    if sampler.startswith("minimize_"):
+        base_sampler = sampler.replace("minimize_", "")
+        output_filename = f"cobaya_{base_sampler}_{likelihood}_{potential}_{attractor_name}_{coupling}"
+    else:
+        output_filename = filename.replace(".yml", "")
     output = {
-        "output": "/project/home/p201176/" + filename.replace(".yml", ""),
+        "output": "/project/home/p201176/" + output_filename,
     }
     configuration.update(output)
 
@@ -732,6 +761,94 @@ sacct -j $SLURM_JOB_ID -o jobid,jobname,partition,account,state,consumedenergyra
     return script_filename
 
 
-# Create the SLURM production run script
-slurm_run_script_filename = create_slurm_run_script(yaml_filename=filename)
+def create_slurm_minimize_script(
+    yaml_filename: str,
+    account: str = "p201176",
+    partition: str = "cpu",
+    qos: str = "short",
+    nodes: int = 1,
+    ntasks: int = 32,
+    ntasks_per_node: int = 32,
+    cpus_per_task: int = 8,
+    time: str = "01:00:00",
+    mail_user: str = "kay.lehnert.2023@mumail.ie",
+    yaml_base_path: str = "/home/users/u103677/iDM/Cobaya/MCMC/",
+) -> str:
+    """
+    Create a SLURM bash script for running a Cobaya minimize job.
+
+    Parameters:
+    - yaml_filename (str): The YAML configuration filename (e.g., 'cobaya_minimize_Run1_Planck_2018_hyperbolic_tracking_uncoupled.yml').
+    - account (str): SLURM account.
+    - partition (str): SLURM partition.
+    - qos (str): SLURM quality of service.
+    - nodes (int): Number of nodes.
+    - ntasks (int): Number of tasks.
+    - ntasks_per_node (int): Tasks per node.
+    - cpus_per_task (int): CPUs per task.
+    - time (str): Job time limit (HH:MM:SS).
+    - mail_user (str): Email for notifications.
+    - yaml_base_path (str): Base path where YAML files are located on the cluster.
+
+    Returns:
+    - str: The shell script filename that was created.
+    """
+    # Derive job name from yaml filename
+    job_name = "run_" + yaml_filename.replace(".yml", "")
+
+    # Generate script filename based on yaml filename
+    script_filename = f"run_{yaml_filename.replace('.yml', '.sh')}"
+
+    # Full path to the YAML file on the cluster
+    yaml_full_path = yaml_base_path + yaml_filename
+
+    script_content = f"""#!/bin/bash -l
+#SBATCH --job-name={job_name}
+#SBATCH --account {account}
+#SBATCH --partition {partition}
+#SBATCH --qos {qos}
+#SBATCH --nodes {nodes}
+#SBATCH --ntasks {ntasks}
+#SBATCH --ntasks-per-node {ntasks_per_node}
+#SBATCH --cpus-per-task {cpus_per_task}
+#SBATCH --time {time}
+#SBATCH --output %j.{job_name}.out
+#SBATCH --error %j.{job_name}.err
+#SBATCH --mail-user {mail_user}
+#SBATCH --mail-type END,FAIL
+
+## Load software environment
+module load GCC
+module load Python
+module load Cython
+module load OpenMPI/5.0.3-GCC-13.3.0
+module load OpenBLAS
+#Activate Python virtual environment
+source my_python-env/bin/activate
+
+#Number of OpenMP threads
+export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
+
+# Run minimize (no retry logic needed for optimization)
+srun --cpus-per-task=$SLURM_CPUS_PER_TASK cobaya-run {yaml_full_path}
+
+#Check energy consumption after job completion
+sacct -j $SLURM_JOB_ID -o jobid,jobname,partition,account,state,consumedenergyraw
+"""
+
+    try:
+        with open(script_filename, "w") as file:
+            file.write(script_content)
+    except IOError as e:
+        print(f"Error writing shell script: {e}")
+        raise
+
+    return script_filename
+
+
+# Create the SLURM production run script (use minimize script for minimize sampler variants)
+if sampler.startswith("minimize_"):
+    slurm_run_script_filename = create_slurm_minimize_script(yaml_filename=filename)
+else:
+    slurm_run_script_filename = create_slurm_run_script(yaml_filename=filename)
 print(f"SLURM run script has been written to '{slurm_run_script_filename}'")
