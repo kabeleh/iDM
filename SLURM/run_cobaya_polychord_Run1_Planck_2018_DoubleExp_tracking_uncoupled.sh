@@ -8,8 +8,8 @@
 #SBATCH --ntasks-per-node 32
 #SBATCH --cpus-per-task 8
 #SBATCH --time 06:00:00
-#SBATCH --output run_cobaya_polychord_Run1_Planck_2018_DoubleExp_tracking_uncoupled.%j.out
-#SBATCH --error run_cobaya_polychord_Run1_Planck_2018_DoubleExp_tracking_uncoupled.%j.err
+#SBATCH --output %j.run_cobaya_polychord_Run1_Planck_2018_DoubleExp_tracking_uncoupled.out
+#SBATCH --error %j.run_cobaya_polychord_Run1_Planck_2018_DoubleExp_tracking_uncoupled.err
 #SBATCH --mail-user kay.lehnert.2023@mumail.ie
 #SBATCH --mail-type END,FAIL
 

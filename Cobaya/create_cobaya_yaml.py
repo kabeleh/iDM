@@ -127,23 +127,23 @@ def create_cobaya_yaml(
 
     Run2_PP_SH0ES_DESIDR2 = {
         "likelihood": {
-            "H0.riess2020Mb": None,
+            "H0.riess2020": None,
             "bao.desi_dr2": None,
-            "sn.pantheon": {"use_abs_mag": True},
+            # "sn.pantheon": {"use_abs_mag": True},
             "sn.pantheonplus": None,
         },
     }
 
-    # Run 3 is a post-processing run that adds likelihoods to Run 1 chains
-    # These are the likelihoods to ADD (Run 1 already has Planck)
-    Run3_Planck_PP_SH0ES_DESIDR2_add = {
-        "likelihood": {
-            "H0.riess2020Mb": None,
-            "bao.desi_dr2": None,
-            "sn.pantheon": {"use_abs_mag": True},
-            "sn.pantheonplus": None,
-        },
-    }
+    # Run 3 is a post-processing run that adds the likelihoods from Run 2 to Run 1 chains
+    Run3_Planck_PP_SH0ES_DESIDR2_add = Run2_PP_SH0ES_DESIDR2
+    # {
+    #     "likelihood": {
+    #         "H0.riess2020": None,
+    #         "bao.desi_dr2": None,
+    #         # "sn.pantheon": {"use_abs_mag": True},
+    #         "sn.pantheonplus": None,
+    #     },
+    # }
 
     # # Request sigma_R(z) for R=12 Mpc at z=0 as a dummy likelihood to compute derived parameters
     # requires = {
@@ -216,7 +216,7 @@ def create_cobaya_yaml(
             "ref": {"dist": "norm", "loc": 0.055, "scale": 0.006},
         },
         "z_reio": {"latex": "z_\\mathrm{re}"},
-        "Mb": {"prior": {"min": -20, "max": -18}, "latex": "M_b"},
+        # "Mb": {"prior": {"min": -20, "max": -18}, "latex": "M_b", "drop": True},
     }
     parameters_planck = {
         "A": {"derived": "lambda A_s: 1e9*A_s", "latex": "10^9 A_\\mathrm{s}"},
@@ -265,7 +265,10 @@ def create_cobaya_yaml(
     # }
 
     # Scalar Field Parameters for iDM model
-    cdm_c = {"prior": {"min": -3, "max": 3}}
+    cdm_c = {
+        "prior": {"min": -3, "max": 3},
+        "latex": "c_\\mathrm{DM}",
+    }
 
     # power-law:    V(phi) = c_1^(4-c_2) * phi^(c_2) + c_3
     # cosine:       V(phi) = c_1 * cos(phi*c_2)
@@ -277,50 +280,74 @@ def create_cobaya_yaml(
     # Bean:         V(phi) = c_1 * [(c_4-phi)^2 + c_2] * exp(-c_3*phi)
     # DoubleExp:    V(phi) = c_1 * (exp(-c_2*phi) + c_3 * exp(-c_4*phi))
     if potential in ("power-law",):
-        scf_c1 = {"value": 1e-2, "drop": True}
-        scf_c2 = {"prior": {"min": 0.5, "max": 3.5}, "drop": True}
-        scf_c3 = {"prior": {"dist": "loguniform", "a": 1e-6, "b": 1e4}, "drop": True}
-        scf_c4 = {"value": 0.0, "drop": True}
+        scf_c1 = {"value": 1e-2, "drop": True, "latex": "c_1"}
+        scf_c2 = {"prior": {"min": 0.5, "max": 3.5}, "drop": True, "latex": "c_2"}
+        scf_c3 = {
+            "prior": {"dist": "loguniform", "a": 1e-6, "b": 1e4},
+            "drop": True,
+            "latex": "c_3",
+        }
+        scf_c4 = {"value": 0.0, "drop": True, "latex": "c_4"}
     elif potential in ("cosine",):
-        scf_c1 = {"value": 1e-7, "drop": True}
-        scf_c2 = {"prior": {"min": 0.0, "max": 6.2832}, "drop": True}
-        scf_c3 = {"value": 0.0, "drop": True}
-        scf_c4 = {"value": 0.0, "drop": True}
+        scf_c1 = {"value": 1e-7, "drop": True, "latex": "c_1"}
+        scf_c2 = {"prior": {"min": 0.0, "max": 6.2832}, "drop": True, "latex": "c_2"}
+        scf_c3 = {"value": 0.0, "drop": True, "latex": "c_3"}
+        scf_c4 = {"value": 0.0, "drop": True, "latex": "c_4"}
     elif potential in ("hyperbolic",):
-        scf_c1 = {"value": 1e-7, "drop": True}
-        scf_c2 = {"prior": {"min": 0.0, "max": 3.0}, "drop": True}
-        scf_c3 = {"value": 0.0, "drop": True}
-        scf_c4 = {"value": 0.0, "drop": True}
+        scf_c1 = {"value": 1e-7, "drop": True, "latex": "c_1"}
+        scf_c2 = {"prior": {"min": 0.0, "max": 3.0}, "drop": True, "latex": "c_2"}
+        scf_c3 = {"value": 0.0, "drop": True, "latex": "c_3"}
+        scf_c4 = {"value": 0.0, "drop": True, "latex": "c_4"}
     elif potential in ("pNG",):
-        scf_c1 = {"value": 1e-1, "drop": True}
-        scf_c2 = {"prior": {"dist": "loguniform", "a": 1e-6, "b": 1e1}, "drop": True}
-        scf_c3 = {"value": 0.0, "drop": True}
-        scf_c4 = {"value": 0.0, "drop": True}
+        scf_c1 = {"value": 1e-1, "drop": True, "latex": "c_1"}
+        scf_c2 = {
+            "prior": {"dist": "loguniform", "a": 1e-6, "b": 1e1},
+            "drop": True,
+            "latex": "c_2",
+        }
+        scf_c3 = {"value": 0.0, "drop": True, "latex": "c_3"}
+        scf_c4 = {"value": 0.0, "drop": True, "latex": "c_4"}
     elif potential in ("iPL",):
-        scf_c1 = {"value": 1e-2, "drop": True}
-        scf_c2 = {"prior": {"min": 0.0, "max": 4.0}, "drop": True}
-        scf_c3 = {"value": 0.0, "drop": True}
-        scf_c4 = {"value": 0.0, "drop": True}
+        scf_c1 = {"value": 1e-2, "drop": True, "latex": "c_1"}
+        scf_c2 = {"prior": {"min": 0.0, "max": 4.0}, "drop": True, "latex": "c_2"}
+        scf_c3 = {"value": 0.0, "drop": True, "latex": "c_3"}
+        scf_c4 = {"value": 0.0, "drop": True, "latex": "c_4"}
     elif potential in ("exponential",):
-        scf_c1 = {"value": 1e-7, "drop": True}
-        scf_c2 = {"prior": {"dist": "loguniform", "a": 1e-2, "b": 1e1}, "drop": True}
-        scf_c3 = {"value": 0.0, "drop": True}
-        scf_c4 = {"value": 0.0, "drop": True}
+        scf_c1 = {"value": 1e-7, "drop": True, "latex": "c_1"}
+        scf_c2 = {
+            "prior": {"dist": "loguniform", "a": 1e-2, "b": 1e1},
+            "drop": True,
+            "latex": "c_2",
+        }
+        scf_c3 = {"value": 0.0, "drop": True, "latex": "c_3"}
+        scf_c4 = {"value": 0.0, "drop": True, "latex": "c_4"}
     elif potential in ("SqE",):
-        scf_c1 = {"prior": {"dist": "loguniform", "a": 1e-10, "b": 1e1}, "drop": True}
-        scf_c2 = {"prior": {"min": -4.0, "max": 4.0}, "drop": True}
-        scf_c3 = {"value": 0.0, "drop": True}
-        scf_c4 = {"value": 0.0, "drop": True}
+        scf_c1 = {
+            "prior": {"dist": "loguniform", "a": 1e-10, "b": 1e1},
+            "drop": True,
+            "latex": "c_1",
+        }
+        scf_c2 = {"prior": {"min": -4.0, "max": 4.0}, "drop": True, "latex": "c_2"}
+        scf_c3 = {"value": 0.0, "drop": True, "latex": "c_3"}
+        scf_c4 = {"value": 0.0, "drop": True, "latex": "c_4"}
     elif potential in ("Bean",):
-        scf_c1 = {"value": 1e-7, "drop": True}
-        scf_c2 = {"prior": {"dist": "loguniform", "a": 1e-24, "b": 1e6}, "drop": True}
-        scf_c3 = {"prior": {"dist": "loguniform", "a": 1e-2, "b": 1e1}, "drop": True}
-        scf_c4 = {"prior": {"min": 0.0, "max": 4.0}, "drop": True}
+        scf_c1 = {"value": 1e-7, "drop": True, "latex": "c_1"}
+        scf_c2 = {
+            "prior": {"dist": "loguniform", "a": 1e-24, "b": 1e6},
+            "drop": True,
+            "latex": "c_2",
+        }
+        scf_c3 = {
+            "prior": {"dist": "loguniform", "a": 1e-2, "b": 1e1},
+            "drop": True,
+            "latex": "c_3",
+        }
+        scf_c4 = {"prior": {"min": 0.0, "max": 4.0}, "drop": True, "latex": "c_4"}
     elif potential in ("DoubleExp",):
-        scf_c1 = {"value": 1e-7, "drop": True}
-        scf_c2 = {"prior": {"min": 0.0, "max": 500}, "drop": True}
-        scf_c3 = {"prior": {"min": 0.0, "max": 10.0}, "drop": True}
-        scf_c4 = {"prior": {"min": 0.0, "max": 2.0}, "drop": True}
+        scf_c1 = {"value": 1e-7, "drop": True, "latex": "c_1"}
+        scf_c2 = {"prior": {"min": 0.0, "max": 500}, "drop": True, "latex": "c_2"}
+        scf_c3 = {"prior": {"min": 0.0, "max": 10.0}, "drop": True, "latex": "c_3"}
+        scf_c4 = {"prior": {"min": 0.0, "max": 2.0}, "drop": True, "latex": "c_4"}
     else:
         raise ValueError(
             "potential must be one of: 'power-law', 'cosine', 'hyperbolic','pNG', 'iPL', 'SqE', 'exponential', 'Bean', 'DoubleExp'"
@@ -328,19 +355,27 @@ def create_cobaya_yaml(
 
     scf_exp_f = {}  # default: no extra prior
     if coupling in ("uncoupled",):
-        scf_q1 = {"value": 0, "drop": True}
-        scf_q2 = {"value": 0, "drop": True}
-        scf_q3 = {"value": 0, "drop": True}
-        scf_q4 = {"value": 0, "drop": True}
-        scf_exp1 = {"value": 0, "drop": True}
-        scf_exp2 = {"value": 0, "drop": True}
+        scf_q1 = {"value": 0, "drop": True, "latex": "q_1"}
+        scf_q2 = {"value": 0, "drop": True, "latex": "q_2"}
+        scf_q3 = {"value": 0, "drop": True, "latex": "q_3"}
+        scf_q4 = {"value": 0, "drop": True, "latex": "q_4"}
+        scf_exp1 = {"value": 0, "drop": True, "latex": "\\exp_1"}
+        scf_exp2 = {"value": 0, "drop": True, "latex": "\\exp_2"}
     elif coupling in ("coupled",):
-        scf_q1 = {"prior": {"dist": "loguniform", "a": 1e-80, "b": 1e-30}, "drop": True}
-        scf_q2 = {"prior": {"dist": "loguniform", "a": 1e-80, "b": 1e-30}, "drop": True}
-        scf_q3 = {"prior": {"min": -10, "max": 10}, "drop": True}
-        scf_q4 = {"prior": {"min": -10, "max": 10}, "drop": True}
-        scf_exp1 = {"prior": {"min": 0, "max": 10}, "drop": True}
-        scf_exp2 = {"prior": {"min": 0, "max": 5.5}, "drop": True}
+        scf_q1 = {
+            "prior": {"dist": "loguniform", "a": 1e-80, "b": 1e-30},
+            "drop": True,
+            "latex": "q_1",
+        }
+        scf_q2 = {
+            "prior": {"dist": "loguniform", "a": 1e-80, "b": 1e-30},
+            "drop": True,
+            "latex": "q_2",
+        }
+        scf_q3 = {"prior": {"min": -10, "max": 10}, "drop": True, "latex": "q_3"}
+        scf_q4 = {"prior": {"min": -10, "max": 10}, "drop": True, "latex": "q_4"}
+        scf_exp1 = {"prior": {"min": 0, "max": 10}, "drop": True, "latex": "\\exp_1"}
+        scf_exp2 = {"prior": {"min": 0, "max": 5.5}, "drop": True, "latex": "\\exp_2"}
         # # We have an exchange symmetry between DE and DM in the coupling, such that we only need to explore scf_exp2 in (0 , scf_exp1/2).
         scf_exp_f = {
             "prior": {
@@ -351,16 +386,22 @@ def create_cobaya_yaml(
         raise ValueError("coupling must be 'uncoupled' or 'coupled'")
 
     if attractor in ("yes", "Yes", "YES"):
-        scf_phi_ini = {"value": 0.001, "drop": True}
-        scf_phi_prime_ini = {"value": 0.1, "drop": True}
+        scf_phi_ini = {"value": 0.001, "drop": True, "latex": "\\phi_\\mathrm{ini}"}
+        scf_phi_prime_ini = {
+            "value": 0.1,
+            "drop": True,
+            "latex": "\\phi\\prime_\\mathrm{ini}",
+        }
     elif attractor in ("no", "No", "NO"):
         scf_phi_ini = {
             "prior": {"dist": "loguniform", "a": 1e-12, "b": 1e3},
             "drop": True,
+            "latex": "\\phi_\\mathrm{ini}",
         }
         scf_phi_prime_ini = {
             "prior": {"min": -10.0, "max": 10.0},
             "drop": True,
+            "latex": "\\phi\\prime_\\mathrm{ini}",
         }
     else:
         raise ValueError("attractor must be 'yes' or 'no'")
@@ -548,8 +589,8 @@ def create_slurm_test_script(
 #SBATCH --ntasks-per-node {ntasks_per_node}
 #SBATCH --cpus-per-task {cpus_per_task}
 #SBATCH --time {time}
-#SBATCH --output {job_name}.%j.out
-#SBATCH --error {job_name}.%j.err
+#SBATCH --output %j.{job_name}.out
+#SBATCH --error %j.{job_name}.err
 #SBATCH --mail-user {mail_user}
 #SBATCH --mail-type END,FAIL
 
@@ -640,8 +681,8 @@ def create_slurm_run_script(
 #SBATCH --ntasks-per-node {ntasks_per_node}
 #SBATCH --cpus-per-task {cpus_per_task}
 #SBATCH --time {time}
-#SBATCH --output {job_name}.%j.out
-#SBATCH --error {job_name}.%j.err
+#SBATCH --output %j.{job_name}.out
+#SBATCH --error %j.{job_name}.err
 #SBATCH --mail-user {mail_user}
 #SBATCH --mail-type END,FAIL
 

@@ -14,48 +14,61 @@ params:
     prior:
       min: -3
       max: 3
+    latex: c_\mathrm{DM}
   scf_c1:
     value: 1e-07
     drop: true
+    latex: c_1
   scf_c2:
     prior:
       min: 0.0
       max: 500
     drop: true
+    latex: c_2
   scf_c3:
     prior:
       min: 0.0
       max: 10.0
     drop: true
+    latex: c_3
   scf_c4:
     prior:
       min: 0.0
       max: 2.0
     drop: true
+    latex: c_4
   scf_q1:
     value: 0
     drop: true
+    latex: q_1
   scf_q2:
     value: 0
     drop: true
+    latex: q_2
   scf_q3:
     value: 0
     drop: true
+    latex: q_3
   scf_q4:
     value: 0
     drop: true
+    latex: q_4
   scf_exp1:
     value: 0
     drop: true
+    latex: \exp_1
   scf_exp2:
     value: 0
     drop: true
+    latex: \exp_2
   scf_phi_ini:
     value: 0.001
     drop: true
+    latex: \phi_\mathrm{ini}
   scf_phi_prime_ini:
     value: 0.1
     drop: true
+    latex: \phi\prime_\mathrm{ini}
   scf_parameters:
     value: 'lambda scf_c1,scf_c2,scf_c3,scf_c4,scf_q1,scf_q2,scf_q3,scf_q4,scf_exp1,scf_exp2,scf_phi_ini,scf_phi_prime_ini:
       ",".join([str(scf_c1),str(scf_c2),str(scf_c3),str(scf_c4),str(scf_q1),str(scf_q2),str(scf_q3),str(scf_q4),str(scf_exp1),str(scf_exp2),str(scf_phi_ini),str(scf_phi_prime_ini)])'
