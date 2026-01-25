@@ -11,15 +11,21 @@
 #SBATCH --mail-type END,FAIL
 
 ## Load software environment
-module load GCC
-module load Python
-module load Cython
-module load OpenMPI/5.0.3-GCC-13.3.0
-module load OpenBLAS
-module load libpciaccess
+module load Python foss
+# module load GCC
+# module load libpciaccess
+# module load Python
+# module load Cython
+# module load OpenMPI/5.0.3-GCC-13.3.0
+# module load OpenBLAS
+
+# Export library paths so MPI compilers can find libpciaccess
+# export LD_LIBRARY_PATH=$EBROOTLIBPCIACCESS/lib:$LD_LIBRARY_PATH
+# export LIBRARY_PATH=$EBROOTLIBPCIACCESS/lib:$LIBRARY_PATH
 
 #Activate Python virtual environment
 source my_python-env/bin/activate
+
 
 #Install polychord for cobaya
 # cobaya-install polychord --packages-path $HOME/cobaya_cosmo_packages/
