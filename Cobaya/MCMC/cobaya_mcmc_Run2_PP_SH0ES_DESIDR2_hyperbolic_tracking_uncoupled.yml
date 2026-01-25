@@ -6,6 +6,7 @@ sampler:
     oversample_power: 0.4
     learn_proposal: true
     measure_speeds: true
+    learn_every: d
     # covmat: /project/home/p201176/cobaya_mcmc_fast_Run1_Planck_2018_hyperbolic_tracking_uncoupled.covmat
 likelihood:
   H0.riess2020:

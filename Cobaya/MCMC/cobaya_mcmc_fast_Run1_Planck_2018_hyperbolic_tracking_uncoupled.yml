@@ -7,6 +7,7 @@ sampler:
     oversample_power: 0.4
     learn_proposal: true
     measure_speeds: true
+    learn_every: d
 likelihood:
   planck_2018_lowl.EE:
   planck_2018_lowl.TT:
