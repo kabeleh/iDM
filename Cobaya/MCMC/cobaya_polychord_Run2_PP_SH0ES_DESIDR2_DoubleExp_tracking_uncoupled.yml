@@ -1,8 +1,11 @@
 sampler:
-  polychord: {}
+  polychord:
+    nprior: 20nlive
 likelihood:
-  H0.riess2020:
+  H0.riess2020Mb:
   bao.desi_dr2:
+  sn.pantheon:
+    use_abs_mag: true
   sn.pantheonplus:
 params:
   cdm_c:
@@ -138,6 +141,11 @@ params:
       scale: 0.006
   z_reio:
     latex: z_\mathrm{re}
+  Mb:
+    prior:
+      min: -20
+      max: -18
+    latex: M_b
 theory:
   classy:
     path: /home/users/u103677/iDM/

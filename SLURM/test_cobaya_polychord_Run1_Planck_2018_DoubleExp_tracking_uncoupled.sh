@@ -1,5 +1,5 @@
 #!/bin/bash -l
-#SBATCH --job-name=test_cobaya_polychord_Run2_PP_SH0ES_DESIDR2_DoubleExp_tracking_uncoupled
+#SBATCH --job-name=test_cobaya_polychord_Run1_Planck_2018_DoubleExp_tracking_uncoupled
 #SBATCH --account p201176
 #SBATCH --partition cpu
 #SBATCH --qos test
@@ -8,8 +8,8 @@
 #SBATCH --ntasks-per-node 1
 #SBATCH --cpus-per-task 8
 #SBATCH --time 00:05:00
-#SBATCH --output test_cobaya_polychord_Run2_PP_SH0ES_DESIDR2_DoubleExp_tracking_uncoupled.%j.out
-#SBATCH --error test_cobaya_polychord_Run2_PP_SH0ES_DESIDR2_DoubleExp_tracking_uncoupled.%j.err
+#SBATCH --output test_cobaya_polychord_Run1_Planck_2018_DoubleExp_tracking_uncoupled.%j.out
+#SBATCH --error test_cobaya_polychord_Run1_Planck_2018_DoubleExp_tracking_uncoupled.%j.err
 #SBATCH --mail-user kay.lehnert.2023@mumail.ie
 #SBATCH --mail-type END,FAIL
 
@@ -24,7 +24,7 @@ source my_python-env/bin/activate
 
 #iNumber of OpenMP threads
 export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
-srun --cpus-per-task=$SLURM_CPUS_PER_TASK cobaya-run /home/users/u103677/iDM/Cobaya/MCMC/cobaya_polychord_Run2_PP_SH0ES_DESIDR2_DoubleExp_tracking_uncoupled.yml --test --debug
+srun --cpus-per-task=$SLURM_CPUS_PER_TASK cobaya-run /home/users/u103677/iDM/Cobaya/MCMC/cobaya_polychord_Run1_Planck_2018_DoubleExp_tracking_uncoupled.yml --test --debug
 
 #Check energy consumption after job completion
 sacct -j $SLURM_JOB_ID -o jobid,jobname,partition,account,state,consumedenergyraw
