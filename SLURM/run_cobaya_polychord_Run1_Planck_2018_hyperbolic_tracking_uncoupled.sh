@@ -1,5 +1,5 @@
 #!/bin/bash -l
-#SBATCH --job-name=run_cobaya_polychord_Run2_PP_SH0ES_DESIDR2_hyperbolic_tracking_uncoupled
+#SBATCH --job-name=run_cobaya_polychord_Run1_Planck_2018_hyperbolic_tracking_uncoupled
 #SBATCH --account p201176
 #SBATCH --partition cpu
 #SBATCH --qos short
@@ -8,8 +8,8 @@
 #SBATCH --ntasks-per-node 32
 #SBATCH --cpus-per-task 8
 #SBATCH --time 06:00:00
-#SBATCH --output %j.run_cobaya_polychord_Run2_PP_SH0ES_DESIDR2_hyperbolic_tracking_uncoupled.out
-#SBATCH --error %j.run_cobaya_polychord_Run2_PP_SH0ES_DESIDR2_hyperbolic_tracking_uncoupled.err
+#SBATCH --output %j.run_cobaya_polychord_Run1_Planck_2018_hyperbolic_tracking_uncoupled.out
+#SBATCH --error %j.run_cobaya_polychord_Run1_Planck_2018_hyperbolic_tracking_uncoupled.err
 #SBATCH --mail-user kay.lehnert.2023@mumail.ie
 #SBATCH --mail-type END,FAIL
 
@@ -33,7 +33,7 @@ EXIT_CODE=143
 while [ $EXIT_CODE -eq 143 ] && [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
     RETRY_COUNT=$((RETRY_COUNT + 1))
     echo "Attempt $RETRY_COUNT of $MAX_RETRIES"
-    srun --cpus-per-task=$SLURM_CPUS_PER_TASK cobaya-run /home/users/u103677/iDM/Cobaya/MCMC/cobaya_polychord_Run2_PP_SH0ES_DESIDR2_hyperbolic_tracking_uncoupled.yml --resume
+    srun --cpus-per-task=$SLURM_CPUS_PER_TASK cobaya-run /home/users/u103677/iDM/Cobaya/MCMC/cobaya_polychord_Run1_Planck_2018_hyperbolic_tracking_uncoupled.yml --resume
     EXIT_CODE=$?
     echo "Exit code: $EXIT_CODE"
     if [ $EXIT_CODE -eq 143 ]; then
