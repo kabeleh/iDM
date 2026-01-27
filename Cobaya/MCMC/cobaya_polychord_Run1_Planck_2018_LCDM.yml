@@ -1,6 +1,8 @@
 sampler:
   polychord:
     nprior: 20nlive
+    num_repeats: 5d
+    synchronous: false
 likelihood:
   planck_2018_lowl.EE:
   planck_2018_lowl.TT:
@@ -50,8 +52,8 @@ params:
   omega_b:
     latex: \Omega_\mathrm{b} h^2
     prior:
-      max: 0.1
-      min: 0.005
+      max: 0.03
+      min: 0.01
     proposal: 0.0001
     ref:
       dist: norm
@@ -60,8 +62,8 @@ params:
   omega_cdm:
     latex: \Omega_\mathrm{c} h^2
     prior:
-      max: 0.99
-      min: 0.001
+      max: 0.8
+      min: 0.01
     proposal: 0.0005
     ref:
       dist: norm
@@ -73,7 +75,7 @@ params:
   tau_reio:
     latex: \tau_\mathrm{reio}
     prior:
-      max: 0.8
+      max: 0.2
       min: 0.01
     proposal: 0.003
     ref:
@@ -106,7 +108,7 @@ params:
   theta_s_100:
     latex: 100\theta_\mathrm{s}
     prior:
-      max: 10
+      max: 3.0
       min: 0.5
     proposal: 0.0002
     ref:
@@ -115,6 +117,7 @@ params:
       scale: 0.0004
 theory:
   classy:
+    # stop_at_error: True
     path: /home/users/u103677/iDM/
     extra_args:
       N_ncdm: 1
@@ -123,4 +126,4 @@ theory:
       gauge: newtonian
       non linear: halofit
 output: 
-  /project/home/p201176/cobaya_polychord_Run1_Planck_2018_LCDM
+  /project/home/p201176/cobaya_polychord_Run1_Planck_2018_LCDM_stop_at_error
