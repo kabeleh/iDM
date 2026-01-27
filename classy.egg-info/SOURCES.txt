@@ -1,17 +1,12 @@
 CLASS_rename.py
-CPU.py
 Makefile
 README.md
 __init__.py
-data_postprocessing_getDist.py
 pyproject.toml
 setup.py
 ./CLASS_rename.py
-./CPU.py
 ./Makefile
 ./__init__.py
-./data_postprocessing_getDist.py
-./setup.py
 ./external/HMcode/hmcode.c
 ./external/HMcode/hmcode.h
 ./external/Halofit/halofit.c

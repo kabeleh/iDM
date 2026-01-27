@@ -1,0 +1,253 @@
+theory:
+  classy:
+    path: /home/users/u103677/iDM/
+    extra_args:
+      gauge: newtonian
+      nonlinear_min_k_max: 25
+      N_ncdm: 1
+      N_ur: 2.046
+      sBBN file: sBBN_2017.dat
+      non linear: hmcode
+      hmcode_version: 2020
+
+likelihood:
+  bao.desi_dr2: null
+  sn.pantheonplus: null
+  planck_2018_lowl.TT: null
+  act_dr6_cmbonly.PlanckActCut:
+    package_install:
+      github_repository: ACTCollaboration/DR6-ACT-lite
+    dataset_params:
+      use_cl: tt te ee
+      lmin_cuts: 0 0 0
+      lmax_cuts: 1000 600 600
+    params:
+      A_planck:
+        prior:
+          min: 0.5
+          max: 1.5
+        ref:
+          dist: norm
+          loc: 1.0
+          scale: 0.1
+        latex: A_{\rm planck}
+        proposal: 0.003
+  act_dr6_cmbonly.ACTDR6CMBonly:
+    input_file: dr6_data_cmbonly.fits
+    lmax_theory: 9000
+    ell_cuts:
+      TT: [600,8500]
+      TE: [600,8500]
+      EE: [600,8500]
+    stop_at_error: true
+    params:
+      A_act:
+        value: "lambda A_planck: A_planck"
+        latex: A_{\rm ACT}
+      P_act:
+        prior:
+          min: 0.9
+          max: 1.1
+        ref:
+          dist: norm
+          loc: 1.0
+          scale: 0.01
+        proposal: 0.01
+        latex: p_{\rm ACT}
+  act_dr6_lenslike.ACTDR6LensLike:
+    package_install:
+      github_repository: ACTCollaboration/act_dr6_lenslike
+    lens_only: false
+    stop_at_error: true
+    lmax: 4000
+    variant: actplanck_baseline
+  spt3g_d1_tne:
+    package_install:
+      github_repository: SouthPoleTelescope/spt_candl_data
+    class: candl.interface.CandlCobayaLikelihood
+    additional_args: {}
+    clear_internal_priors: true
+    data_set_file: spt_candl_data.SPT3G_D1_TnE
+    variant: "lite"
+    feedback: true
+    wrapper: null
+  muse3glike.cobaya.spt3g_2yr_delensed_ee_optimal_pp_muse:
+    package_install:
+      download_url: "https://pole.uchicago.edu/public/data/ge25/muse_3g_like_march_2025.zip"
+    components:
+    - "\u03D5\u03D5"
+
+params:
+  # LCDM parameters
+  logA:
+    prior:
+      min: 1.61
+      max: 3.91
+    ref:
+      dist: norm
+      loc: 3.05
+      scale: 0.001
+    proposal: 0.001
+    latex: \log(10^{10} A_\mathrm{s})
+    drop: true
+  n_s:
+    prior:
+      min: 0.8
+      max: 1.2
+    ref:
+      dist: norm
+      loc: 0.965
+      scale: 0.004
+    proposal: 0.002
+    latex: n_\mathrm{s}
+  H0:
+    prior:
+      min: 40
+      max: 100
+    ref:
+      dist: norm
+      loc: 67
+      scale: 2
+    proposal: 2
+    latex: H_0
+  tau_reio:
+    prior:
+      dist: norm
+      loc: 0.051
+      scale: 0.006
+    ref: 0.051
+    proposal: 0.003
+    latex: \tau_\mathrm{reio}
+  omega_b:
+    prior:
+      min: 0.0075
+      max: 0.03
+    ref:
+      dist: norm
+      loc: 0.0224
+      scale: 0.0001
+    proposal: 0.0001
+    latex: \Omega_\mathrm{b} h^2
+  omega_cdm:
+    prior:
+      min: 0.001
+      max: 0.99
+    ref:
+      dist: norm
+      loc: 0.12
+      scale: 0.001
+    proposal: 0.0005
+    latex: \Omega_\mathrm{c} h^2
+
+  # spt (candl) nuisance paramters
+  Tcal:
+    latex: T_{\rm cal}
+    prior:
+      dist: norm
+      loc: 1.0
+      scale: 0.0036
+    ref: 1.0
+  Ecal:
+    latex: E_{\rm cal}
+    prior:
+      max: 1.2
+      min: 0.8
+    ref: 1.0
+
+  # Example extra model parameter
+  # p_extra_param:
+  #  prior:
+  #    min: 0
+  #    max: 1
+  #  ref:
+  #    dist: norm
+  #    loc: 0.12
+  #    scale: 0.001
+  #  proposal: 0.0005
+  #  latex: p_\mathrm{extra}
+
+  # Derived and other parameters
+  Omega_m:
+    latex: \Omega_\mathrm{m}
+    derived: True
+  omegamh2:
+    derived: 'lambda Omega_m, H0: Omega_m*(H0/100)**2'
+    latex: \Omega_\mathrm{m} h^2
+  m_ncdm:
+    value: 0.06
+  Omega_Lambda:
+    latex: \Omega_\Lambda
+    derived: True
+  A_s:
+    value: 'lambda logA: 1e-10*np.exp(logA)'
+    derived: True
+    latex: A_\mathrm{s}
+  YHe:
+    latex: Y_\mathrm{P}
+    derived: True
+  z_reio:
+    latex: z_\mathrm{re}
+    derived: True
+  sigma8:
+    latex: \sigma_8
+    derived: True
+  s8h5:
+    derived: 'lambda sigma8, H0: sigma8*(H0*1e-2)**(-0.5)'
+    latex: \sigma_8/h^{0.5}
+  s8omegamp5:
+    derived: 'lambda sigma8, Omega_m: sigma8*Omega_m**0.5'
+    latex: \sigma_8 \Omega_\mathrm{m}^{0.5}
+  s8omegamp25:
+    derived: 'lambda sigma8, Omega_m: sigma8*Omega_m**0.25'
+    latex: \sigma_8 \Omega_\mathrm{m}^{0.25}
+  A:
+    derived: 'lambda A_s: 1e9*A_s'
+    latex: 10^9 A_\mathrm{s}
+  clamp:
+    derived: 'lambda A_s, tau_reio: 1e9*A_s*np.exp(-2*tau_reio)'
+    latex: 10^9 A_\mathrm{s} e^{-2\tau}
+  age:
+    latex: '{\rm{Age}}/\mathrm{Gyr}'
+    derived: True
+  rs_drag:
+    latex: r_\mathrm{drag}
+    derived: True
+  theta_star_100:
+    latex: 100\theta_\star
+    derived: true
+  z_star:
+    latex: z_\star
+    derived: true
+  rs_star:
+    latex: r_\star
+    derived: true
+  da_star:
+    latex: D_A(z_\star)
+    derived: true
+  z_d:
+    latex: z_\mathrm{d}
+    derived: true
+  z_eq:
+    latex: z_\mathrm{eq}
+    derived: true
+  k_eq:
+    latex: k_\mathrm{eq}
+    derived: true
+  S8:
+    derived: ' lambda sigma8, omegam: (omegam/0.3)**0.5/sigma8'
+    latex: S_8
+  omegamh3:
+    derived: 'lambda omegam, H0: omegam*(H0/100)**3'
+    latex: \Omega_\mathrm{m} h^3
+  rs_d_h:
+    latex: r_\mathrm{drag}
+    derived: True
+    
+sampler:
+  mcmc:
+    covmat: auto
+    drag: true
+    oversample_power: 0.4
+    proposal_scale: 1.9
+    Rminus1_stop: 0.02
+    Rminus1_cl_stop: 0.2

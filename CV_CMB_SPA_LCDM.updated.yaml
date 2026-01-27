@@ -1,0 +1,370 @@
+theory:
+  classy:
+    path: /mnt/tier2/users/u103677/iDM
+    speed: 0.2
+    stop_at_error: false
+    extra_args:
+      gauge: newtonian
+      nonlinear_min_k_max: 25
+      N_ncdm: 1
+      N_ur: 2.046
+      sBBN file: sBBN_2017.dat
+      non linear: hmcode
+      hmcode_version: 2020
+    ignore_obsolete: false
+    renames:
+      As: A_s
+      ns: n_s
+      nrun: alpha_s
+      nrunrun: beta_s
+      nt: n_t
+      ntrun: alpha_t
+      rdrag: rs_drag
+      omegak: Omega_k
+      omegal: Omega_Lambda
+      w: w0_fld
+      wa: wa_fld
+      omegabh2: omega_b
+      omegab: Omega_b
+      omegach2: omega_cdm
+      omegac: Omega_cdm
+      omegam: Omega_m
+      omegan: Omega_nu
+      tau: tau_reio
+      zrei: z_reio
+      deltazrei: reionization_width
+      helium_redshift: helium_fullreio_redshift
+      helium_delta_redshift: helium_fullreio_width
+      yhe: YHe
+      yheused: YHe
+    version: null
+likelihood:
+  planck_2018_lowl.TT:
+    lmin: 2
+    lmax: 29
+    type: CMB
+    aliases:
+    - lowT
+    speed: -1
+    stop_at_error: false
+    version: null
+  act_dr6_cmbonly.PlanckActCut:
+    path: null
+    dataset_file: plik_lite_v22.dataset
+    dataset_params:
+      use_cl: tt te ee
+      lmin_cuts: 0 0 0
+      lmax_cuts: 1000 600 600
+    aliases:
+    - plikHM_TTTEEE
+    speed: 200
+    type: CMB
+    stop_at_error: false
+    version: null
+    package_install:
+      github_repository: ACTCollaboration/DR6-ACT-lite
+  act_dr6_cmbonly.ACTDR6CMBonly:
+    url: https://lambda.gsfc.nasa.gov/data/act/pspipe/sacc_files/
+    input_file: dr6_data_cmbonly.fits
+    data_folder: ACTDR6CMBonly
+    version: v1.0
+    ell_cuts:
+      TT:
+      - 600
+      - 8500
+      TE:
+      - 600
+      - 8500
+      EE:
+      - 600
+      - 8500
+    lmax_theory: 9000
+    type: []
+    speed: -1
+    stop_at_error: true
+  act_dr6_lenslike.ACTDR6LensLike:
+    lmax: 4000
+    mock: false
+    nsims_act: 792.0
+    nsims_planck: 400.0
+    no_like_corrections: false
+    no_actlike_cmb_corrections: false
+    lens_only: false
+    trim_lmax: 2998
+    variant: actplanck_baseline
+    apply_hartlap: true
+    limber: false
+    nz: 100
+    kmax: 10
+    zmax: null
+    scale_cov: null
+    varying_cmb_alens: false
+    version: null
+    act_cmb_rescale: false
+    act_calib: false
+    type: []
+    speed: -1
+    stop_at_error: true
+    package_install:
+      github_repository: ACTCollaboration/act_dr6_lenslike
+  spt3g_d1_tne:
+    data_set_file: spt_candl_data.SPT3G_D1_TnE
+    variant: lite
+    clear_internal_priors: true
+    clear_specific_priors: []
+    lensing: false
+    add_logdet: false
+    feedback: true
+    data_selection: true
+    wrapper: null
+    additional_args: {}
+    type: []
+    speed: -1
+    stop_at_error: false
+    version: null
+    package_install:
+      github_repository: SouthPoleTelescope/spt_candl_data
+    class: candl.interface.CandlCobayaLikelihood
+  muse3glike.cobaya.spt3g_2yr_delensed_ee_optimal_pp_muse:
+    components:
+    - ϕϕ
+    filename: null
+    type: []
+    speed: -1
+    stop_at_error: false
+    version: null
+    package_install:
+      download_url: https://pole.uchicago.edu/public/data/ge25/muse_3g_like_march_2025.zip
+params:
+  logA:
+    prior:
+      min: 1.61
+      max: 3.91
+    ref:
+      dist: norm
+      loc: 3.05
+      scale: 0.001
+    proposal: 0.001
+    latex: \log(10^{10} A_\mathrm{s})
+    drop: true
+  n_s:
+    prior:
+      min: 0.8
+      max: 1.2
+    ref:
+      dist: norm
+      loc: 0.965
+      scale: 0.004
+    proposal: 0.002
+    latex: n_\mathrm{s}
+    renames:
+    - ns
+  H0:
+    prior:
+      min: 40
+      max: 100
+    ref:
+      dist: norm
+      loc: 67
+      scale: 2
+    proposal: 2
+    latex: H_0
+  tau_reio:
+    prior:
+      dist: norm
+      loc: 0.051
+      scale: 0.006
+    ref: 0.051
+    proposal: 0.003
+    latex: \tau_\mathrm{reio}
+    renames:
+    - tau
+  omega_b:
+    prior:
+      min: 0.0075
+      max: 0.03
+    ref:
+      dist: norm
+      loc: 0.0224
+      scale: 0.0001
+    proposal: 0.0001
+    latex: \Omega_\mathrm{b} h^2
+    renames:
+    - omegabh2
+  omega_cdm:
+    prior:
+      min: 0.001
+      max: 0.99
+    ref:
+      dist: norm
+      loc: 0.12
+      scale: 0.001
+    proposal: 0.0005
+    latex: \Omega_\mathrm{c} h^2
+    renames:
+    - omegach2
+  Tcal:
+    latex: T_{\rm cal}
+    prior:
+      dist: norm
+      loc: 1.0
+      scale: 0.0036
+    ref: 1.0
+  Ecal:
+    latex: E_{\rm cal}
+    prior:
+      max: 1.2
+      min: 0.8
+    ref: 1.0
+  Omega_m:
+    latex: \Omega_\mathrm{m}
+    derived: true
+    renames:
+    - omegam
+  omegamh2:
+    derived: 'lambda Omega_m, H0: Omega_m*(H0/100)**2'
+    latex: \Omega_\mathrm{m} h^2
+  m_ncdm:
+    value: 0.06
+  Omega_Lambda:
+    latex: \Omega_\Lambda
+    derived: true
+    renames:
+    - omegal
+  A_s:
+    value: 'lambda logA: 1e-10*np.exp(logA)'
+    derived: true
+    latex: A_\mathrm{s}
+    renames:
+    - As
+  YHe:
+    latex: Y_\mathrm{P}
+    derived: true
+    renames:
+    - yheused
+    - yhe
+  z_reio:
+    latex: z_\mathrm{re}
+    derived: true
+    renames:
+    - zrei
+  sigma8:
+    latex: \sigma_8
+    derived: true
+  s8h5:
+    derived: 'lambda sigma8, H0: sigma8*(H0*1e-2)**(-0.5)'
+    latex: \sigma_8/h^{0.5}
+  s8omegamp5:
+    derived: 'lambda sigma8, Omega_m: sigma8*Omega_m**0.5'
+    latex: \sigma_8 \Omega_\mathrm{m}^{0.5}
+  s8omegamp25:
+    derived: 'lambda sigma8, Omega_m: sigma8*Omega_m**0.25'
+    latex: \sigma_8 \Omega_\mathrm{m}^{0.25}
+  A:
+    derived: 'lambda A_s: 1e9*A_s'
+    latex: 10^9 A_\mathrm{s}
+  clamp:
+    derived: 'lambda A_s, tau_reio: 1e9*A_s*np.exp(-2*tau_reio)'
+    latex: 10^9 A_\mathrm{s} e^{-2\tau}
+  age:
+    latex: '{\rm{Age}}/\mathrm{Gyr}'
+    derived: true
+  rs_drag:
+    latex: r_\mathrm{drag}
+    derived: true
+    renames:
+    - rdrag
+  theta_star_100:
+    latex: 100\theta_\star
+    derived: true
+  z_star:
+    latex: z_\star
+    derived: true
+  rs_star:
+    latex: r_\star
+    derived: true
+  da_star:
+    latex: D_A(z_\star)
+    derived: true
+  z_d:
+    latex: z_\mathrm{d}
+    derived: true
+  z_eq:
+    latex: z_\mathrm{eq}
+    derived: true
+  k_eq:
+    latex: k_\mathrm{eq}
+    derived: true
+  S8:
+    derived: ' lambda sigma8, omegam: (omegam/0.3)**0.5/sigma8'
+    latex: S_8
+  omegamh3:
+    derived: 'lambda omegam, H0: omegam*(H0/100)**3'
+    latex: \Omega_\mathrm{m} h^3
+  rs_d_h:
+    latex: r_\mathrm{drag}
+    derived: true
+  A_planck:
+    prior:
+      min: 0.5
+      max: 1.5
+    ref:
+      dist: norm
+      loc: 1.0
+      scale: 0.1
+    latex: A_{\rm planck}
+    proposal: 0.003
+  A_act:
+    value: 'lambda A_planck: A_planck'
+    latex: A_{\rm ACT}
+    derived: true
+  P_act:
+    prior:
+      min: 0.9
+      max: 1.1
+    ref:
+      dist: norm
+      loc: 1.0
+      scale: 0.01
+    proposal: 0.01
+    latex: p_{\rm ACT}
+  chi2__CMB:
+    latex: \chi^2_\mathrm{CMB}
+    derived: true
+sampler:
+  mcmc:
+    sampler_type: mcmc
+    supports_periodic_params: true
+    burn_in: 0
+    max_tries: 40d
+    covmat: auto
+    covmat_params: null
+    proposal_scale: 1.9
+    output_every: 60s
+    learn_every: 40d
+    temperature: 1
+    learn_proposal: true
+    learn_proposal_Rminus1_max: 2.0
+    learn_proposal_Rminus1_max_early: 30.0
+    learn_proposal_Rminus1_min: 0.0
+    max_samples: .inf
+    Rminus1_stop: 0.02
+    Rminus1_cl_stop: 0.2
+    Rminus1_cl_level: 0.95
+    Rminus1_single_split: 4
+    measure_speeds: true
+    oversample_power: 0.4
+    oversample_thin: true
+    drag: true
+    blocking: null
+    callback_function: null
+    callback_every: null
+    seed: null
+    check_every: null
+    oversample: null
+    drag_limits: null
+    fallback_covmat_scale: 4
+    version: null
+output: CV_CMB_SPA_LCDM
+test: true
+version: '3.6'
