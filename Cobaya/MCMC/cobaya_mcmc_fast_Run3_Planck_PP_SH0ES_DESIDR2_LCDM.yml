@@ -8,16 +8,55 @@ output:
 post:
   # 2. Define a suffix for the new chain files (e.g., chains/run_1.post.SN_BAO.1.txt)
   suffix: SN_BAO
+
+  remove:
+    theory:
+      classy:
+        extra_args:
+          P_k_max_1/Mpc:
+    params:
+      z_reio:
+      Omega_m:
+      Omega_Lambda:
   
   # 3. Add the new likelihoods
   add:
+    # New likelihoods to be added
     likelihood:
-      H0.riess2020Mb:  
+      H0.riess2020:
       bao.desi_dr2:
-      sn.pantheon: 
-        use_abs_mag: True
       sn.pantheonplus:
+    # --- Override parameters ---
+    params:
+      # Flag z_reio to be ignored by the theory code in the input dictionary.
+      # This fixes the conflict with tau_reio.
+      z_reio:
+        drop: true
+        # We must also ensure it is defined as derived, 
+        # unless it was already defined as such in the base run
+        # (It likely was, but overriding the definition is safest)
+        derived: true
+      # Fix the Omega_m conflict: Tell Cobaya NOT to pass this to CLASS
+      Omega_m:
+        drop: true
+        derived: true # Ensure it stays available as an output parameter
+      # Fix the closure parameter conflict:
+      Omega_Lambda:
+        drop: true
+        derived: true
+# P_k_max_1/Mpc needs to be removed to avoid conflicts. Therefore, theory block is repeated here.
+    theory:
+      classy:
+        path: /home/users/u103677/iDM/
+        extra_args:
+          N_ncdm: 1
+          N_ur: 2.0328
+          tol_initial_Omega_r: 0.001
+          gauge: newtonian
+          non linear: halofit
       
 # No 'params' block needed.
-# No 'theory' block needed (unless changing precision).
 # No 'sampler' block needed.
+
+
+
