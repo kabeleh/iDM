@@ -9,8 +9,8 @@ import re
 # Specify the parameters
 sampler = "mcmc"  # MCMC or Polychord
 likelihood = "CV_PP_DESI"  # likelihood combination
-potential = "LCDM"  # LCDM or iDM potential for scalar field models
-attractor = "no"  # Scaling Solution; Ignored for LCDM
+potential = "DoubleExp"  # LCDM or iDM potential for scalar field models
+attractor = "yes"  # Scaling Solution; Ignored for LCDM
 coupling = "uncoupled"  # Coupling; Ignored for LCDM
 
 yaml = YAML()
@@ -556,14 +556,12 @@ def create_cobaya_yaml(
         "z_d": {"latex": "z_\\mathrm{d}", "derived": True},
         "z_eq": {"latex": "z_\\mathrm{eq}", "derived": True},
         "k_eq": {"latex": "k_\\mathrm{eq}", "derived": True},
-        # The the S8 definition: is it really omegam/sigma8 or what I have here:
         "S8": {
-            "derived": "lambda sigma8, Omega_m: sigma8*(Omega_m/0.3)**0.5",
+            "derived": "lambda sigma8, omegam: (omegam/0.3)**0.5/sigma8",
             "latex": "S_8",
         },
-        # Same here, is it actually 'lambda omegam, H0: omegam*(H0/100)**3'?
         "omegamh3": {
-            "derived": "lambda Omega_m, H0: Omega_m*(H0/100)**3",
+            "derived": "lambda omegam, H0: omegam*(H0/100)**3",
             "latex": "\\Omega_\\mathrm{m} h^3",
         },
         "rs_d_h": {"latex": "r_\\mathrm{drag}", "derived": True},
