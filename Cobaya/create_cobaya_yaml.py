@@ -9,7 +9,7 @@ import re
 # Specify the parameters
 sampler = "mcmc"  # MCMC or Polychord
 likelihood = "CV_PP_S_DESI"  # likelihood combination
-potential = "DoubleExp"  # LCDM or iDM potential for scalar field models
+potential = "LCDM"  # LCDM or iDM potential for scalar field models
 attractor = "yes"  # Scaling Solution; Ignored for LCDM
 coupling = "uncoupled"  # Coupling; Ignored for LCDM
 
@@ -804,8 +804,8 @@ def create_cobaya_yaml(
             "N_ncdm": 1,
             "N_ur": 2.046,
             "sBBN file": "sBBN_2017.dat",
-            "non linear": "hmcode",
-            "hmcode_version": 2020,
+            "non linear": "halofit",
+            # "hmcode_version": 2020,
             "model_cdm": "i",
             "tol_initial_Omega_r": 1e-3,
             "scf_tuning_index": 0,
