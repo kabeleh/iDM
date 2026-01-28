@@ -793,8 +793,8 @@ def create_cobaya_yaml(
             "N_ncdm": 1,
             "N_ur": 2.046,
             "sBBN file": "sBBN_2017.dat",
-            "non linear": "hmcode",
-            "hmcode_version": 2020,
+            "non linear": "halofit",
+            # "hmcode_version": 2020,
         }
     else:
         # iDM scalar field settings
