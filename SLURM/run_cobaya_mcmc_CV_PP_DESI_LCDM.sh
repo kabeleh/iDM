@@ -33,7 +33,7 @@ EXIT_CODE=143
 while [ $EXIT_CODE -eq 143 ] && [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
     RETRY_COUNT=$((RETRY_COUNT + 1))
     echo "Attempt $RETRY_COUNT of $MAX_RETRIES"
-    srun --cpus-per-task=$SLURM_CPUS_PER_TASK cobaya-run /home/users/u103677/iDM/Cobaya/MCMC/cobaya_mcmc_CV_PP_DESI_LCDM.yml --resume
+    srun --cpus-per-task=$SLURM_CPUS_PER_TASK cobaya-run /home/users/u103677/iDM/Cobaya/MCMC/CV_PP_DESI_LCDM.yml --resume
     EXIT_CODE=$?
     echo "Exit code: $EXIT_CODE"
     if [ $EXIT_CODE -eq 143 ]; then
