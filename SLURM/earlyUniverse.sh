@@ -26,10 +26,10 @@ source my_python-env/bin/activate
 export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
 
 
-srun -n 4 --exact --cpus-per-task=$SLURM_CPUS_PER_TASK cobaya-run /home/users/u103677/iDM/Cobaya/MCMC/cobaya_mcmc_CV_PP_DESI_hyperbolic_tracking_uncoupled.yml --resume > CV_PP_DESI_hyperbolic.txt &
-srun -n 4 --exact --cpus-per-task=$SLURM_CPUS_PER_TASK cobaya-run /home/users/u103677/iDM/Cobaya/MCMC/cobaya_mcmc_CV_PP_S_DESI_hyperbolic_tracking_uncoupled.yml --resume > CV_PP_S_DESI_hyperbolic.txt &
-srun -n 4 --exact --cpus-per-task=$SLURM_CPUS_PER_TASK cobaya-run /home/users/u103677/iDM/Cobaya/MCMC/cobaya_mcmc_CV_PP_S_DESI_DoubleExp_tracking_uncoupled.yml --resume > CV_PP_S_DESI_DoubleExp.txt &
-srun -n 4 --exact --cpus-per-task=$SLURM_CPUS_PER_TASK cobaya-run /home/users/u103677/iDM/Cobaya/MCMC/cobaya_mcmc_CV_PP_S_DESI_LCDM.yml --resume > CV_PP_S_DESI_LCDM.txt &
+srun -n 4 --exact --cpus-per-task=$SLURM_CPUS_PER_TASK cobaya-run /home/users/u103677/iDM/Cobaya/MCMC/cobaya_mcmc_CV_PP_DESI_hyperbolic_tracking_uncoupled.yml --resume > "${SLURM_JOB_ID}_CV_PP_DESI_hyperbolic.txt" &
+srun -n 4 --exact --cpus-per-task=$SLURM_CPUS_PER_TASK cobaya-run /home/users/u103677/iDM/Cobaya/MCMC/cobaya_mcmc_CV_PP_S_DESI_hyperbolic_tracking_uncoupled.yml --resume > "${SLURM_JOB_ID}_CV_PP_S_DESI_hyperbolic.txt" &
+srun -n 4 --exact --cpus-per-task=$SLURM_CPUS_PER_TASK cobaya-run /home/users/u103677/iDM/Cobaya/MCMC/cobaya_mcmc_CV_PP_S_DESI_DoubleExp_tracking_uncoupled.yml --resume > "${SLURM_JOB_ID}_CV_PP_S_DESI_DoubleExp.txt" &
+srun -n 4 --exact --cpus-per-task=$SLURM_CPUS_PER_TASK cobaya-run /home/users/u103677/iDM/Cobaya/MCMC/cobaya_mcmc_CV_PP_DESI_DoubleExp_tracking_uncoupled.yml --resume > "${SLURM_JOB_ID}_CV_PP_DESI_DoubleExp.txt" &
 wait
 #Check energy consumption after job completion
 sacct -j $SLURM_JOB_ID -o jobid,jobname,partition,account,state,consumedenergyraw
