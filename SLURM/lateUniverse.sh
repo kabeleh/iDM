@@ -1,15 +1,15 @@
 #!/bin/bash -l
-#SBATCH --job-name=run_cobaya_mcmc_CV_PP_DESI_combined
+#SBATCH --job-name=late_MCMC_PP_S_DESI_iDM
 #SBATCH --account p201176
 #SBATCH --partition cpu
-#SBATCH --qos short
+#SBATCH --qos default
 #SBATCH --nodes 1
 #SBATCH --ntasks 16
 #SBATCH --ntasks-per-node 16
 #SBATCH --cpus-per-task 8
-#SBATCH --time 06:00:00
-#SBATCH --output %j.run_cobaya_mcmc_CV_PP_DESI_combined.out
-#SBATCH --error %j.run_cobaya_mcmc_CV_PP_DESI_combined.err
+#SBATCH --time 48:00:00
+#SBATCH --output %j.late_MCMC_PP_S_DESI_iDM.out
+#SBATCH --error %j.late_MCMC_PP_S_DESI_iDM.err
 #SBATCH --mail-user kay.lehnert.2023@mumail.ie
 #SBATCH --mail-type END,FAIL
 

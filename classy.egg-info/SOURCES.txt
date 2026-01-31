@@ -7,6 +7,7 @@ setup.py
 ./CLASS_rename.py
 ./Makefile
 ./__init__.py
+./setup.py
 ./external/HMcode/hmcode.c
 ./external/HMcode/hmcode.h
 ./external/Halofit/halofit.c

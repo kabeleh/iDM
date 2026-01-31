@@ -2,12 +2,12 @@
 #SBATCH --job-name=run_cobaya_polychord_CV_PP_DESI_hyperbolic_tracking_uncoupled
 #SBATCH --account p201176
 #SBATCH --partition cpu
-#SBATCH --qos short
+#SBATCH --qos default
 #SBATCH --nodes 1
 #SBATCH --ntasks 4
 #SBATCH --ntasks-per-node 4
 #SBATCH --cpus-per-task 64
-#SBATCH --time 06:00:00
+#SBATCH --time 48:00:00
 #SBATCH --output %j.run_cobaya_polychord_CV_PP_DESI_hyperbolic_tracking_uncoupled.out
 #SBATCH --error %j.run_cobaya_polychord_CV_PP_DESI_hyperbolic_tracking_uncoupled.err
 #SBATCH --mail-user kay.lehnert.2023@mumail.ie

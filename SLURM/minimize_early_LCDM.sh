@@ -1,5 +1,5 @@
 #!/bin/bash -l
-#SBATCH --job-name=mi nimize_early_LCDM
+#SBATCH --job-name=minimize_early_LCDM
 #SBATCH --account p201176
 #SBATCH --partition cpu
 #SBATCH --qos short

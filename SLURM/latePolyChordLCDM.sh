@@ -2,12 +2,12 @@
 #SBATCH --job-name=run_cobaya_polychord_CV_PP_DESI_LCDM
 #SBATCH --account p201176
 #SBATCH --partition cpu
-#SBATCH --qos short
+#SBATCH --qos default
 #SBATCH --nodes 1
 #SBATCH --ntasks 8
 #SBATCH --ntasks-per-node 8
 #SBATCH --cpus-per-task 16
-#SBATCH --time 06:00:00
+#SBATCH --time 48:00:00
 #SBATCH --output %j.run_cobaya_polychord_CV_PP_DESI_LCDM.out
 #SBATCH --error %j.run_cobaya_polychord_CV_PP_DESI_LCDM.err
 #SBATCH --mail-user kay.lehnert.2023@mumail.ie

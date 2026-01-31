@@ -6,7 +6,7 @@
 #SBATCH --nodes 1
 #SBATCH --ntasks 1
 #SBATCH --ntasks-per-node 1
-#SBATCH --cpus-per-task 64
+#SBATCH --cpus-per-task 256
 #SBATCH --time 00:05:00
 #SBATCH --output %j.test_cobaya_mcmc_CV_CMB_SPA_PP_S_DESI_LCDM.out
 #SBATCH --error %j.test_cobaya_mcmc_CV_CMB_SPA_PP_S_DESI_LCDM.err

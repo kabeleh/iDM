@@ -1,13 +1,13 @@
 #!/bin/bash -l
-#SBATCH --job-name=run_cobaya_polychord_CV_PP_DESI_combined
+#SBATCH --job-name=polychord_CV_PP_DESI_combined
 #SBATCH --account p201176
 #SBATCH --partition cpu
-#SBATCH --qos short
+#SBATCH --qos default
 #SBATCH --nodes 1
 #SBATCH --ntasks 16
 #SBATCH --ntasks-per-node 16
 #SBATCH --cpus-per-task 8
-#SBATCH --time 06:00:00
+#SBATCH --time 48:00:00
 #SBATCH --output %j.run_cobaya_polychord_CV_PP_DESI_combined.out
 #SBATCH --error %j.run_cobaya_polychord_CV_PP_DESI_combined.err
 #SBATCH --mail-user kay.lehnert.2023@mumail.ie
