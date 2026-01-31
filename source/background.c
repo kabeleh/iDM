@@ -515,9 +515,12 @@ int background_functions(
     rho_tot += pvecback[pba->index_bg_rho_scf];
     p_tot += pvecback[pba->index_bg_p_scf];
     dp_dloga += 0.0; /** <-- This depends on a_prime_over_a, so we cannot add it now! */
-    // divide relativistic & nonrelativistic (not very meaningful for oscillatory models)
-    rho_r += 3. * pvecback[pba->index_bg_p_scf];                                   // field pressure contributes radiation
-    rho_m += pvecback[pba->index_bg_rho_scf] - 3. * pvecback[pba->index_bg_p_scf]; // the rest contributes matter
+    // KBL: Do NOT add scalar field to rho_m when it acts as dark energy (quintessence).
+    // The original CLASS code below splits scf into relativistic and non-relativistic parts,
+    // but this is incorrect for tracking quintessence models where the scf IS dark energy.
+    // Otherwise, Omega_scf is added 4 times to Omega_m, which yields roughly Omega_m=0.7*4=2.8 in MCMC as mean value. This is probably because DE is then dominating the entire energy budget.
+    // rho_r += 3. * pvecback[pba->index_bg_p_scf];                                   // field pressure contributes radiation
+    // rho_m += pvecback[pba->index_bg_rho_scf] - 3. * pvecback[pba->index_bg_p_scf]; // the rest contributes matter
     // printf(" a= %e, Omega_scf = %f, \n ",a, pvecback[pba->index_bg_rho_scf]/rho_tot );
   }
 
