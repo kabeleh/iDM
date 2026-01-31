@@ -7,8 +7,8 @@ from ruamel.yaml.comments import CommentedSeq
 import re
 
 # Specify the parameters
-sampler = "minimize_mcmc"  # MCMC or Polychord
-likelihood = "CV_PP_DESI"  # likelihood combination
+sampler = "mcmc"  # MCMC or Polychord
+likelihood = "CV_CMB_SPA_PP_S_DESI"  # likelihood combination
 potential = "LCDM"  # LCDM or iDM potential for scalar field models
 attractor = "yes"  # Scaling Solution; Ignored for LCDM
 coupling = "uncoupled"  # Coupling; Ignored for LCDM
@@ -264,6 +264,18 @@ def create_cobaya_yaml(
                 "stop_at_error": True,
                 "lmax": 4000,
                 "variant": "actplanck_baseline",
+            },
+            "spt3g_d1_tne": {
+                "package_install": {
+                    "github_repository": "SouthPoleTelescope/spt_candl_data"
+                },
+                "class": "candl.interface.CandlCobayaLikelihood",
+                "additional_args": {},
+                "clear_internal_priors": True,
+                "data_set_file": "spt_candl_data.SPT3G_D1_TnE",
+                "variant": "lite",
+                "feedback": True,
+                "wrapper": None,
             },
             "muse3glike.cobaya.spt3g_2yr_delensed_ee_optimal_pp_muse": {
                 "package_install": {
