@@ -170,6 +170,7 @@ def create_cobaya_yaml(
         "sampler": {
             "minimize": {
                 "best_of": 4,
+                "ignore_prior": True,  # needed for AIC and BIC computation, where prior is not taken into account
             }
         },
     }
