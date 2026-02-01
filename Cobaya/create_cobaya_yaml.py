@@ -9,7 +9,7 @@ import re
 # Specify the parameters
 sampler = "mcmc"  # MCMC or Polychord
 likelihood = "CV_CMB_SPA_PP_S_DESI"  # likelihood combination
-potential = "LCDM"  # LCDM or iDM potential for scalar field models
+potential = "DoubleExp"  # LCDM or iDM potential for scalar field models
 attractor = "yes"  # Scaling Solution; Ignored for LCDM
 coupling = "uncoupled"  # Coupling; Ignored for LCDM
 
