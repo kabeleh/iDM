@@ -1,6 +1,6 @@
 sampler:
   mcmc:
-    covmat: auto
+    covmat: /project/home/p201176/cobaya_mcmc_CV_CMB_SPA_PP_DESI_LCDM.covmat 
     drag: true
     oversample_power: 0.4
     proposal_scale: 1.9
@@ -57,6 +57,16 @@ likelihood:
     stop_at_error: true
     lmax: 4000
     variant: actplanck_baseline
+  spt3g_d1_tne:
+    package_install:
+      github_repository: SouthPoleTelescope/spt_candl_data
+    class: candl.interface.CandlCobayaLikelihood
+    additional_args: {}
+    clear_internal_priors: true
+    data_set_file: spt_candl_data.SPT3G_D1_TnE
+    variant: lite
+    feedback: true
+    wrapper:
   muse3glike.cobaya.spt3g_2yr_delensed_ee_optimal_pp_muse:
     package_install:
       download_url: 
@@ -189,10 +199,10 @@ params:
     latex: k_\mathrm{eq}
     derived: true
   S8:
-    derived: 'lambda sigma8, Omega_m: sigma8*(Omega_m/0.3)**0.5'
+    derived: 'lambda sigma8, omegam: (omegam/0.3)**0.5/sigma8'
     latex: S_8
   omegamh3:
-    derived: 'lambda Omega_m, H0: Omega_m*(H0/100)**3'
+    derived: 'lambda omegam, H0: omegam*(H0/100)**3'
     latex: \Omega_\mathrm{m} h^3
   rs_d_h:
     latex: r_\mathrm{drag}
@@ -219,6 +229,5 @@ theory:
       N_ncdm: 1
       N_ur: 2.046
       sBBN file: sBBN_2017.dat
-      non linear: hmcode
-      hmcode_version: 2020
+      non linear: halofit
 output: /project/home/p201176/cobaya_mcmc_CV_CMB_SPA_LCDM
