@@ -2,25 +2,26 @@
 # Output: cobaya_<sampler>_<likelihood>_<potential>_<attractor>_<coupling>.yml
 # For LCDM: cobaya_<sampler>_<likelihood>_LCDM.yml
 
+from typing import Any, Union
 from ruamel.yaml import YAML
 from ruamel.yaml.comments import CommentedSeq
 import re
 
 # Specify the parameters
-sampler = "mcmc"  # MCMC or Polychord
-likelihood = "CV_CMB_SPA_PP_DESI"  # likelihood combination
-potential = "hyperbolic"  # LCDM or iDM potential for scalar field models
-attractor = "yes"  # Scaling Solution; Ignored for LCDM
-coupling = "uncoupled"  # Coupling; Ignored for LCDM
+sampler: str = "minimize_mcmc"  # MCMC or Polychord
+likelihood: str = "CV_CMB_SPA_PP_DESI"  # likelihood combination
+potential: str = "LCDM"  # LCDM or iDM potential for scalar field models
+attractor: str = "yes"  # Scaling Solution; Ignored for LCDM
+coupling: str = "uncoupled"  # Coupling; Ignored for LCDM
 
-yaml = YAML()
+yaml: YAML = YAML()
 # yaml.version = (1, 2)  # Specify YAML version
 
 
-def flow_seq(lst):
+def flow_seq(lst: list[Any]) -> CommentedSeq:
     """Create a YAML sequence that will be serialized in flow style [a, b, c]"""
     cs = CommentedSeq(lst)
-    cs.fa.set_flow_style()
+    cs.fa.set_flow_style()  # type: ignore[attr-defined]
     return cs
 
 
@@ -30,7 +31,7 @@ def create_cobaya_yaml(
     potential: str,
     attractor: str = "no",
     coupling: str = "uncoupled",
-) -> dict:
+) -> dict[str, Any]:
     """
     Create a Cobaya YAML configuration dictionary.
 
@@ -126,7 +127,7 @@ def create_cobaya_yaml(
 
     # Define samplers
 
-    polychord = {
+    polychord: dict[str, Any] = {
         "sampler": {
             "polychord": {
                 "nprior": "20nlive",
@@ -136,7 +137,7 @@ def create_cobaya_yaml(
         },
     }
 
-    mcmc = {
+    mcmc: dict[str, Any] = {
         "sampler": {
             "mcmc": {
                 "covmat": "auto",
@@ -151,7 +152,7 @@ def create_cobaya_yaml(
         },
     }
 
-    mcmc_fast = {
+    mcmc_fast: dict[str, Any] = {
         "sampler": {
             "mcmc": {
                 "covmat": "auto",
@@ -166,7 +167,7 @@ def create_cobaya_yaml(
         },
     }
 
-    minimize = {
+    minimize: dict[str, Any] = {
         "sampler": {
             "minimize": {
                 "best_of": 4,
@@ -175,7 +176,7 @@ def create_cobaya_yaml(
         },
     }
 
-    SAMPLERS = {
+    SAMPLERS: dict[str, dict[str, Any]] = {
         "polychord": polychord,
         "mcmc": mcmc,
         "mcmc_fast": mcmc_fast,
@@ -186,7 +187,7 @@ def create_cobaya_yaml(
 
     # Define Likelihoods
 
-    Run1_Planck_2018 = {
+    Run1_Planck_2018: dict[str, Any] = {
         "likelihood": {
             "planck_2018_lowl.EE": None,
             "planck_2018_lowl.TT": None,
@@ -200,7 +201,7 @@ def create_cobaya_yaml(
         },
     }
 
-    Run2_PP_SH0ES_DESIDR2 = {
+    Run2_PP_SH0ES_DESIDR2: dict[str, Any] = {
         "likelihood": {
             "H0.riess2020": None,
             "bao.desi_dr2": None,
@@ -210,11 +211,11 @@ def create_cobaya_yaml(
     }
 
     # Run 3 is a post-processing run that adds the likelihoods from Run 2 to Run 1 chains
-    Run3_Planck_PP_SH0ES_DESIDR2_add = Run2_PP_SH0ES_DESIDR2
+    Run3_Planck_PP_SH0ES_DESIDR2_add: dict[str, Any] = Run2_PP_SH0ES_DESIDR2
 
     # CosmoVerse Likelihoods
     # CMB-only: Planck low-l TT + ACT DR6 + ACT lensing + SPT lensing (MUSE)
-    CV_CMB_SPA = {
+    CV_CMB_SPA: dict[str, Any] = {
         "likelihood": {
             "planck_2018_lowl.TT": None,
             "act_dr6_cmbonly.PlanckActCut": {
@@ -288,7 +289,7 @@ def create_cobaya_yaml(
     }
 
     # CMB + Pantheon+ + DESI DR2
-    CV_CMB_SPA_PP_DESI = {
+    CV_CMB_SPA_PP_DESI: dict[str, Any] = {
         "likelihood": {
             "bao.desi_dr2": None,
             "sn.pantheonplus": None,
@@ -364,7 +365,7 @@ def create_cobaya_yaml(
     }
 
     # CMB + PantheonPlusSHoES + DESI DR2
-    CV_CMB_SPA_PP_S_DESI = {
+    CV_CMB_SPA_PP_S_DESI: dict[str, Any] = {
         "likelihood": {
             "bao.desi_dr2": None,
             "sn.pantheonplusshoes": None,
@@ -440,7 +441,7 @@ def create_cobaya_yaml(
     }
 
     # Pantheon+ + DESI DR2 only (no CMB)
-    CV_PP_DESI = {
+    CV_PP_DESI: dict[str, Any] = {
         "likelihood": {
             "bao.desi_dr2": None,
             "sn.pantheonplus": None,
@@ -448,14 +449,14 @@ def create_cobaya_yaml(
     }
 
     # PantheonPlusSHoES + DESI DR2 only (no CMB)
-    CV_PP_S_DESI = {
+    CV_PP_S_DESI: dict[str, Any] = {
         "likelihood": {
             "bao.desi_dr2": None,
             "sn.pantheonplusshoes": None,
         },
     }
 
-    LIKELIHOODS = {
+    LIKELIHOODS: dict[str, dict[str, Any]] = {
         "Run1_Planck_2018": Run1_Planck_2018,
         "Run2_PP_SH0ES_DESIDR2": Run2_PP_SH0ES_DESIDR2,
         "Run3_Planck_PP_SH0ES_DESIDR2": Run3_Planck_PP_SH0ES_DESIDR2_add,
@@ -485,6 +486,7 @@ def create_cobaya_yaml(
 
     # Base parameters (updated to match CosmoVerse LCDM conventions)
     # tau_reio handling: Gaussian prior for CMB runs, fixed for non-CMB runs
+    tau_reio_param: Union[dict[str, Any], float]
     if has_cmb:
         tau_reio_param = {
             "latex": "\\tau_\\mathrm{reio}",
@@ -495,7 +497,7 @@ def create_cobaya_yaml(
     else:
         tau_reio_param = 0.06  # Fixed value for non-CMB runs
 
-    parameters_base = {
+    parameters_base: dict[str, Any] = {
         "logA": {
             "drop": True,
             "latex": "\\log(10^{10} A_\\mathrm{s})",
@@ -581,7 +583,7 @@ def create_cobaya_yaml(
     }
 
     # SPT candl nuisance parameters (only for CV_CMB_SPA runs)
-    parameters_spt_candl = {
+    parameters_spt_candl: dict[str, Any] = {
         "Tcal": {
             "latex": "T_{\\rm cal}",
             "prior": {"dist": "norm", "loc": 1.0, "scale": 0.0036},
@@ -595,7 +597,7 @@ def create_cobaya_yaml(
     }
 
     # Planck-specific derived parameters (for runs with theta_s_100 as sampled parameter)
-    parameters_planck = {
+    parameters_planck: dict[str, Any] = {
         "theta_s_100": {
             "latex": "100\\theta_\\mathrm{s}",
             "prior": {"max": 10, "min": 0.5},
@@ -608,11 +610,11 @@ def create_cobaya_yaml(
     }
 
     # Scalar Field Parameters for iDM model (only for non-LCDM potentials)
-    parameters_iDM = {}
-    scf_exp_f = {}  # default: no extra prior
+    parameters_iDM: dict[str, Any] = {}
+    scf_exp_f: dict[str, Any] = {}  # default: no extra prior
 
     if not is_lcdm:
-        cdm_c = {
+        cdm_c: dict[str, Any] = {
             "prior": {"min": -3, "max": 3},
             "latex": "c_\\mathrm{DM}",
         }
@@ -626,6 +628,10 @@ def create_cobaya_yaml(
         # SqE:          V(phi) = c_1^(c_2+4) * phi^(-c_2) * exp(c_1*phi^2)
         # Bean:         V(phi) = c_1 * [(c_4-phi)^2 + c_2] * exp(-c_3*phi)
         # DoubleExp:    V(phi) = c_1 * (exp(-c_2*phi) + c_3 * exp(-c_4*phi))
+        scf_c1: dict[str, Any]
+        scf_c2: dict[str, Any]
+        scf_c3: dict[str, Any]
+        scf_c4: dict[str, Any]
         if potential in ("power-law",):
             scf_c1 = {"value": 1e-2, "drop": True, "latex": "c_1"}
             scf_c2 = {"prior": {"min": 0.5, "max": 3.5}, "drop": True, "latex": "c_2"}
@@ -699,7 +705,16 @@ def create_cobaya_yaml(
             scf_c2 = {"prior": {"min": 0.0, "max": 500}, "drop": True, "latex": "c_2"}
             scf_c3 = {"prior": {"min": 0.0, "max": 10.0}, "drop": True, "latex": "c_3"}
             scf_c4 = {"prior": {"min": 0.0, "max": 2.0}, "drop": True, "latex": "c_4"}
+        else:
+            # Should not reach here due to validation, but provide defaults for type checker
+            raise ValueError(f"Unknown potential: {potential}")
 
+        scf_q1: dict[str, Any]
+        scf_q2: dict[str, Any]
+        scf_q3: dict[str, Any]
+        scf_q4: dict[str, Any]
+        scf_exp1: dict[str, Any]
+        scf_exp2: dict[str, Any]
         if coupling == "uncoupled":
             scf_q1 = {"value": 0, "drop": True, "latex": "q_1"}
             scf_q2 = {"value": 0, "drop": True, "latex": "q_2"}
@@ -707,7 +722,7 @@ def create_cobaya_yaml(
             scf_q4 = {"value": 0, "drop": True, "latex": "q_4"}
             scf_exp1 = {"value": 0, "drop": True, "latex": "\\exp_1"}
             scf_exp2 = {"value": 0, "drop": True, "latex": "\\exp_2"}
-        elif coupling == "coupled":
+        else:  # coupling == "coupled"
             scf_q1 = {
                 "prior": {"dist": "loguniform", "a": 1e-80, "b": 1e-30},
                 "drop": True,
@@ -737,6 +752,8 @@ def create_cobaya_yaml(
                 }
             }
 
+        scf_phi_ini: dict[str, Any]
+        scf_phi_prime_ini: dict[str, Any]
         if attractor in ("yes", "Yes", "YES"):
             scf_phi_ini = {"value": 0.001, "drop": True, "latex": "\\phi_\\mathrm{ini}"}
             scf_phi_prime_ini = {
@@ -744,7 +761,7 @@ def create_cobaya_yaml(
                 "drop": True,
                 "latex": "\\phi\\prime_\\mathrm{ini}",
             }
-        elif attractor in ("no", "No", "NO"):
+        else:  # attractor in ("no", "No", "NO")
             scf_phi_ini = {
                 "prior": {"dist": "loguniform", "a": 1e-12, "b": 1e3},
                 "drop": True,
@@ -780,7 +797,7 @@ def create_cobaya_yaml(
         }
 
     # Combine all parameters
-    params = parameters_base.copy()
+    params: dict[str, Any] = parameters_base.copy()
     if not is_lcdm:
         params.update(parameters_iDM)
     if has_spt_candl:
@@ -792,12 +809,13 @@ def create_cobaya_yaml(
     ]:
         params.update(parameters_planck)
 
-    parameters = {"params": params}
+    parameters: dict[str, Any] = {"params": params}
 
     # CLASS settings
-    class_path = "/home/users/u103677/iDM/"
+    class_path: str = "/home/users/u103677/iDM/"
 
     # Different extra_args for LCDM/CosmoVerse vs iDM runs
+    extra_args: dict[str, Any]
     if is_lcdm:
         # CosmoVerse LCDM settings (standard CLASS)
         extra_args = {
@@ -826,7 +844,7 @@ def create_cobaya_yaml(
             "attractor_ic_scf": attractor,
         }
 
-    theorycode = {
+    theorycode: dict[str, Any] = {
         "theory": {
             "classy": {
                 "path": class_path,
@@ -836,7 +854,7 @@ def create_cobaya_yaml(
     }
 
     # Return one dict that represents user choice
-    config = {}
+    config: dict[str, Any] = {}
 
     # Run 3 is a post-processing run - it has a different structure
     if likelihood == "Run3_Planck_PP_SH0ES_DESIDR2":
@@ -870,10 +888,11 @@ def create_cobaya_yaml(
 configuration = create_cobaya_yaml(sampler, likelihood, potential, attractor, coupling)
 
 # Compute attractor name once for filename generation
-is_lcdm = potential == "LCDM"
-attractor_name = "tracking" if attractor in ("yes", "Yes", "YES") else "InitCond"
+is_lcdm: bool = potential == "LCDM"  # type: ignore[comparison-overlap]
+attractor_name: str = "tracking" if attractor in ("yes", "Yes", "YES") else "InitCond"
 
 # Generate filename based on potential type
+filename: str
 if is_lcdm:
     filename = f"cobaya_{sampler}_{likelihood}_LCDM.yml"
 else:
@@ -883,7 +902,7 @@ else:
 
 # Specify the output path in the YAML file
 # For Run 3 (post-processing), output is already set to point to Run 1 chains
-if likelihood != "Run3_Planck_PP_SH0ES_DESIDR2":
+if likelihood != "Run3_Planck_PP_SH0ES_DESIDR2":  # type: ignore[comparison-overlap]
     # For minimize_ samplers, output goes to the base sampler's chain directory
     if sampler.startswith("minimize_"):
         base_sampler = sampler.replace("minimize_", "")
@@ -898,7 +917,7 @@ if likelihood != "Run3_Planck_PP_SH0ES_DESIDR2":
 # Writing nested data to a YAML file
 try:
     with open(filename, "w") as file:
-        yaml.dump(configuration, file)
+        yaml.dump(configuration, file)  # type: ignore[misc]
 
     # Post-process to use bracket notation for z and R lists (used by sigma_R())
     # Standard YAML serializes lists with dashes, but these need inline bracket notation
@@ -953,15 +972,15 @@ def create_slurm_test_script(
     - str: The shell script filename that was created.
     """
     # Derive job name from yaml filename
-    job_name = "test_" + yaml_filename.replace(".yml", "")
+    job_name: str = "test_" + yaml_filename.replace(".yml", "")
 
     # Generate script filename based on yaml filename
-    script_filename = f"test_{yaml_filename.replace('.yml', '.sh')}"
+    script_filename: str = f"test_{yaml_filename.replace('.yml', '.sh')}"
 
     # Full path to the YAML file on the cluster
-    yaml_full_path = yaml_base_path + yaml_filename
+    yaml_full_path: str = yaml_base_path + yaml_filename
 
-    script_content = f"""#!/bin/bash -l
+    script_content: str = f"""#!/bin/bash -l
 #SBATCH --job-name={job_name}
 #SBATCH --account {account}
 #SBATCH --partition {partition}
@@ -1004,7 +1023,7 @@ sacct -j $SLURM_JOB_ID -o jobid,jobname,partition,account,state,consumedenergyra
 
 
 # Create the SLURM test script
-slurm_script_filename = create_slurm_test_script(yaml_filename=filename)
+slurm_script_filename: str = create_slurm_test_script(yaml_filename=filename)
 print(f"SLURM test script has been written to '{slurm_script_filename}'")
 
 # Next, we create the SLURM production script to run the full Cobaya job on the cluster and save it as run_<filename>.sh
@@ -1045,15 +1064,15 @@ def create_slurm_run_script(
     - str: The shell script filename that was created.
     """
     # Derive job name from yaml filename
-    job_name = "run_" + yaml_filename.replace(".yml", "")
+    job_name: str = "run_" + yaml_filename.replace(".yml", "")
 
     # Generate script filename based on yaml filename
-    script_filename = f"run_{yaml_filename.replace('.yml', '.sh')}"
+    script_filename: str = f"run_{yaml_filename.replace('.yml', '.sh')}"
 
     # Full path to the YAML file on the cluster
-    yaml_full_path = yaml_base_path + yaml_filename
+    yaml_full_path: str = yaml_base_path + yaml_filename
 
-    script_content = f"""#!/bin/bash -l
+    script_content: str = f"""#!/bin/bash -l
 #SBATCH --job-name={job_name}
 #SBATCH --account {account}
 #SBATCH --partition {partition}
@@ -1147,15 +1166,15 @@ def create_slurm_minimize_script(
     - str: The shell script filename that was created.
     """
     # Derive job name from yaml filename
-    job_name = "run_" + yaml_filename.replace(".yml", "")
+    job_name: str = "run_" + yaml_filename.replace(".yml", "")
 
     # Generate script filename based on yaml filename
-    script_filename = f"run_{yaml_filename.replace('.yml', '.sh')}"
+    script_filename: str = f"run_{yaml_filename.replace('.yml', '.sh')}"
 
     # Full path to the YAML file on the cluster
-    yaml_full_path = yaml_base_path + yaml_filename
+    yaml_full_path: str = yaml_base_path + yaml_filename
 
-    script_content = f"""#!/bin/bash -l
+    script_content: str = f"""#!/bin/bash -l
 #SBATCH --job-name={job_name}
 #SBATCH --account {account}
 #SBATCH --partition {partition}
@@ -1200,6 +1219,7 @@ sacct -j $SLURM_JOB_ID -o jobid,jobname,partition,account,state,consumedenergyra
 
 
 # Create the SLURM production run script (use minimize script for minimize sampler variants)
+slurm_run_script_filename: str
 if sampler.startswith("minimize_"):
     slurm_run_script_filename = create_slurm_minimize_script(yaml_filename=filename)
 else:
