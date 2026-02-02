@@ -812,7 +812,7 @@ def create_cobaya_yaml(
     parameters: dict[str, Any] = {"params": params}
 
     # CLASS settings
-    class_path: str = "/home/users/u103677/iDM/"
+    # class_path: str = "/home/users/u103677/iDM/"
 
     # Different extra_args for LCDM/CosmoVerse vs iDM runs
     extra_args: dict[str, Any]
@@ -847,7 +847,7 @@ def create_cobaya_yaml(
     theorycode: dict[str, Any] = {
         "theory": {
             "classy": {
-                "path": class_path,
+                # "path": class_path,
                 "extra_args": extra_args,
             }
         }
