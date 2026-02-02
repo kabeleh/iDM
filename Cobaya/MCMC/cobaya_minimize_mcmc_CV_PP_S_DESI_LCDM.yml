@@ -1,6 +1,7 @@
 sampler:
   minimize:
     best_of: 4
+    ignore_prior: true
 likelihood:
   bao.desi_dr2:
   sn.pantheonplusshoes:
