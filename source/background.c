@@ -2774,6 +2774,14 @@ int background_initial_conditions(
                "initial phi = %e phi_prime = %e -> check initial conditions",
                pvecback_integration[pba->index_bi_phi_scf],
                pvecback_integration[pba->index_bi_phi_prime_scf]);
+
+    pba->phi_ini_scf_computed = pvecback_integration[pba->index_bi_phi_scf];
+    pba->phi_prime_scf_computed = pvecback_integration[pba->index_bi_phi_prime_scf];
+  }
+  else
+  {
+    pba->phi_ini_scf_computed = 0.0;
+    pba->phi_prime_scf_computed = 0.0;
   }
 
   /* Infer pvecback from pvecback_integration */

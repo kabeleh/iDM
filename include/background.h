@@ -135,6 +135,8 @@ struct background
     int scf_tuning_index;                           /**< index in scf_parameters used for tuning */
     double phi_ini_scf;                             /**< \f$ \phi(t_0) \f$: scalar field initial value */
     double phi_prime_ini_scf;                       /**< \f$ d\phi(t_0)/d\tau \f$: scalar field initial derivative wrt conformal time */
+    double phi_ini_scf_computed;                    /**< computed initial \f$ \phi \f$ actually used after attractor/NaN checks */
+    double phi_prime_scf_computed;                  /**< computed initial \f$ d\phi/d\tau \f$ actually used after attractor/NaN checks */
     int scf_parameters_size;                        /**< size of scf_parameters */
     double varconst_alpha;                          /**< finestructure constant for varying fundamental constants */
     double varconst_me;                             /**< electron mass for varying fundamental constants */
