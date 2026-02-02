@@ -3,21 +3,29 @@
 # - matplotlib.pyplot for plotting
 # - cmcrameri.cm for perceptually uniform colormaps
 # - getdist.plots for MCMC chain plotting
-import matplotlib.pyplot as plt
+from typing import Any, Callable, Mapping, Sequence, cast
+
+import matplotlib.pyplot as plt  # type: ignore[import-untyped]
 from matplotlib.patches import Patch
-from cmcrameri import cm
-from getdist import plots
+from cmcrameri import cm  # type: ignore[import-untyped]
+from getdist import plots  # type: ignore[import-untyped]
+
+plt = cast(Any, plt)
+cm = cast(Any, cm)
+plots = cast(Any, plots)
+
+Color = Any
 
 # ============================================================================
 # COMMON CONFIGURATION
 # ============================================================================
 
 # Directory where MCMC chain files are stored
-CHAIN_DIR = r"/Users/klmba/kDrive/Sci/PhD/Research/HDM/MCMCfast/"
-ANALYSIS_SETTINGS = {"ignore_rows": 0.33}
+CHAIN_DIR: str = r"/Users/klmba/kDrive/Sci/PhD/Research/HDM/MCMCfast/"
+ANALYSIS_SETTINGS: dict[str, float] = {"ignore_rows": 0.33}
 
 # Define the root names of the MCMC chains (file prefixes without extensions)
-ROOTS = [
+ROOTS: list[str] = [
     # "Cobaya_mcmc_Run3_Planck_PP_SH0ES_DESIDR2_DoubleExp_tracking_uncoupled",
     # "cobaya_iDM_20251230_dexp",
     # "cobaya_mcmc_fast_Run1_Planck_2018_DoubleExp_tracking_uncoupled",
@@ -37,9 +45,9 @@ ROOTS = [
 
 # Extract a list of colors from the categorical batlowKS colourmap
 # Reserve indices 0, 1 for observational bands; 2+ for MCMC chains
-ALL_COLOURS = [tuple(c) for c in cm.batlowKS.colors]
-BAND_COLOURS = ALL_COLOURS[:2]  # colours[0] for H0, colours[1] for S8
-CHAIN_COLOURS = ALL_COLOURS[2 : 2 + len(ROOTS)]  # consistent chain colours
+ALL_COLOURS: list[Color] = [tuple(c) for c in cm.batlowKS.colors]
+BAND_COLOURS: list[Color] = ALL_COLOURS[:2]  # colours[0] for H0, colours[1] for S8
+CHAIN_COLOURS: list[Color] = ALL_COLOURS[2 : 2 + len(ROOTS)]  # consistent chain colours
 
 
 # ============================================================================
@@ -47,7 +55,12 @@ CHAIN_COLOURS = ALL_COLOURS[2 : 2 + len(ROOTS)]  # consistent chain colours
 # ============================================================================
 
 
-def make_triangle_plot(params, annotations=None, param_labels=None, title=None):
+def make_triangle_plot(
+    params: Sequence[str],
+    annotations: Callable[[Any], list[Patch]] | None = None,
+    param_labels: Mapping[str, str] | None = None,
+    title: str | None = None,
+) -> Any:
     """
     Create a triangle plot for the given parameters.
 
@@ -73,20 +86,22 @@ def make_triangle_plot(params, annotations=None, param_labels=None, title=None):
     g : getdist.plots.GetDistPlotter
         The plotter object.
     """
-    g = plots.get_subplot_plotter(
+    g: Any = plots.get_subplot_plotter(  # type: ignore[misc]
         chain_dir=CHAIN_DIR,
         analysis_settings=ANALYSIS_SETTINGS,
     )
 
     # Load samples and apply custom labels if provided
     if param_labels:
-        samples_list = [g.sample_analyser.samples_for_root(root) for root in ROOTS]
+        samples_list: list[Any] = [
+            g.sample_analyser.samples_for_root(root) for root in ROOTS
+        ]
         for samples in samples_list:
             for param_name, label in param_labels.items():
                 p = samples.paramNames.parWithName(param_name)
                 if p is not None:
                     p.label = label
-        roots_to_plot = samples_list
+        roots_to_plot: Sequence[Any] = samples_list
     else:
         roots_to_plot = ROOTS
 
@@ -102,20 +117,20 @@ def make_triangle_plot(params, annotations=None, param_labels=None, title=None):
         figure_legend_outside=True,
     )
 
-    fig = g.fig
+    fig: Any = g.fig
 
     # Build legend handles for MCMC chains
-    chain_handles = [
+    chain_handles: list[Patch] = [
         Patch(facecolor=CHAIN_COLOURS[i], label=ROOTS[i]) for i in range(len(ROOTS))
     ]
 
     # Apply custom annotations and collect their legend handles
-    annotation_handles = []
+    annotation_handles: list[Patch] = []
     if annotations is not None:
         annotation_handles = annotations(g) or []
 
-    all_handles = chain_handles + annotation_handles
-    all_labels = [h.get_label() for h in all_handles]
+    all_handles: list[Patch] = chain_handles + annotation_handles
+    all_labels: list[str] = [str(h.get_label()) for h in all_handles]
 
     # Remove any existing legends
     for legend in fig.legends:
@@ -150,7 +165,7 @@ def make_triangle_plot(params, annotations=None, param_labels=None, title=None):
 # ============================================================================
 
 
-def annotate_H0_S8(g):
+def annotate_H0_S8(g: Any) -> list[Patch]:
     """
     Add H0 (SH0ES) and S8 (KiDS-1000) observational bands.
     Returns legend handles for these annotations.
@@ -170,7 +185,7 @@ def annotate_H0_S8(g):
     ]
 
 
-def annotate_scf_constraints(g):
+def annotate_scf_constraints(g: Any) -> list[Patch]:
     """
     Add constraints for scalar field parameters.
     Customize this function to add lines, shaded regions, masks, etc.
@@ -184,7 +199,7 @@ def annotate_scf_constraints(g):
     - ax = g.subplots[row, col]; ax.fill_between(...) # shaded region
     - ax = g.subplots[row, col]; ax.fill_betweenx(...)# shaded region (vertical)
     """
-    handles = []
+    handles: list[Patch] = []
 
     # c_2 should be of order 1. As a visual aid, we add a line at c_2=1 and another line at c_2=0.5
     g.add_y_marker(1.0, ax=0, color="black", ls="--")
@@ -246,10 +261,13 @@ plt.show()
 import re
 import os
 import numpy as np
-from getdist import MCSamples, loadMCSamples
+from getdist import MCSamples, loadMCSamples  # type: ignore[import-untyped]
+
+MCSamples = cast(Any, MCSamples)
+loadMCSamples = cast(Callable[..., Any], loadMCSamples)
 
 
-def parse_minimum_file(filepath):
+def parse_minimum_file(filepath: str) -> dict[str, Any]:
     """
     Parse a .minimum file to extract best-fit values, chi-sq, and LaTeX labels.
 
@@ -267,7 +285,7 @@ def parse_minimum_file(filepath):
         - 'chi_sq_components': dict mapping likelihood_name -> chi_sq value
         - 'params': dict mapping param_name -> {'value': float, 'latex': str}
     """
-    result = {
+    result: dict[str, Any] = {
         "neg_log_like": None,
         "chi_sq": None,
         "chi_sq_components": {},
@@ -318,7 +336,7 @@ def parse_minimum_file(filepath):
     return result
 
 
-def parse_cobaya_yaml(filepath):
+def parse_cobaya_yaml(filepath: str) -> list[str]:
     """
     Parse a Cobaya .input.yaml or .updated.yaml file to extract likelihood names.
 
@@ -338,7 +356,7 @@ def parse_cobaya_yaml(filepath):
         with open(filepath, "r") as f:
             config = yaml.safe_load(f)
 
-        likelihoods = []
+        likelihoods: list[str] = []
         if "likelihood" in config and config["likelihood"]:
             likelihoods = list(config["likelihood"].keys())
         return likelihoods
@@ -347,7 +365,7 @@ def parse_cobaya_yaml(filepath):
         return []
 
 
-def get_likelihoods_for_chain(root, chain_dir=CHAIN_DIR):
+def get_likelihoods_for_chain(root: str, chain_dir: str = CHAIN_DIR) -> list[str]:
     """
     Get the likelihoods used in a chain, trying multiple sources.
 
@@ -367,7 +385,7 @@ def get_likelihoods_for_chain(root, chain_dir=CHAIN_DIR):
     list
         List of likelihood names.
     """
-    likelihoods = []
+    likelihoods: list[str] = []
 
     # Try YAML file first (more reliable)
     for yaml_suffix in [".input.yaml", ".updated.yaml"]:
@@ -391,7 +409,7 @@ def get_likelihoods_for_chain(root, chain_dir=CHAIN_DIR):
 # Lookup table for number of data points per likelihood
 # These are the effective number of data points used in the chi-squared calculation
 # The values are extracted from the covmat and mean.txt files from the cobaya data folder.
-LIKELIHOOD_DATA_POINTS = {
+LIKELIHOOD_DATA_POINTS: dict[str, int] = {
     "bao.desi_dr2": 13,  # DESI DR2 BAO (13 data points)
     "sn.pantheonplus": 1701,  # Pantheon+ without SH0ES (1701 SNe)
     "sn.pantheonplusshoes": 1701,  # Pantheon+ with SH0ES calibration (1701 SNe + SH0ES prior)
@@ -404,7 +422,9 @@ LIKELIHOOD_DATA_POINTS = {
 }
 
 
-def estimate_n_data_from_likelihoods(chi_sq_components):
+def estimate_n_data_from_likelihoods(
+    chi_sq_components: Mapping[str, float] | None,
+) -> int | None:
     """
     Estimate the total number of data points from the chi-squared components.
 
@@ -421,8 +441,8 @@ def estimate_n_data_from_likelihoods(chi_sq_components):
     if not chi_sq_components:
         return None
 
-    total_n_data = 0
-    unknown_likelihoods = []
+    total_n_data: int = 0
+    unknown_likelihoods: list[str] = []
 
     for likelihood in chi_sq_components.keys():
         # Normalize likelihood name (lowercase, handle variations)
@@ -451,7 +471,12 @@ def estimate_n_data_from_likelihoods(chi_sq_components):
     return total_n_data if total_n_data > 0 else None
 
 
-def get_chain_statistics(root, params, chain_dir=CHAIN_DIR, settings=ANALYSIS_SETTINGS):
+def get_chain_statistics(
+    root: str,
+    params: Sequence[str],
+    chain_dir: str = CHAIN_DIR,
+    settings: Mapping[str, Any] = ANALYSIS_SETTINGS,
+) -> dict[str, Any]:
     """
     Get mean, std, and confidence limits for parameters from a chain.
 
@@ -478,8 +503,8 @@ def get_chain_statistics(root, params, chain_dir=CHAIN_DIR, settings=ANALYSIS_SE
             'upper_2sigma': float
         }
     """
-    samples = loadMCSamples(os.path.join(chain_dir, root), settings=settings)
-    stats = {}
+    samples: Any = loadMCSamples(os.path.join(chain_dir, root), settings=settings)
+    stats: dict[str, Any] = {}
 
     for param in params:
         p = samples.paramNames.parWithName(param)
@@ -519,7 +544,11 @@ def get_chain_statistics(root, params, chain_dir=CHAIN_DIR, settings=ANALYSIS_SE
     return stats
 
 
-def count_free_parameters(root, chain_dir=CHAIN_DIR, settings=ANALYSIS_SETTINGS):
+def count_free_parameters(
+    root: str,
+    chain_dir: str = CHAIN_DIR,
+    settings: Mapping[str, Any] = ANALYSIS_SETTINGS,
+) -> int:
     """
     Count the number of free (sampled) parameters in a chain.
 
@@ -537,13 +566,15 @@ def count_free_parameters(root, chain_dir=CHAIN_DIR, settings=ANALYSIS_SETTINGS)
     int
         Number of free parameters.
     """
-    samples = loadMCSamples(os.path.join(chain_dir, root), settings=settings)
+    samples: Any = loadMCSamples(os.path.join(chain_dir, root), settings=settings)
     # paramNames.names includes all parameters; we want only sampled ones
     # The .paramNames.list() returns sampled params, .paramNames.numberOfName() for derived
     return len([p for p in samples.paramNames.names if not p.isDerived])
 
 
-def compute_aic_bic(chi_sq, n_params, n_data=None):
+def compute_aic_bic(
+    chi_sq: float, n_params: int, n_data: int | None = None
+) -> tuple[float, float | None]:
     """
     Compute AIC and BIC.
 
@@ -566,7 +597,7 @@ def compute_aic_bic(chi_sq, n_params, n_data=None):
     return aic, bic
 
 
-def identify_dataset_from_root(root):
+def identify_dataset_from_root(root: str) -> tuple[str, str, bool]:
     """
     Identify the dataset combination from a chain root name.
 
@@ -581,7 +612,7 @@ def identify_dataset_from_root(root):
     has_planck = "planck" in root_lower
 
     # Build dataset key
-    parts = []
+    parts: list[str] = []
     if has_planck:
         parts.append("Planck")
     if has_pp:
@@ -614,7 +645,7 @@ def identify_dataset_from_root(root):
 
 
 # LaTeX labels for parameters (used in table headers and rows)
-PARAM_LATEX_LABELS = {
+PARAM_LATEX_LABELS: dict[str, str] = {
     "H0": r"H_0",
     "S8": r"S_8",
     "Omega_m": r"\Omega_\mathrm{m}",
@@ -631,7 +662,9 @@ PARAM_LATEX_LABELS = {
 }
 
 
-def format_value_with_errors(mean, lower, upper, precision=2):
+def format_value_with_errors(
+    mean: float, lower: float, upper: float, precision: int = 2
+) -> str:
     """
     Format a value with asymmetric errors as LaTeX string.
 
@@ -662,13 +695,13 @@ def format_value_with_errors(mean, lower, upper, precision=2):
         return f"{mean:{fmt}}^{{+{err_up:{fmt}}}}_{{-{err_down:{fmt}}}}"
 
 
-def format_symmetric_error(mean, std, precision=2):
+def format_symmetric_error(mean: float, std: float, precision: int = 2) -> str:
     """Format value with symmetric error (without outer $)."""
     fmt = f".{precision}f"
     return f"{mean:{fmt}} \\pm {std:{fmt}}"
 
 
-def get_param_latex(param, chain_data=None):
+def get_param_latex(param: str, chain_data: Mapping[str, Any] | None = None) -> str:
     """Get LaTeX label for a parameter, checking multiple sources."""
     # First check our predefined labels
     if param in PARAM_LATEX_LABELS:
@@ -683,12 +716,12 @@ def get_param_latex(param, chain_data=None):
 
 
 def generate_cosmology_table(
-    roots,
-    params=["H0", "S8"],
-    chain_dir=CHAIN_DIR,
-    settings=ANALYSIS_SETTINGS,
-    n_data=None,
-):
+    roots: Sequence[str],
+    params: Sequence[str] = ("H0", "S8"),
+    chain_dir: str = CHAIN_DIR,
+    settings: Mapping[str, Any] = ANALYSIS_SETTINGS,
+    n_data: int | None = None,
+) -> str:
     """
     Generate a LaTeX table for cosmological parameters (H0, S8) with chi^2, AIC, BIC.
     Uses sidewaystable for rotation and booktabs for professional formatting.
@@ -713,8 +746,8 @@ def generate_cosmology_table(
         LaTeX table code.
     """
     # Group chains by dataset to identify LCDM baselines
-    dataset_groups = {}
-    model_names = {}  # Store model names for each root
+    dataset_groups: dict[str, dict[str, Any]] = {}
+    model_names: dict[str, str] = {}  # Store model names for each root
     for root in roots:
         dataset_key, model_name, is_lcdm = identify_dataset_from_root(root)
         model_names[root] = model_name
@@ -726,11 +759,11 @@ def generate_cosmology_table(
             dataset_groups[dataset_key]["others"].append(root)
 
     # Collect data for all chains
-    chain_data = {}
+    chain_data: dict[str, Any] = {}
     for root in roots:
         minimum_file = os.path.join(chain_dir, f"{root}.minimum")
         if os.path.exists(minimum_file):
-            min_data = parse_minimum_file(minimum_file)
+            min_data: dict[str, Any] = parse_minimum_file(minimum_file)
         else:
             min_data = {
                 "neg_log_like": None,
@@ -775,7 +808,7 @@ def generate_cosmology_table(
     # Use >{$}c<{$} for automatic math mode in data columns
     col_spec = "l" + " >{$}c<{$}" * n_param_cols + " >{$}c<{$} >{$}c<{$} >{$}c<{$}"
 
-    lines = []
+    lines: list[str] = []
     lines.append(r"\begin{sidewaystable}")
     lines.append(r"\centering")
     lines.append(r"\caption{Cosmological parameters from MCMC analysis.}")
@@ -784,7 +817,7 @@ def generate_cosmology_table(
     lines.append(r"\toprule")
 
     # Header row - need to escape math mode for headers since columns are in math mode
-    header_parts = ["Model"]
+    header_parts: list[str] = ["Model"]
     for param in params:
         label = get_param_latex(param, chain_data)
         header_parts.append(r"\text{$" + label + r"$ (68\% CI)}")
@@ -816,7 +849,7 @@ def generate_cosmology_table(
         )
 
         # Add LCDM first, then others
-        group_roots = []
+        group_roots: list[str] = []
         if lcdm_root:
             group_roots.append(lcdm_root)
         group_roots.extend(group["others"])
@@ -825,7 +858,7 @@ def generate_cosmology_table(
             if root not in chain_data:
                 continue
             data = chain_data[root]
-            row_parts = [model_names[root]]
+            row_parts: list[str] = [model_names[root]]
 
             for param in params:
                 # Use 68% confidence limits with asymmetric errors
@@ -871,7 +904,7 @@ def generate_cosmology_table(
     return "\n".join(lines)
 
 
-def get_dataset_label(root):
+def get_dataset_label(root: str) -> str:
     """
     Extract a human-readable dataset label from a chain root name.
 
@@ -879,7 +912,7 @@ def get_dataset_label(root):
     """
     root_lower = root.lower()
 
-    parts = []
+    parts: list[str] = []
     if "planck" in root_lower:
         parts.append("Planck")
     if "pp" in root_lower or "pantheon" in root_lower:
@@ -900,12 +933,12 @@ def get_dataset_label(root):
 
 
 def generate_scf_table(
-    roots,
-    params=["cdm_c", "scf_c2", "scf_c3", "scf_c4"],
-    param_labels=None,
-    chain_dir=CHAIN_DIR,
-    settings=ANALYSIS_SETTINGS,
-):
+    roots: Sequence[str],
+    params: Sequence[str] = ("cdm_c", "scf_c2", "scf_c3", "scf_c4"),
+    param_labels: Mapping[str, str] | None = None,
+    chain_dir: str = CHAIN_DIR,
+    settings: Mapping[str, Any] = ANALYSIS_SETTINGS,
+) -> str:
     """
     Generate LaTeX tables for scalar field parameters, one per model type.
 
@@ -931,7 +964,10 @@ def generate_scf_table(
         LaTeX table code (multiple tables concatenated).
     """
     # Group roots by model type
-    model_groups = {"dexp": [], "hyperbolic": []}  # Double Exponential  # Hyperbolic
+    model_groups: dict[str, list[str]] = {
+        "dexp": [],
+        "hyperbolic": [],
+    }  # Double Exponential  # Hyperbolic
 
     for root in roots:
         root_lower = root.lower()
@@ -945,7 +981,7 @@ def generate_scf_table(
             model_groups["hyperbolic"].append(root)
 
     # Model display names and labels for captions
-    model_info = {
+    model_info: dict[str, dict[str, str]] = {
         "dexp": {
             "name": r"\Nref{pot:dexp} potential",
             "label": "tab:scf_dexp",
@@ -956,18 +992,18 @@ def generate_scf_table(
         },
     }
 
-    all_tables = []
+    all_tables: list[str] = []
 
     for model_key, model_roots in model_groups.items():
         if not model_roots:
             continue
 
         # Collect data for this model's chains
-        chain_data = {}
+        chain_data: dict[str, Any] = {}
         for root in model_roots:
             minimum_file = os.path.join(chain_dir, f"{root}.minimum")
             if os.path.exists(minimum_file):
-                min_data = parse_minimum_file(minimum_file)
+                min_data: dict[str, Any] = parse_minimum_file(minimum_file)
             else:
                 min_data = {"params": {}}
 
@@ -978,7 +1014,7 @@ def generate_scf_table(
         n_param_cols = len(params)
         col_spec = "l" + " >{$}c<{$}" * n_param_cols
 
-        lines = []
+        lines: list[str] = []
         lines.append(r"\begin{sidewaystable}")
         lines.append(r"\centering")
         lines.append(
@@ -991,7 +1027,7 @@ def generate_scf_table(
         lines.append(r"\toprule")
 
         # Header - use "Dataset" instead of "Model"
-        header_parts = ["Dataset"]
+        header_parts: list[str] = ["Dataset"]
         for param in params:
             label = get_param_latex(param, chain_data)
             header_parts.append(r"\text{$" + label + r"$ (68\% CI)}")
@@ -1002,7 +1038,7 @@ def generate_scf_table(
         for root in model_roots:
             data = chain_data[root]
             dataset_label = get_dataset_label(root)
-            row_parts = [dataset_label]
+            row_parts: list[str] = [dataset_label]
 
             for param in params:
                 # Use 68% confidence limits with asymmetric errors
@@ -1031,14 +1067,14 @@ def generate_scf_table(
 
 
 def generate_detailed_table(
-    roots,
-    params,
-    param_labels=None,
-    chain_dir=CHAIN_DIR,
-    settings=ANALYSIS_SETTINGS,
-    caption="Parameter constraints from MCMC analysis.",
-    label="tab:params",
-):
+    roots: Sequence[str],
+    params: Sequence[str],
+    param_labels: Mapping[str, str] | None = None,
+    chain_dir: str = CHAIN_DIR,
+    settings: Mapping[str, Any] = ANALYSIS_SETTINGS,
+    caption: str = "Parameter constraints from MCMC analysis.",
+    label: str = "tab:params",
+) -> str:
     """
     Generate a detailed LaTeX table with best-fit, mean, and 1σ/2σ ranges.
     Uses sidewaystable for rotation and booktabs for professional formatting.
@@ -1066,15 +1102,15 @@ def generate_detailed_table(
         LaTeX table code.
     """
     # Collect data and model names
-    chain_data = {}
-    model_names = {}
+    chain_data: dict[str, Any] = {}
+    model_names: dict[str, str] = {}
     for root in roots:
         _, model_name, _ = identify_dataset_from_root(root)
         model_names[root] = model_name
 
         minimum_file = os.path.join(chain_dir, f"{root}.minimum")
         if os.path.exists(minimum_file):
-            min_data = parse_minimum_file(minimum_file)
+            min_data: dict[str, Any] = parse_minimum_file(minimum_file)
         else:
             min_data = {"params": {}}
 
@@ -1087,7 +1123,7 @@ def generate_detailed_table(
     # Use math mode columns
     col_spec = "l" + " >{$}c<{$} >{$}c<{$}" * n_chains
 
-    lines = []
+    lines: list[str] = []
     lines.append(r"\begin{sidewaystable}")
     lines.append(r"\centering")
     lines.append(r"\caption{" + caption + "}")
@@ -1096,13 +1132,13 @@ def generate_detailed_table(
     lines.append(r"\toprule")
 
     # Header row 1: model names spanning 2 columns each
-    header1_parts = [""]
+    header1_parts: list[str] = [""]
     for root in roots:
         header1_parts.append(r"\multicolumn{2}{c}{" + model_names[root] + "}")
     lines.append(" & ".join(header1_parts) + r" \\")
 
     # Header row 2: 68% | 95% for each chain
-    header2_parts = ["Parameter"]
+    header2_parts: list[str] = ["Parameter"]
     for _ in roots:
         header2_parts.extend([r"\text{68\% CI}", r"\text{95\% CI}"])
     lines.append(" & ".join(header2_parts) + r" \\")
@@ -1111,7 +1147,7 @@ def generate_detailed_table(
     # Data rows
     for param in params:
         label = get_param_latex(param, chain_data)
-        row_parts = [f"${label}$"]
+        row_parts: list[str] = [f"${label}$"]
 
         for root in roots:
             data = chain_data[root]

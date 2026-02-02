@@ -1,7 +1,10 @@
-import os
-import numpy as np
-from cobaya.model import get_model
-from cobaya.yaml import yaml_load
+from typing import Any, Callable, cast
+
+from cobaya.model import get_model  # type: ignore[import-untyped]
+from cobaya.yaml import yaml_load  # type: ignore[import-untyped]
+
+get_model = cast(Callable[[Any], Any], get_model)
+yaml_load = cast(Callable[[str], dict[str, Any]], yaml_load)
 
 # Set the correct packages path
 packages_path = "/Users/klmba/Cosmology"
@@ -56,10 +59,10 @@ params:
 """
 
 # Load the YAML string into a Python dictionary
-info = yaml_load(info_yaml)
+info: dict[str, Any] = yaml_load(info_yaml)
 
 # --- 2. Instantiate the model ---
-like_name = "muse3glike"
+like_name: str = "muse3glike"
 
 try:
     model = get_model(info)
@@ -70,7 +73,7 @@ except Exception as e:
     exit()
 
 # Access the likelihood instance
-like = model.likelihood[like_name]
+like: Any = model.likelihood[like_name]
 # Best to add a break point here and inspect this object by hand in the debugger. There is usually a cov object or something similar that contains the information about how many data points are actually used.
 
 
