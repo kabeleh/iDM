@@ -1,10 +1,15 @@
 import glob
 import os
-from cobaya.samplers.mcmc import plot_progress
-import matplotlib.pyplot as plt
+from typing import Any, Callable, cast
+
+from cobaya.samplers.mcmc import plot_progress  # type: ignore[import-untyped]
+import matplotlib.pyplot as plt  # type: ignore[import-untyped]
+
+plot_progress = cast(Callable[[str], Any], plot_progress)
+plt = cast(Any, plt)
 
 
-def has_progress_data(progress_file):
+def has_progress_data(progress_file: str) -> bool:
     """Check if a .progress file has data beyond the header line."""
     with open(progress_file, "r") as f:
         lines = f.readlines()
@@ -13,10 +18,10 @@ def has_progress_data(progress_file):
 
 
 # Folder containing MCMC chains
-mcmc_folder = "/Users/klmba/kDrive/Sci/PhD/Research/HDM/MCMCfast"
+mcmc_folder: str = "/Users/klmba/kDrive/Sci/PhD/Research/HDM/MCMCfast"
 
 # Find all .progress files in the folder
-progress_files = glob.glob(os.path.join(mcmc_folder, "*.progress"))
+progress_files: list[str] = glob.glob(os.path.join(mcmc_folder, "*.progress"))
 
 if not progress_files:
     print(f"No .progress files found in {mcmc_folder}")
@@ -24,8 +29,8 @@ else:
     print(f"Found {len(progress_files)} chain(s) with .progress files:")
 
     # Separate chains with data from empty ones
-    chains_with_data = []
-    chains_empty = []
+    chains_with_data: list[tuple[str, str, str]] = []
+    chains_empty: list[str] = []
 
     for pf in progress_files:
         chain_path = pf.rsplit(".progress", 1)[0]
