@@ -2050,12 +2050,14 @@ int background_solve(
     pba->phi_scf_min = pvecback_integration[pba->index_bi_phi_scf];
     pba->phi_scf_max = pvecback_integration[pba->index_bi_phi_scf];
     pba->phi_scf_range = 0.0;
+    pba->dV_V_scf_min = 1.e100; /* large initial value for minimum tracking */
   }
   else
   {
     pba->phi_scf_min = 0.0;
     pba->phi_scf_max = 0.0;
     pba->phi_scf_range = 0.0;
+    pba->dV_V_scf_min = 0.0;
   }
 
   /** - Determine output vector */
@@ -2171,6 +2173,10 @@ int background_solve(
   if (pba->has_scf == _TRUE_)
   {
     pba->phi_scf_range = pba->phi_scf_max - pba->phi_scf_min;
+    if (pba->dV_V_scf_min >= 1.e99) /* If still at initialization value, set to 0 */
+    {
+      pba->dV_V_scf_min = 0.0;
+    }
   }
 
   /** - fill tables of second derivatives (in view of spline interpolation) */
@@ -3263,6 +3269,18 @@ int background_sources(
     if (phi_val > pba->phi_scf_max)
     {
       pba->phi_scf_max = phi_val;
+    }
+
+    /* Track minimum of |dV/V| for de Sitter Conjecture */
+    double V_scf = bg_table_row[pba->index_bg_V_scf];
+    double dV_scf = bg_table_row[pba->index_bg_dV_scf];
+    if (V_scf != 0.0)
+    {
+      double ratio = fabs(dV_scf) / V_scf;
+      if (ratio < pba->dV_V_scf_min)
+      {
+        pba->dV_V_scf_min = ratio;
+      }
     }
   }
 
