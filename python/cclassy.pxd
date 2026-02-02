@@ -110,6 +110,9 @@ cdef extern from "class.h":
         double tau_eq
         double phi_ini_scf_computed
         double phi_prime_scf_computed
+        double phi_scf_min
+        double phi_scf_max
+        double phi_scf_range
 
     cdef struct thermodynamics:
         short is_allocated

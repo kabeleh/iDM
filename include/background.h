@@ -137,6 +137,9 @@ struct background
     double phi_prime_ini_scf;                       /**< \f$ d\phi(t_0)/d\tau \f$: scalar field initial derivative wrt conformal time */
     double phi_ini_scf_computed;                    /**< computed initial \f$ \phi \f$ actually used after attractor/NaN checks */
     double phi_prime_scf_computed;                  /**< computed initial \f$ d\phi/d\tau \f$ actually used after attractor/NaN checks */
+    double phi_scf_min;                             /**< minimum \f$ \phi \f$ encountered over the background table */
+    double phi_scf_max;                             /**< maximum \f$ \phi \f$ encountered over the background table */
+    double phi_scf_range;                           /**< \f$ \phi_{max}-\phi_{min} \f$ over the background table */
     int scf_parameters_size;                        /**< size of scf_parameters */
     double varconst_alpha;                          /**< finestructure constant for varying fundamental constants */
     double varconst_me;                             /**< electron mass for varying fundamental constants */

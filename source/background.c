@@ -2045,6 +2045,19 @@ int background_solve(
              pba->error_message,
              pba->error_message);
 
+  if (pba->has_scf == _TRUE_)
+  {
+    pba->phi_scf_min = pvecback_integration[pba->index_bi_phi_scf];
+    pba->phi_scf_max = pvecback_integration[pba->index_bi_phi_scf];
+    pba->phi_scf_range = 0.0;
+  }
+  else
+  {
+    pba->phi_scf_min = 0.0;
+    pba->phi_scf_max = 0.0;
+    pba->phi_scf_range = 0.0;
+  }
+
   /** - Determine output vector */
   loga_final = 0.; // with our conventions, loga is in fact log(a/a_0); we integrate until today, when log(a/a_0) = 0
   pba->bt_size = ppr->background_Nloga;
@@ -2153,6 +2166,11 @@ int background_solve(
 
     pba->background_table[index_loga * pba->bg_size + pba->index_bg_ang_distance] = comoving_radius / (1. + pba->z_table[index_loga]);
     pba->background_table[index_loga * pba->bg_size + pba->index_bg_lum_distance] = comoving_radius * (1. + pba->z_table[index_loga]);
+  }
+
+  if (pba->has_scf == _TRUE_)
+  {
+    pba->phi_scf_range = pba->phi_scf_max - pba->phi_scf_min;
   }
 
   /** - fill tables of second derivatives (in view of spline interpolation) */
@@ -3234,6 +3252,19 @@ int background_sources(
   class_call(background_functions(pba, a, y, long_info, bg_table_row),
              pba->error_message,
              pba->error_message);
+
+  if (pba->has_scf == _TRUE_)
+  {
+    double phi_val = bg_table_row[pba->index_bg_phi_scf];
+    if (phi_val < pba->phi_scf_min)
+    {
+      pba->phi_scf_min = phi_val;
+    }
+    if (phi_val > pba->phi_scf_max)
+    {
+      pba->phi_scf_max = phi_val;
+    }
+  }
 
   return _SUCCESS_;
 }
