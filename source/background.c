@@ -2058,6 +2058,7 @@ int background_solve(
     pba->ddV_V_scf_max = -1.e100; /* small initial value for maximum tracking */
     pba->ddV_V_at_dV_V_min = 0.0;
     pba->dV_V_at_ddV_V_max = 0.0;
+    pba->swgc_expr_min = 1.e100; /* large initial value for SWGC expression minimum */
   }
   else
   {
@@ -2068,6 +2069,7 @@ int background_solve(
     pba->ddV_V_scf_max = 0.0;
     pba->ddV_V_at_dV_V_min = 0.0;
     pba->dV_V_at_ddV_V_max = 0.0;
+    pba->swgc_expr_min = 0.0;
   }
 
   /** - Determine output vector */
@@ -2192,6 +2194,10 @@ int background_solve(
     {
       pba->ddV_V_scf_max = 0.0;
       pba->dV_V_at_ddV_V_max = 0.0;
+    }
+    if (pba->swgc_expr_min >= 1.e99) /* If still at initialization value, set to 0 */
+    {
+      pba->swgc_expr_min = 0.0;
     }
   }
 
@@ -3330,6 +3336,15 @@ int background_sources(
       {
         pba->ddV_V_scf_max = ratio_ddV;
         pba->dV_V_at_ddV_V_max = ratio_dV;
+      }
+
+      /* Track minimum of SWGC expression: 2*(d3V)^2 - ddV*d4V - (ddV)^2 */
+      double d3V_scf = bg_table_row[pba->index_bg_d3V_scf];
+      double d4V_scf = bg_table_row[pba->index_bg_d4V_scf];
+      double swgc_expr = 2.0 * d3V_scf * d3V_scf - ddV_scf * d4V_scf - ddV_scf * ddV_scf;
+      if (swgc_expr < pba->swgc_expr_min)
+      {
+        pba->swgc_expr_min = swgc_expr;
       }
     }
   }
