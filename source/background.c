@@ -2050,8 +2050,10 @@ int background_solve(
     pba->phi_scf_min = pvecback_integration[pba->index_bi_phi_scf];
     pba->phi_scf_max = pvecback_integration[pba->index_bi_phi_scf];
     pba->phi_scf_range = 0.0;
-    pba->dV_V_scf_min = 1.e100; /* large initial value for minimum tracking */
-    pba->ddV_V_scf_max = 0.0;   /* zero initial value for maximum tracking */
+    pba->dV_V_scf_min = 1.e100;   /* large initial value for minimum tracking */
+    pba->ddV_V_scf_max = -1.e100; /* small initial value for maximum tracking */
+    pba->ddV_V_at_dV_V_min = 0.0;
+    pba->dV_V_at_ddV_V_max = 0.0;
   }
   else
   {
@@ -2060,6 +2062,8 @@ int background_solve(
     pba->phi_scf_range = 0.0;
     pba->dV_V_scf_min = 0.0;
     pba->ddV_V_scf_max = 0.0;
+    pba->ddV_V_at_dV_V_min = 0.0;
+    pba->dV_V_at_ddV_V_max = 0.0;
   }
 
   /** - Determine output vector */
@@ -2178,6 +2182,12 @@ int background_solve(
     if (pba->dV_V_scf_min >= 1.e99) /* If still at initialization value, set to 0 */
     {
       pba->dV_V_scf_min = 0.0;
+      pba->ddV_V_at_dV_V_min = 0.0;
+    }
+    if (pba->ddV_V_scf_max <= -1.e99) /* If still at initialization value, set to 0 */
+    {
+      pba->ddV_V_scf_max = 0.0;
+      pba->dV_V_at_ddV_V_max = 0.0;
     }
   }
 
@@ -3305,6 +3315,7 @@ int background_sources(
       if (ratio_dV < pba->dV_V_scf_min)
       {
         pba->dV_V_scf_min = ratio_dV;
+        pba->ddV_V_at_dV_V_min = ddV_scf / V_scf;
       }
 
       /* Track maximum of ddV/V for second de Sitter Conjecture */
@@ -3312,6 +3323,7 @@ int background_sources(
       if (ratio_ddV > pba->ddV_V_scf_max)
       {
         pba->ddV_V_scf_max = ratio_ddV;
+        pba->dV_V_at_ddV_V_max = ratio_dV;
       }
     }
   }
