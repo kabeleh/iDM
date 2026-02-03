@@ -118,6 +118,7 @@ cdef extern from "class.h":
         double ddV_V_at_dV_V_min
         double dV_V_at_ddV_V_max
         double swgc_expr_min
+        double sswgc_min
         int attractor_regime_scf
 
     cdef struct thermodynamics:

@@ -2059,6 +2059,7 @@ int background_solve(
     pba->ddV_V_at_dV_V_min = 0.0;
     pba->dV_V_at_ddV_V_max = 0.0;
     pba->swgc_expr_min = 1.e100; /* large initial value for SWGC expression minimum */
+    pba->sswgc_min = 1.e100;     /* large initial value for strong SWGC minimum */
   }
   else
   {
@@ -2070,6 +2071,7 @@ int background_solve(
     pba->ddV_V_at_dV_V_min = 0.0;
     pba->dV_V_at_ddV_V_max = 0.0;
     pba->swgc_expr_min = 0.0;
+    pba->sswgc_min = 0.0;
   }
 
   /** - Determine output vector */
@@ -2198,6 +2200,10 @@ int background_solve(
     if (pba->swgc_expr_min >= 1.e99) /* If still at initialization value, set to 0 */
     {
       pba->swgc_expr_min = 0.0;
+    }
+    if (pba->sswgc_min >= 1.e99) /* If still at initialization value, set to 0 */
+    {
+      pba->sswgc_min = 0.0;
     }
   }
 
@@ -3317,6 +3323,13 @@ int background_sources(
       pba->phi_scf_max = phi_val;
     }
 
+    /* Track minimum of strong SWGC expression */
+    double sswgc_val = sswgc(pba, phi_val);
+    if (sswgc_val < pba->sswgc_min)
+    {
+      pba->sswgc_min = sswgc_val;
+    }
+
     /* Track minimum of |dV/V| for de Sitter Conjecture */
     double V_scf = bg_table_row[pba->index_bg_V_scf];
     double dV_scf = bg_table_row[pba->index_bg_dV_scf];
@@ -3557,6 +3570,20 @@ double rho_cdm_prime(
   // {
   //   return 0.0; // pvecback[pba->index_bg_rho_cdm] / pvecback[pba->index_bg_H] * pvecback[pba->index_bg_H_prime];
   // }
+  else
+    return 0.;
+}
+
+// KBL: The strong scalar Weak Gravity Conjecture
+double sswgc(
+    struct background *pba,
+    double phi)
+{
+  if (pba->model_cdm == 2) // Interacting DM model
+  {
+    double c = pba->cdm_c;
+    return 2. * c * c * (4. * (1. + tanh(pba->cdm_c * phi)) - 1. / cosh(pba->cdm_c * phi) / cosh(pba->cdm_c * phi));
+  }
   else
     return 0.;
 }
