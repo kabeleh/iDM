@@ -121,6 +121,7 @@ cdef extern from "class.h":
         double sswgc_min
         double AdSDC2_max
         double AdSDC4_max
+        double combined_dSC_min
         int attractor_regime_scf
 
     cdef struct thermodynamics:

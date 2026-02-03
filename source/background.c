@@ -2062,6 +2062,7 @@ int background_solve(
     pba->sswgc_min = 1.e100;     /* large initial value for strong SWGC minimum */
     pba->AdSDC2_max = -1.e100;   /* small initial value for AdSDC2 maximum */
     pba->AdSDC4_max = -1.e100;   /* small initial value for AdSDC4 maximum */
+    pba->combined_dSC_min = 1.e100; /* large initial value for minimum tracking */
   }
   else
   {
@@ -2076,6 +2077,7 @@ int background_solve(
     pba->sswgc_min = 0.0;
     pba->AdSDC2_max = 0.0;
     pba->AdSDC4_max = 0.0;
+    pba->combined_dSC_min = 0.0;
   }
 
   /** - Determine output vector */
@@ -2216,6 +2218,10 @@ int background_solve(
     if (pba->AdSDC4_max <= -1.e99) /* If still at initialization value, set to 0 */
     {
       pba->AdSDC4_max = 0.0;
+    }
+    if (pba->combined_dSC_min >= 1.e99) /* If still at initialization value, set to 0 */
+    {
+      pba->combined_dSC_min = 0.0;
     }
   }
 
@@ -3382,6 +3388,16 @@ int background_sources(
       if (swgc_expr < pba->swgc_expr_min)
       {
         pba->swgc_expr_min = swgc_expr;
+      }
+
+      /* Track minimum of (3*(dV_p)^2/V^2 - 2*ddV/V)/4 */
+      double dV_p_scf_val = dV_p_scf(pba, phi_val);
+      double ratio_dV_p = dV_p_scf_val / V_scf;
+      double ratio_ddV = ddV_scf / V_scf;
+      double swampland_expr = 0.25 * (3.0 * ratio_dV_p * ratio_dV_p - 2.0 * ratio_ddV);
+      if (swampland_expr < pba->combined_dSC_min)
+      {
+        pba->combined_dSC_min = swampland_expr;
       }
     }
   }

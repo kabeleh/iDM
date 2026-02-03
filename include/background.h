@@ -148,6 +148,7 @@ struct background
     double sswgc_min;                               /**< minimum of the strong scalar weak gravity conjecture expression \f$ M_P^2 m^2 \partial_\phi^2(1/m^2) \f$ */
     double AdSDC2_max;                              /**< maximum of AdSDC2 boundary expression during evolution */
     double AdSDC4_max;                              /**< maximum of AdSDC4 boundary expression during evolution */
+    double combined_dSC_min;                        /**< minimum of \f$ (3(dV_p)^2/V^2 - 2 d^2V/d\phi^2/V)/4 \f$ during evolution, a strong form of a combined de Sitter conjecture, stemming from the FLB and the SSWGC. */
     int attractor_regime_scf;                       /**< attractor regime used: 0=no attractor, 1=large-field, 2=approximate, 3=small-field, 4=approximate small-field */
     int scf_parameters_size;                        /**< size of scf_parameters */
     double varconst_alpha;                          /**< finestructure constant for varying fundamental constants */
