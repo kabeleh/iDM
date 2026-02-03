@@ -813,6 +813,7 @@ def generate_cosmology_table(
     lines.append(r"\centering")
     lines.append(r"\caption{Cosmological parameters from MCMC analysis.}")
     lines.append(r"\label{tab:cosmology}")
+    lines.append(r"\tagpdfsetup{table/header-rows={1}}")
     lines.append(r"\begin{tabular}{" + col_spec + "}")
     lines.append(r"\toprule")
 
@@ -1023,6 +1024,7 @@ def generate_scf_table(
             + r".}"
         )
         lines.append(r"\label{" + model_info[model_key]["label"] + "}")
+        lines.append(r"\tagpdfsetup{table/header-rows={1}}")
         lines.append(r"\begin{tabular}{" + col_spec + "}")
         lines.append(r"\toprule")
 
@@ -1128,6 +1130,7 @@ def generate_detailed_table(
     lines.append(r"\centering")
     lines.append(r"\caption{" + caption + "}")
     lines.append(r"\label{" + label + "}")
+    lines.append(r"\tagpdfsetup{table/header-rows={1}}")
     lines.append(r"\begin{tabular}{" + col_spec + "}")
     lines.append(r"\toprule")
 
