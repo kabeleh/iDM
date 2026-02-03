@@ -146,6 +146,8 @@ struct background
     double dV_V_at_ddV_V_max;                       /**< \f$ |dV/d\phi|/V \f$ evaluated when \f$ d^2V/d\phi^2/V \f$ reaches its maximum */
     double swgc_expr_min;                           /**< minimum of \f$ 2(d^3V/d\phi^3)^2 - (d^2V/d\phi^2)(d^4V/d\phi^4) - (d^2V/d\phi^2)^2 \f$ (scalar weak gravity conjecture) */
     double sswgc_min;                               /**< minimum of the strong scalar weak gravity conjecture expression \f$ M_P^2 m^2 \partial_\phi^2(1/m^2) \f$ */
+    double AdSDC2_max;                              /**< maximum of AdSDC2 boundary expression during evolution */
+    double AdSDC4_max;                              /**< maximum of AdSDC4 boundary expression during evolution */
     int attractor_regime_scf;                       /**< attractor regime used: 0=no attractor, 1=large-field, 2=approximate, 3=small-field, 4=approximate small-field */
     int scf_parameters_size;                        /**< size of scf_parameters */
     double varconst_alpha;                          /**< finestructure constant for varying fundamental constants */

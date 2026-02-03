@@ -2060,6 +2060,8 @@ int background_solve(
     pba->dV_V_at_ddV_V_max = 0.0;
     pba->swgc_expr_min = 1.e100; /* large initial value for SWGC expression minimum */
     pba->sswgc_min = 1.e100;     /* large initial value for strong SWGC minimum */
+    pba->AdSDC2_max = -1.e100;   /* small initial value for AdSDC2 maximum */
+    pba->AdSDC4_max = -1.e100;   /* small initial value for AdSDC4 maximum */
   }
   else
   {
@@ -2072,6 +2074,8 @@ int background_solve(
     pba->dV_V_at_ddV_V_max = 0.0;
     pba->swgc_expr_min = 0.0;
     pba->sswgc_min = 0.0;
+    pba->AdSDC2_max = 0.0;
+    pba->AdSDC4_max = 0.0;
   }
 
   /** - Determine output vector */
@@ -2204,6 +2208,14 @@ int background_solve(
     if (pba->sswgc_min >= 1.e99) /* If still at initialization value, set to 0 */
     {
       pba->sswgc_min = 0.0;
+    }
+    if (pba->AdSDC2_max <= -1.e99) /* If still at initialization value, set to 0 */
+    {
+      pba->AdSDC2_max = 0.0;
+    }
+    if (pba->AdSDC4_max <= -1.e99) /* If still at initialization value, set to 0 */
+    {
+      pba->AdSDC4_max = 0.0;
     }
   }
 
@@ -3330,6 +3342,18 @@ int background_sources(
       pba->sswgc_min = sswgc_val;
     }
 
+    /* Track maximum of AdSDC boundary expressions */
+    double AdSDC2_val = AdSDC2(pba, phi_val);
+    if (AdSDC2_val > pba->AdSDC2_max)
+    {
+      pba->AdSDC2_max = AdSDC2_val;
+    }
+    double AdSDC4_val = AdSDC4(pba, phi_val);
+    if (AdSDC4_val > pba->AdSDC4_max)
+    {
+      pba->AdSDC4_max = AdSDC4_val;
+    }
+
     /* Track minimum of |dV/V| for de Sitter Conjecture */
     double V_scf = bg_table_row[pba->index_bg_V_scf];
     double dV_scf = bg_table_row[pba->index_bg_dV_scf];
@@ -3928,4 +3952,32 @@ double d4V_scf(
   default:
     return 0.;
   }
+}
+
+// KBL: The anti–de Sitter Distance Conjecture
+double AdSDC2(
+    struct background *pba,
+    double phi)
+{
+  if (pba->model_cdm == 2) // Interacting DM model
+  {
+    double c = pba->cdm_c;
+    return (1. - tanh(pba->cdm_c * phi)) / sqrt(fabs(V_scf(pba, phi)));
+  }
+  else
+    return 0.;
+}
+
+// KBL: The anti–de Sitter Distance Conjecture
+double AdSDC4(
+    struct background *pba,
+    double phi)
+{
+  if (pba->model_cdm == 2) // Interacting DM model
+  {
+    double c = pba->cdm_c;
+    return (1. - tanh(pba->cdm_c * phi)) / sqrt(sqrt(fabs(V_scf(pba, phi))));
+  }
+  else
+    return 0.;
 }
