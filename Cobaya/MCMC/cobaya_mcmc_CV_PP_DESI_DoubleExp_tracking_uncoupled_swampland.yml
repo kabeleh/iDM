@@ -1,0 +1,37 @@
+post:
+  suffix: swampland
+  add:
+    params:
+      phi_ini_scf_ic:
+        latex: \phi_{\mathrm{ini}}
+      phi_prime_scf_ic:
+        latex: \phi^{\prime}_{\mathrm{ini}}
+      phi_scf_min:
+        latex: \phi_{\mathrm{min}}
+      phi_scf_max:
+        latex: \phi_{\mathrm{max}}
+      phi_scf_range:
+        latex: \Delta \phi
+      dV_V_scf_min:
+        latex: \mathfrak{s}_{1,\mathrm{min}}
+      ddV_V_scf_max:
+        latex: -\mathfrak{s}_{2,\mathrm{max}}
+      ddV_V_at_dV_V_min:
+        latex: -\mathfrak{s}_{2@\mathfrak{s}_{1,\mathrm{min}}}
+      dV_V_at_ddV_V_max:
+        latex: \mathfrak{s}_{1@\mathfrak{s}_{2,\mathrm{max}}}
+      swgc_expr_min:
+        latex: \mathrm{SWGC}_\phi
+      sswgc_min:
+        latex: \mathrm{SSWGC}_\mathrm{DM}
+      attractor_regime_scf:
+      AdSDC2_max:
+        latex: m_\mathrm{DM,min (no scale separation)}
+      AdSDC4_max:
+        latex: m_\mathrm{DM,min (scale separation)}
+      combined_dSC_min:
+        latex: \mathrm{(FLB--SSWGC) combined dSC}_\mathrm{min}
+      conformal_age:
+        latex: \eta_0
+output: 
+  /project/home/p201176/cobaya_mcmc_CV_PP_DESI_DoubleExp_tracking_uncoupled

@@ -8,9 +8,9 @@ from ruamel.yaml.comments import CommentedSeq
 import re
 
 # Specify the parameters
-sampler: str = "minimize_mcmc"  # MCMC or Polychord
+sampler: str = "post_mcmc"  # MCMC or Polychord
 likelihood: str = "CV_CMB_SPA"  # likelihood combination
-potential: str = "LCDM"  # LCDM or iDM potential for scalar field models
+potential: str = "DoubleExp"  # LCDM or iDM potential for scalar field models
 attractor: str = "yes"  # Scaling Solution; Ignored for LCDM
 coupling: str = "uncoupled"  # Coupling; Ignored for LCDM
 
@@ -38,8 +38,9 @@ def create_cobaya_yaml(
     Any potential (LCDM or iDM) can be combined with any likelihood.
 
     Parameters:
-    - sampler (str): Sampling method. Options: 'polychord', 'mcmc', 'mcmc_fast', 'minimize_polychord', 'minimize_mcmc', 'minimize_mcmc_fast'.
-      Note: 'minimize_*' samplers use the minimize sampler but output paths point to corresponding sampler chains.
+        - sampler (str): Sampling method. Options: 'polychord', 'mcmc', 'mcmc_fast', 'minimize_polychord', 'minimize_mcmc', 'minimize_mcmc_fast', 'post_mcmc', 'post_polychord'.
+            Note: 'minimize_*' samplers use the minimize sampler but output paths point to corresponding sampler chains.
+            Note: 'post_*' samplers create a post-processing configuration with the static swampland params block; only the output path is dynamic.
     - likelihood (str): Likelihood combination. Options:
       'Run1_Planck_2018', 'Run2_PP_SH0ES_DESIDR2', 'Run3_Planck_PP_SH0ES_DESIDR2',
       'CV_CMB_SPA', 'CV_CMB_SPA_PP_DESI', 'CV_CMB_SPA_PP_S_DESI', 'CV_PP_DESI', 'CV_PP_S_DESI'.
@@ -67,9 +68,11 @@ def create_cobaya_yaml(
         "minimize_polychord",
         "minimize_mcmc",
         "minimize_mcmc_fast",
+        "post_mcmc",
+        "post_polychord",
     ]:
         raise ValueError(
-            f"Unknown sampler '{sampler}'. Must be one of: polychord, mcmc, mcmc_fast, minimize_polychord, minimize_mcmc, minimize_mcmc_fast"
+            f"Unknown sampler '{sampler}'. Must be one of: polychord, mcmc, mcmc_fast, minimize_polychord, minimize_mcmc, minimize_mcmc_fast, post_mcmc, post_polychord"
         )
 
     valid_likelihoods = [
@@ -856,20 +859,69 @@ def create_cobaya_yaml(
     # Return one dict that represents user choice
     config: dict[str, Any] = {}
 
-    # Run 3 is a post-processing run - it has a different structure
-    if likelihood == "Run3_Planck_PP_SH0ES_DESIDR2":
-        # Build the Run 1 output path that Run 3 will post-process
-        attractor_name = (
-            "tracking" if attractor in ("yes", "Yes", "YES") else "InitCond"
-        )
-        run1_output_path = f"/project/home/p201176/cobaya_{sampler}_Run1_Planck_2018_{potential}_{attractor_name}_{coupling}"
+    # Check if this is a post-processing run (either Run3 or post_* sampler)
+    is_postprocessing = (
+        likelihood == "Run3_Planck_PP_SH0ES_DESIDR2" or sampler.startswith("post_")
+    )
 
+    swampland_post_block: dict[str, Any] = {
+        "suffix": "swampland",
+        "add": {
+            "params": {
+                "phi_ini_scf_ic": {"latex": "\\phi_{\\mathrm{ini}}"},
+                "phi_prime_scf_ic": {"latex": "\\phi^{\\prime}_{\\mathrm{ini}}"},
+                "phi_scf_min": {"latex": "\\phi_{\\mathrm{min}}"},
+                "phi_scf_max": {"latex": "\\phi_{\\mathrm{max}}"},
+                "phi_scf_range": {"latex": "\\Delta \\phi"},
+                "dV_V_scf_min": {"latex": "\\mathfrak{s}_{1,\\mathrm{min}}"},
+                "ddV_V_scf_max": {"latex": "-\\mathfrak{s}_{2,\\mathrm{max}}"},
+                "ddV_V_at_dV_V_min": {
+                    "latex": "-\\mathfrak{s}_{2@\\mathfrak{s}_{1,\\mathrm{min}}}"
+                },
+                "dV_V_at_ddV_V_max": {
+                    "latex": "\\mathfrak{s}_{1@\\mathfrak{s}_{2,\\mathrm{max}}}"
+                },
+                "swgc_expr_min": {"latex": "\\mathrm{SWGC}_\\phi"},
+                "sswgc_min": {"latex": "\\mathrm{SSWGC}_\\mathrm{DM}"},
+                "attractor_regime_scf": None,
+                "AdSDC2_max": {"latex": "m_\\mathrm{DM,min (no scale separation)}"},
+                "AdSDC4_max": {"latex": "m_\\mathrm{DM,min (scale separation)}"},
+                "combined_dSC_min": {
+                    "latex": "\\mathrm{(FLB--SSWGC) combined dSC}_\\mathrm{min}"
+                },
+                "conformal_age": {"latex": "\\eta_0"},
+            }
+        },
+    }
+
+    if is_postprocessing:
         # Post-processing configuration
-        config["output"] = run1_output_path  # Points to Run 1 chains
-        config["post"] = {
-            "suffix": "SN_BAO",
-            "add": LIKELIHOODS[likelihood],  # Adds the new likelihoods
-        }
+        if likelihood == "Run3_Planck_PP_SH0ES_DESIDR2":
+            # Run 3 is a special post-processing run
+            attractor_name = (
+                "tracking" if attractor in ("yes", "Yes", "YES") else "InitCond"
+            )
+            run1_output_path = f"/project/home/p201176/cobaya_{sampler}_Run1_Planck_2018_{potential}_{attractor_name}_{coupling}"
+            config["output"] = run1_output_path  # Points to Run 1 chains
+            config["post"] = {
+                "suffix": "SN_BAO",
+                "add": LIKELIHOODS[likelihood],  # Adds the new likelihoods
+            }
+        else:
+            # post_mcmc or post_polychord samplers
+            # Output points to the base sampler chain (without the "post_" prefix)
+            base_sampler = sampler.replace("post_", "")
+            attractor_name = (
+                "tracking" if attractor in ("yes", "Yes", "YES") else "InitCond"
+            )
+            if is_lcdm:
+                base_output_path = (
+                    f"/project/home/p201176/cobaya_{base_sampler}_{likelihood}_LCDM"
+                )
+            else:
+                base_output_path = f"/project/home/p201176/cobaya_{base_sampler}_{likelihood}_{potential}_{attractor_name}_{coupling}"
+            config["output"] = base_output_path
+            config["post"] = swampland_post_block
     else:
         # Standard sampling run
         config.update(SAMPLERS[sampler])
@@ -890,6 +942,7 @@ configuration = create_cobaya_yaml(sampler, likelihood, potential, attractor, co
 # Compute attractor name once for filename generation
 is_lcdm: bool = potential == "LCDM"  # type: ignore[comparison-overlap]
 attractor_name: str = "tracking" if attractor in ("yes", "Yes", "YES") else "InitCond"
+is_postprocessing_run: bool = sampler.startswith("post_")
 
 # Generate filename based on potential type
 filename: str
@@ -901,8 +954,8 @@ else:
     )
 
 # Specify the output path in the YAML file
-# For Run 3 (post-processing), output is already set to point to Run 1 chains
-if likelihood != "Run3_Planck_PP_SH0ES_DESIDR2":  # type: ignore[comparison-overlap]
+# For post-processing runs (Run 3 or post_* samplers), output is already set in the config
+if likelihood != "Run3_Planck_PP_SH0ES_DESIDR2" and not is_postprocessing_run:  # type: ignore[comparison-overlap]
     # For minimize_ samplers, output goes to the base sampler's chain directory
     if sampler.startswith("minimize_"):
         base_sampler = sampler.replace("minimize_", "")
