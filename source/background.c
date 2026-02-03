@@ -510,6 +510,8 @@ int background_functions(
     pvecback[pba->index_bg_V_scf] = V_scf(pba, phi);                                                // V_scf(pba,phi); //write here potential as function of phi
     pvecback[pba->index_bg_dV_scf] = dV_scf(pba, phi, pvecback);                                    // dV_scf(pba,phi); //potential' as function of phi // KBL: added pvecback to pass to dV_scf for coupling
     pvecback[pba->index_bg_ddV_scf] = ddV_scf(pba, phi);                                            // ddV_scf(pba,phi); //potential'' as function of phi
+    pvecback[pba->index_bg_d3V_scf] = d3V_scf(pba, phi);                                            // d3V_scf(pba,phi); //potential''' as function of phi
+    pvecback[pba->index_bg_d4V_scf] = d4V_scf(pba, phi);                                            // d4V_scf(pba,phi); //potential'''' as function of phi
     pvecback[pba->index_bg_rho_scf] = (phi_prime * phi_prime / (2 * a * a) + V_scf(pba, phi)) / 3.; // energy of the scalar field. The field units are set automatically by setting the initial conditions
     pvecback[pba->index_bg_p_scf] = (phi_prime * phi_prime / (2 * a * a) - V_scf(pba, phi)) / 3.;   // pressure of the scalar field
     rho_tot += pvecback[pba->index_bg_rho_scf];
@@ -1151,6 +1153,8 @@ int background_indices(
   class_define_index(pba->index_bg_V_scf, pba->has_scf, index_bg, 1);
   class_define_index(pba->index_bg_dV_scf, pba->has_scf, index_bg, 1);
   class_define_index(pba->index_bg_ddV_scf, pba->has_scf, index_bg, 1);
+  class_define_index(pba->index_bg_d3V_scf, pba->has_scf, index_bg, 1);
+  class_define_index(pba->index_bg_d4V_scf, pba->has_scf, index_bg, 1);
   class_define_index(pba->index_bg_rho_scf, pba->has_scf, index_bg, 1);
   class_define_index(pba->index_bg_p_scf, pba->has_scf, index_bg, 1);
   class_define_index(pba->index_bg_p_prime_scf, pba->has_scf, index_bg, 1);
@@ -3094,6 +3098,8 @@ int background_output_data(
     class_store_double(dataptr, pvecback[pba->index_bg_V_scf], pba->has_scf, storeidx);
     class_store_double(dataptr, pvecback[pba->index_bg_dV_scf], pba->has_scf, storeidx);
     class_store_double(dataptr, pvecback[pba->index_bg_ddV_scf], pba->has_scf, storeidx);
+    class_store_double(dataptr, pvecback[pba->index_bg_d3V_scf], pba->has_scf, storeidx);
+    class_store_double(dataptr, pvecback[pba->index_bg_d4V_scf], pba->has_scf, storeidx);
 
     class_store_double(dataptr, pvecback[pba->index_bg_rho_tot], _TRUE_, storeidx);
     class_store_double(dataptr, pvecback[pba->index_bg_p_tot], _TRUE_, storeidx);
@@ -3813,9 +3819,71 @@ double ddV_scf(
   }
 }
 
-// double ddV_scf(
-//     struct background *pba,
-//     double phi)
-// {
-//   return ddV_e_scf(pba, phi) * V_p_scf(pba, phi) + 2 * dV_e_scf(pba, phi) * dV_p_scf(pba, phi) + V_e_scf(pba, phi) * ddV_p_scf(pba, phi);
-// }
+// To assess the scalar weak gravity conjecture, we also need the third and fourth derivatives.
+double d3V_scf(
+    struct background *pba,
+    double phi)
+{
+  double c1 = pba->scf_parameters[0];
+  double c2 = pba->scf_parameters[1];
+  double c3 = pba->scf_parameters[2];
+  double c4 = pba->scf_parameters[3];
+
+  switch (pba->scf_potential)
+  {
+  case 1: // power-law
+    return (c2 - 2.) * (c2 - 1.) * c2 * pow(c1, 4. - c2) * pow(phi, c2 - 3.);
+  case 2: // cosine
+    return c1 * c2 * c2 * c2 * sin(phi * c2);
+  case 3: // hyperbolic
+    return -2. * c1 * c2 * c2 * c2 * (cosh(2. * c2 * phi) - 2.) / (cosh(c2 * phi) * cosh(c2 * phi) * cosh(c2 * phi) * cosh(c2 * phi));
+  case 4: // pNG
+    return pow(c1, 4.) / (c2 * c2 * c2) * sin(phi / c2);
+  case 5: // iPL
+    return -c2 * (c2 + 1.) * (c2 + 2.) * pow(c1, 4. + c2) * pow(phi, -c2 - 3.);
+  case 6: // exponential
+    return -c1 * c2 * c2 * c2 * exp(-c2 * phi);
+  case 7: // SqE
+    return pow(c1, c2 + 4.) * pow(phi, -c2 - 3.) * exp(c1 * phi * phi) * (8. * c1 * c1 * c1 * phi * phi * phi * phi * phi * phi + (-12. * c1 * c1 * (c2 - 1) * phi * phi * phi * phi) + 6. * c1 * c2 * c2 * phi * phi - c2 * (c2 + 1.) * (c2 + 2.));
+  case 8: // Bean
+    return -c1 * c3 * exp(-c3 * phi) * (c3 * (c3 * (c2 + (phi * phi)) - 6. * phi) + 6.);
+  case 9: // DoubleExp
+    return -c1 * c2 * c2 * c2 * exp(-c2 * phi) - c1 * c3 * c4 * c4 * c4 * exp(-c4 * phi);
+  default:
+    return 0.;
+  }
+}
+
+double d4V_scf(
+    struct background *pba,
+    double phi)
+{
+  double c1 = pba->scf_parameters[0];
+  double c2 = pba->scf_parameters[1];
+  double c3 = pba->scf_parameters[2];
+  double c4 = pba->scf_parameters[3];
+
+  switch (pba->scf_potential)
+  {
+  case 1: // power-law
+    return (c2 - 3.) * (c2 - 2.) * (c2 - 1.) * c2 * pow(c1, 4. - c2) * pow(phi, c2 - 4.);
+  case 2: // cosine
+    return c1 * c2 * c2 * c2 * c2 * cos(phi * c2);
+  case 3: // hyperbolic
+    return 2. * c1 * c2 * c2 * c2 * c2 * (sinh(3. * c2 * phi) - 11. * sinh(c2 * phi)) / (cosh(c2 * phi) * cosh(c2 * phi) * cosh(c2 * phi) * cosh(c2 * phi) * cosh(c2 * phi));
+  case 4: // pNG
+    return pow(c1, 4.) / (c2 * c2 * c2 * c2) * cos(phi / c2);
+  case 5: // iPL
+    return c2 * (c2 + 1.) * (c2 + 2.) * (c2 + 3.) * pow(c1, 4. + c2) * pow(phi, -c2 - 4.);
+  case 6: // exponential
+    return c1 * c2 * c2 * c2 * c2 * exp(-c2 * phi);
+  case 7: // SqE
+    return pow(c1, c2 + 4.) * pow(phi, -c2 - 4.) * exp(c1 * phi * phi) * (16. * c1 * c1 * c1 * c1 * phi * phi * phi * phi * phi * phi * phi * phi + (16. * c1 * c1 * c1 * phi * phi * phi * phi * phi * phi * (3. - 2. * c2)) + (12. * c1 * c1 * phi * phi * phi * phi * (2. * (c2 - 1.) * c2 + 1.)) - 4 * c1 * phi * phi * c2 * (c2 + 1.) * (2. * c2 + 1.) + c2 * (c2 + 1.) * (c2 + 2.) * (c2 + 3.));
+  case 8: // Bean
+    return c1 * c3 * c3 * exp(-c3 * phi) * (c3 * (c3 * (c2 + (phi * phi)) - 8. * phi) + 12.);
+  case 9: // DoubleExp
+    return c1 * c2 * c2 * c2 * c2 * exp(-c2 * phi) + c1 * c3 * c4 * c4 * c4 * c4 * exp(-c4 * phi);
+  default:
+    return 0.;
+  }
+}

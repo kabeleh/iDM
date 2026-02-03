@@ -204,6 +204,8 @@ struct background
     int index_bg_V_scf;         /**< scalar field potential V */
     int index_bg_dV_scf;        /**< scalar field potential derivative V' */
     int index_bg_ddV_scf;       /**< scalar field potential second derivative V'' */
+    int index_bg_d3V_scf;       /**< scalar field potential third derivative V''' */
+    int index_bg_d4V_scf;       /**< scalar field potential fourth derivative V'''' */
     int index_bg_rho_scf;       /**< scalar field energy density */
     int index_bg_p_scf;         /**< scalar field pressure */
     int index_bg_p_prime_scf;   /**< scalar field pressure */
@@ -563,6 +565,14 @@ extern "C"
         double *pvecback); // KBL needed for coupling
 
     double ddV_scf(
+        struct background *pba,
+        double phi);
+
+    double d3V_scf(
+        struct background *pba,
+        double phi);
+
+    double d4V_scf(
         struct background *pba,
         double phi);
 
