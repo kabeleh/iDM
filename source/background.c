@@ -2051,6 +2051,7 @@ int background_solve(
     pba->phi_scf_max = pvecback_integration[pba->index_bi_phi_scf];
     pba->phi_scf_range = 0.0;
     pba->dV_V_scf_min = 1.e100; /* large initial value for minimum tracking */
+    pba->ddV_V_scf_max = 0.0;   /* zero initial value for maximum tracking */
   }
   else
   {
@@ -2058,6 +2059,7 @@ int background_solve(
     pba->phi_scf_max = 0.0;
     pba->phi_scf_range = 0.0;
     pba->dV_V_scf_min = 0.0;
+    pba->ddV_V_scf_max = 0.0;
   }
 
   /** - Determine output vector */
@@ -3296,12 +3298,20 @@ int background_sources(
     /* Track minimum of |dV/V| for de Sitter Conjecture */
     double V_scf = bg_table_row[pba->index_bg_V_scf];
     double dV_scf = bg_table_row[pba->index_bg_dV_scf];
+    double ddV_scf = bg_table_row[pba->index_bg_ddV_scf];
     if (V_scf != 0.0)
     {
-      double ratio = fabs(dV_scf) / V_scf;
-      if (ratio < pba->dV_V_scf_min)
+      double ratio_dV = fabs(dV_scf) / V_scf;
+      if (ratio_dV < pba->dV_V_scf_min)
       {
-        pba->dV_V_scf_min = ratio;
+        pba->dV_V_scf_min = ratio_dV;
+      }
+
+      /* Track maximum of ddV/V for second de Sitter Conjecture */
+      double ratio_ddV = ddV_scf / V_scf;
+      if (ratio_ddV > pba->ddV_V_scf_max)
+      {
+        pba->ddV_V_scf_max = ratio_ddV;
       }
     }
   }
