@@ -114,6 +114,7 @@ cdef extern from "class.h":
         double phi_scf_max
         double phi_scf_range
         double dV_V_scf_min
+        int attractor_regime_scf
 
     cdef struct thermodynamics:
         short is_allocated
