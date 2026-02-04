@@ -35,12 +35,12 @@ ROOTS: list[str] = [
     # "cobaya_mcmc_Run2_PP_SH0ES_DESIDR2_DoubleExp_tracking_uncoupled",
     # "cobaya_mcmc_Run2_PP_SH0ES_DESIDR2_LCDM",
     "cobaya_mcmc_CV_PP_DESI_DoubleExp_tracking_uncoupled",
-    # "cobaya_mcmc_CV_PP_DESI_hyperbolic_tracking_uncoupled",
+    "cobaya_mcmc_CV_PP_DESI_hyperbolic_tracking_uncoupled",
     "cobaya_mcmc_CV_PP_S_DESI_DoubleExp_tracking_uncoupled",
-    # "cobaya_mcmc_CV_PP_S_DESI_LCDM",
-    # "cobaya_mcmc_CV_PP_S_DESI_hyperbolic_tracking_uncoupled",
+    "cobaya_mcmc_CV_PP_S_DESI_LCDM",
+    "cobaya_mcmc_CV_PP_S_DESI_hyperbolic_tracking_uncoupled",
     "cobaya_polychord_CV_PP_DESI_LCDM",
-    "cobaya_polychord_CV_PP_S_DESI_LCDM",
+    # "cobaya_polychord_CV_PP_S_DESI_LCDM",
 ]
 
 # Extract a list of colors from the categorical batlowKS colourmap
@@ -91,27 +91,55 @@ def make_triangle_plot(
         analysis_settings=ANALYSIS_SETTINGS,
     )
 
-    # Load samples and apply custom labels if provided
+    # Load samples, drop roots with none of the requested params,
+    # and keep only params present in all remaining roots.
+    samples_by_root: list[tuple[str, Any]] = []
+    for root in ROOTS:
+        samples = g.sample_analyser.samples_for_root(root)
+        if any(samples.paramNames.parWithName(p) is not None for p in params):
+            samples_by_root.append((root, samples))
+
+    if not samples_by_root:
+        raise ValueError(
+            "None of the requested parameters are available in the provided roots."
+        )
+
+    available_params: list[str] = [
+        p
+        for p in params
+        if all(
+            samples.paramNames.parWithName(p) is not None
+            for _, samples in samples_by_root
+        )
+    ]
+
+    if not available_params:
+        raise ValueError(
+            "No common parameters found across the selected roots; cannot plot."
+        )
+
+    # Apply custom labels if provided
     if param_labels:
-        samples_list: list[Any] = [
-            g.sample_analyser.samples_for_root(root) for root in ROOTS
-        ]
-        for samples in samples_list:
+        for _, samples in samples_by_root:
             for param_name, label in param_labels.items():
                 p = samples.paramNames.parWithName(param_name)
                 if p is not None:
                     p.label = label
-        roots_to_plot: Sequence[Any] = samples_list
-    else:
-        roots_to_plot = ROOTS
+
+    used_roots: list[str] = [root for root, _ in samples_by_root]
+    roots_to_plot: Sequence[Any] = [samples for _, samples in samples_by_root]
+    root_to_color: dict[str, Color] = {
+        root: CHAIN_COLOURS[i] for i, root in enumerate(ROOTS) if root in used_roots
+    }
+    chain_colors: list[Color] = [root_to_color[root] for root in used_roots]
 
     # Generate the triangle plot
     g.triangle_plot(
         roots_to_plot,
-        params,
+        available_params,
         filled=True,
-        colors=CHAIN_COLOURS,
-        diag1d_kwargs={"colors": CHAIN_COLOURS},
+        colors=chain_colors,
+        diag1d_kwargs={"colors": chain_colors},
         contour_lws=3,
         legend_loc="lower left",
         figure_legend_outside=True,
@@ -121,7 +149,7 @@ def make_triangle_plot(
 
     # Build legend handles for MCMC chains
     chain_handles: list[Patch] = [
-        Patch(facecolor=CHAIN_COLOURS[i], label=ROOTS[i]) for i in range(len(ROOTS))
+        Patch(facecolor=root_to_color[root], label=root) for root in used_roots
     ]
 
     # Apply custom annotations and collect their legend handles
@@ -201,9 +229,9 @@ def annotate_scf_constraints(g: Any) -> list[Patch]:
     """
     handles: list[Patch] = []
 
-    # c_2 should be of order 1. As a visual aid, we add a line at c_2=1 and another line at c_2=0.5
-    g.add_y_marker(1.0, ax=0, color="black", ls="--")
-    g.add_y_marker(0.5, ax=0, color="black", ls="--")
+    # # c_2 should be of order 1. As a visual aid, we add a line at c_2=1 and another line at c_2=0.5
+    # g.add_x_marker(1.0, ax=3, color="black", ls="--")
+    # g.add_x_marker(0.5, ax=3, color="black", ls="--")
 
     # Example: add a vertical line constraint on cdm_c (param index 0, 1D plot at ax=0)
     # ax = g.subplots[0, 0]
