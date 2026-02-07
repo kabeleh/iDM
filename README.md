@@ -1,6 +1,18 @@
 > [!WARNING]
 > This is currently work in progress. Everything and anything is subject to change, including licensing information.
 
+<p align="center">
+    <img alt="GitHub License" src="https://img.shields.io/github/license/kabeleh/iDM">
+    <img alt="GitHub last commit" src="https://img.shields.io/github/last-commit/kabeleh/iDM">
+    <img alt="GitHub commit activity" src="https://img.shields.io/github/commit-activity/w/kabeleh/iDM">
+    <img alt="GitHub language count" src="https://img.shields.io/github/languages/count/kabeleh/iDM">
+    <img alt="GitHub top language" src="https://img.shields.io/github/languages/top/kabeleh/iDM">
+    <img alt="Codacy grade" src="https://img.shields.io/codacy/grade/68ad366818ce43e28d91b709155dac0f">
+    <img alt="GitHub code size in bytes" src="https://img.shields.io/github/languages/code-size/kabeleh/iDM">
+    <img alt="GitHub repo size" src="https://img.shields.io/github/repo-size/kabeleh/iDM">
+<a href="https://github.com/psf/black"><img alt="Python Code style: black" src="https://img.shields.io/badge/code%20style-black-000000.svg"></a>
+</p>
+
 # Dark Energy–Dark Matter Interactions
 - Author: Kay Lehnert
 - Publications: 
