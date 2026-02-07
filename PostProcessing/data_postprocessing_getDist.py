@@ -34,12 +34,12 @@ ROOTS: list[str] = [
     # "cobaya_mcmc_Run2_PP_SH0ES_DESIDR2_hyperbolic_tracking_uncoupled",
     # "cobaya_mcmc_Run2_PP_SH0ES_DESIDR2_DoubleExp_tracking_uncoupled",
     # "cobaya_mcmc_Run2_PP_SH0ES_DESIDR2_LCDM",
-    "cobaya_mcmc_CV_PP_DESI_DoubleExp_tracking_uncoupled",
-    "cobaya_mcmc_CV_PP_DESI_hyperbolic_tracking_uncoupled",
-    "cobaya_mcmc_CV_PP_S_DESI_DoubleExp_tracking_uncoupled",
+    # "cobaya_mcmc_CV_PP_DESI_DoubleExp_tracking_uncoupled",
+    # "cobaya_mcmc_CV_PP_DESI_hyperbolic_tracking_uncoupled",
+    # "cobaya_mcmc_CV_PP_S_DESI_DoubleExp_tracking_uncoupled",
     "cobaya_mcmc_CV_PP_S_DESI_LCDM",
     "cobaya_mcmc_CV_PP_S_DESI_hyperbolic_tracking_uncoupled",
-    "cobaya_polychord_CV_PP_DESI_LCDM",
+    # "cobaya_polychord_CV_PP_DESI_LCDM",
     # "cobaya_polychord_CV_PP_S_DESI_LCDM",
 ]
 
@@ -255,7 +255,7 @@ params_cosmology = ["H0", "S8"]
 g1 = make_triangle_plot(params_cosmology, annotations=annotate_H0_S8, title=None)
 
 # Export example:
-# g1.fig.savefig("plot_H0_S8.png", bbox_inches="tight", dpi=300)
+g1.fig.savefig("plot_H0_S8_PP_S_DESI_LCDM_hyperbolic.png", bbox_inches="tight", dpi=300)
 
 plt.show()
 
@@ -278,7 +278,7 @@ g2 = make_triangle_plot(
 )
 
 # Export example:
-# g2.fig.savefig("plot_scf_params.png", bbox_inches="tight", dpi=300)
+g2.fig.savefig("plot_scf_params_PP_S_DESI_hyperbolic.png", bbox_inches="tight", dpi=300)
 
 plt.show()
 
@@ -425,7 +425,7 @@ def get_likelihoods_for_chain(root: str, chain_dir: str = CHAIN_DIR) -> list[str
 
     # If no likelihoods found in YAML, try .minimum file as fallback
     if not likelihoods:
-        minimum_file = os.path.join(chain_dir, f"{root}.minimum")
+        minimum_file = os.path.join(chain_dir, f"{root}.bestfit")
         if os.path.exists(minimum_file):
             min_data = parse_minimum_file(minimum_file)
             if min_data.get("chi_sq_components"):
@@ -655,7 +655,7 @@ def identify_dataset_from_root(root: str) -> tuple[str, str, bool]:
     # Identify model type and get LaTeX name
     is_lcdm = "lcdm" in root_lower
     if is_lcdm:
-        model_name = r"\lcdm"
+        model_name = r"\gls{lcdm}"
     elif "doubleexp" in root_lower or "dexp" in root_lower:
         model_name = r"\Nref{pot:dexp}"
     elif "hyperbolic" in root_lower or "tanh" in root_lower:
@@ -789,7 +789,7 @@ def generate_cosmology_table(
     # Collect data for all chains
     chain_data: dict[str, Any] = {}
     for root in roots:
-        minimum_file = os.path.join(chain_dir, f"{root}.minimum")
+        minimum_file = os.path.join(chain_dir, f"{root}.bestfit")
         if os.path.exists(minimum_file):
             min_data: dict[str, Any] = parse_minimum_file(minimum_file)
         else:
@@ -1030,7 +1030,7 @@ def generate_scf_table(
         # Collect data for this model's chains
         chain_data: dict[str, Any] = {}
         for root in model_roots:
-            minimum_file = os.path.join(chain_dir, f"{root}.minimum")
+            minimum_file = os.path.join(chain_dir, f"{root}.bestfit")
             if os.path.exists(minimum_file):
                 min_data: dict[str, Any] = parse_minimum_file(minimum_file)
             else:
@@ -1138,7 +1138,7 @@ def generate_detailed_table(
         _, model_name, _ = identify_dataset_from_root(root)
         model_names[root] = model_name
 
-        minimum_file = os.path.join(chain_dir, f"{root}.minimum")
+        minimum_file = os.path.join(chain_dir, f"{root}.bestfit")
         if os.path.exists(minimum_file):
             min_data: dict[str, Any] = parse_minimum_file(minimum_file)
         else:
