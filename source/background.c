@@ -2592,7 +2592,7 @@ int background_initial_conditions(
             pba->attractor_regime_scf = 1; // large-field attractor
             if (pba->background_verbose > 0)
             {
-              printf("Large-field attractor is used. We assign phi_ini_scf=%e and phi_prime_ini_scf=%e instead of tracking solution.\n", pvecback_integration[pba->index_bi_phi_scf], pvecback_integration[pba->index_bi_phi_prime_scf]);
+              printf("Large-field attractor is used. We assign phi_ini_scf=%e and phi_prime_ini_scf=%e.\n", pvecback_integration[pba->index_bi_phi_scf], pvecback_integration[pba->index_bi_phi_prime_scf]);
             }
           }
           // if none of those conditions are met, there are weaker conditions under which an approximate attractor solution --- the one of the simple exponential potential --- exists. Phi_prime_ini is identical and does not need to be changed.
@@ -2625,7 +2625,7 @@ int background_initial_conditions(
             pba->attractor_regime_scf = 2; // approximate attractor
             if (pba->background_verbose > 0)
             {
-              printf("Approximate large-field attractor is used. We assign phi_ini_scf=%e and phi_prime_ini_scf=%e instead of tracking solution.\n", pvecback_integration[pba->index_bi_phi_scf], pvecback_integration[pba->index_bi_phi_prime_scf]);
+              printf("Approximate large-field attractor is used. We assign phi_ini_scf=%e and phi_prime_ini_scf=%e.\n", pvecback_integration[pba->index_bi_phi_scf], pvecback_integration[pba->index_bi_phi_prime_scf]);
             }
           }
           // If these conditions are not met as well, we still need to assign some value. The small-field attractor solution avoids NaN.
@@ -2636,7 +2636,7 @@ int background_initial_conditions(
             pba->attractor_regime_scf = 3; // small-field attractor
             if (pba->background_verbose > 0)
             {
-              printf("Small-field attractor is used. We assign phi_ini_scf=%e and phi_prime_ini_scf=%e instead of tracking solution.\n", pvecback_integration[pba->index_bi_phi_scf], pvecback_integration[pba->index_bi_phi_prime_scf]);
+              printf("Small-field attractor is used. We assign phi_ini_scf=%e and phi_prime_ini_scf=%e.\n", pvecback_integration[pba->index_bi_phi_scf], pvecback_integration[pba->index_bi_phi_prime_scf]);
             }
           }
         }
@@ -2657,10 +2657,15 @@ int background_initial_conditions(
           if (pba->background_verbose > 0)
           {
             printf("scf_lambda is too small compared to scf_gamma. The root would be negative. Using phi_ini_scf and phi_prime_ini_scf instead of tracking solution.\n");
+            printf("The condition for the existence of the attractor solution is: scf_lambda^2 > 3*scf_gamma. Here, scf_lambda^2 = %e and 3*scf_gamma = %e.\n", scf_lambda * scf_lambda, 3. * scf_gamma);
           }
           /** - --> If no attractor initial conditions are assigned, gets the provided ones. */
           pvecback_integration[pba->index_bi_phi_scf] = pba->phi_ini_scf;
           pvecback_integration[pba->index_bi_phi_prime_scf] = pba->phi_prime_ini_scf;
+          if (pba->background_verbose > 0)
+          {
+            printf("scf_lambda is too small compared to scf_gamma. We use user-provided values phi_ini_scf=%e and phi_prime_ini_scf=%e instead of tracking solution.\n", pvecback_integration[pba->index_bi_phi_scf], pvecback_integration[pba->index_bi_phi_prime_scf]);
+          }
         }
         else
         {
@@ -2693,6 +2698,10 @@ int background_initial_conditions(
                     -2.0 * (c1 * c2 * c2 - 3.0 * c1 * scf_gamma) / (3.0 * scf_gamma * rho_tracking * (-1.0 + omega_background))) /
                 c2;
             pba->attractor_regime_scf = 1; // large-field attractor (exponential)
+            if (pba->background_verbose > 0)
+            {
+              printf("Large-field attractor is used. We assign phi_ini_scf=%e and phi_prime_ini_scf=%e.\n", pvecback_integration[pba->index_bi_phi_scf], pvecback_integration[pba->index_bi_phi_prime_scf]);
+            }
           }
           // If these conditions are not met, we still need to assign some value. The small-field attractor solution avoids NaN.
           else
@@ -2700,6 +2709,10 @@ int background_initial_conditions(
             pvecback_integration[pba->index_bi_phi_scf] = (2.0 * c1 * c2 * c2 - 6.0 * c1 * scf_gamma - 3.0 * scf_gamma * rho_tracking + 3.0 * scf_gamma * rho_tracking * omega_background) /
                                                           (2.0 * c1 * c2 * c2 * c2 - 6.0 * c1 * c2 * scf_gamma);
             pba->attractor_regime_scf = 3; // small-field attractor
+            if (pba->background_verbose > 0)
+            {
+              printf("Small-field attractor is used. We assign phi_ini_scf=%e and phi_prime_ini_scf=%e.\n", pvecback_integration[pba->index_bi_phi_scf], pvecback_integration[pba->index_bi_phi_prime_scf]);
+            }
           }
         }
         break;
@@ -2715,10 +2728,15 @@ int background_initial_conditions(
           if (pba->background_verbose > 0)
           {
             printf("scf_lambda is too small compared to scf_gamma. The root would be negative. Using phi_ini_scf and phi_prime_ini_scf instead of tracking solution.\n");
+            printf("The condition for the existence of the attractor solution is: scf_lambda^2 > 3*scf_gamma. Here, scf_lambda^2 = %e and 3*scf_gamma = %e.\n", scf_lambda * scf_lambda, 3. * scf_gamma);
           }
           /** - --> If no attractor initial conditions are assigned, gets the provided ones. */
           pvecback_integration[pba->index_bi_phi_scf] = pba->phi_ini_scf;
           pvecback_integration[pba->index_bi_phi_prime_scf] = pba->phi_prime_ini_scf;
+          if (pba->background_verbose > 0)
+          {
+            printf("scf_lambda is too small compared to scf_gamma. We use user-provided values phi_ini_scf=%e and phi_prime_ini_scf=%e instead of tracking solution.\n", pvecback_integration[pba->index_bi_phi_scf], pvecback_integration[pba->index_bi_phi_prime_scf]);
+          }
         }
         else
         {
@@ -2752,6 +2770,10 @@ int background_initial_conditions(
                     -2.0 * (c1 * c3 * c3 - 3.0 * c1 * scf_gamma) / (3.0 * scf_gamma * rho_tracking * (-1.0 + omega_background))) /
                 c3;
             pba->attractor_regime_scf = 2; // large-field attractor (Bean, approx by exponential)
+            if (pba->background_verbose > 0)
+            {
+              printf("Large-field attractor (approximated by exponential) is used. We assign phi_ini_scf=%e and phi_prime_ini_scf=%e.\n", pvecback_integration[pba->index_bi_phi_scf], pvecback_integration[pba->index_bi_phi_prime_scf]);
+            }
           }
           // If these conditions are not met, we still need to assign some value. The small-field attractor solution---which exists for this potential and is not equal to the small-field attractor of the exponential---avoids NaN. Phi_prime_ini is identical and does not need to be changed.
           else
@@ -2759,6 +2781,10 @@ int background_initial_conditions(
             pvecback_integration[pba->index_bi_phi_scf] = (-2.0 * c1 * c2 * c2 * c2 * c3 * c3 + 6.0 * c1 * c2 * c2 * c2 * scf_gamma + 3.0 * c2 * c2 * scf_gamma * rho_tracking - 3.0 * c2 * c2 * scf_gamma * rho_tracking * omega_background) /
                                                           (-2.0 * c1 * c2 * c2 * c2 * c3 * c3 * c3 + 6.0 * c1 * c2 * c2 * c2 * c3 * scf_gamma);
             pba->attractor_regime_scf = 3; // small-field attractor (Bean-specific)
+            if (pba->background_verbose > 0)
+            {
+              printf("Small-field attractor (Bean-specific) is used. We assign phi_ini_scf=%e and phi_prime_ini_scf=%e.\n", pvecback_integration[pba->index_bi_phi_scf], pvecback_integration[pba->index_bi_phi_prime_scf]);
+            }
           }
         }
         break;
@@ -2775,10 +2801,15 @@ int background_initial_conditions(
           if (pba->background_verbose > 0)
           {
             printf("scf_lambda is too small compared to scf_gamma. The root would be negative. Using phi_ini_scf and phi_prime_ini_scf instead of tracking solution.\n");
+            printf("The condition for the existence of the attractor solution is: scf_lambda^2 > 3*scf_gamma. Here, scf_lambda^2 = %e and 3*scf_gamma = %e.\n", scf_lambda * scf_lambda, 3. * scf_gamma);
           }
           /** - --> If no attractor initial conditions are assigned, gets the provided ones. */
           pvecback_integration[pba->index_bi_phi_scf] = pba->phi_ini_scf;
           pvecback_integration[pba->index_bi_phi_prime_scf] = pba->phi_prime_ini_scf;
+          if (pba->background_verbose > 0)
+          {
+            printf("scf_lambda is too small compared to scf_gamma. We use user-provided values phi_ini_scf=%e and phi_prime_ini_scf=%e instead of tracking solution.\n", pvecback_integration[pba->index_bi_phi_scf], pvecback_integration[pba->index_bi_phi_prime_scf]);
+          }
         }
         else
         {
@@ -2812,6 +2843,10 @@ int background_initial_conditions(
                     -2.0 * (c1 * scf_lambda * scf_lambda - 3.0 * c1 * scf_gamma) / (3.0 * scf_gamma * rho_tracking * (-1.0 + omega_background))) /
                 scf_lambda;
             pba->attractor_regime_scf = 2; // large-field attractor (DoubleExp, approx by single exponential)
+            if (pba->background_verbose > 0)
+            {
+              printf("Large-field attractor (approximated by single exponential) is used. We assign phi_ini_scf=%e and phi_prime_ini_scf=%e.\n", pvecback_integration[pba->index_bi_phi_scf], pvecback_integration[pba->index_bi_phi_prime_scf]);
+            }
           }
           // If the conditions are not met, we assign the small field attractor solution of the double exponential to avoid NaN.
           else if (((c1 + c3) * scf_gamma * rho_tracking * (1.0 + omega_background)) /
@@ -2826,6 +2861,10 @@ int background_initial_conditions(
             pvecback_integration[pba->index_bi_phi_scf] = (2.0 * c1 * c1 * c1 * c2 * c2 + 2.0 * c1 * c1 * c2 * c2 * c3 + 4.0 * c1 * c1 * c2 * c3 * c4 + 4.0 * c1 * c2 * c3 * c3 * c4 + 2.0 * c1 * c3 * c3 * c4 * c4 + 2.0 * c3 * c3 * c3 * c4 * c4 - 6.0 * c1 * c1 * c1 * scf_gamma - 18.0 * c1 * c1 * c3 * scf_gamma - 18.0 * c1 * c3 * c3 * scf_gamma - 6.0 * c3 * c3 * c3 * scf_gamma - 3.0 * c1 * c1 * scf_gamma * rho_tracking - 6.0 * c1 * c3 * scf_gamma * rho_tracking - 3.0 * c3 * c3 * scf_gamma * rho_tracking + 3.0 * c1 * c1 * scf_gamma * rho_tracking * omega_background + 6.0 * c1 * c3 * scf_gamma * rho_tracking * omega_background + 3.0 * c3 * c3 * scf_gamma * rho_tracking * omega_background) /
                                                           (2.0 * c1 * c1 * c1 * c2 * c2 * c2 + 6.0 * c1 * c1 * c2 * c2 * c3 * c4 + 6.0 * c1 * c2 * c3 * c3 * c4 * c4 + 2.0 * c3 * c3 * c3 * c4 * c4 * c4 - 6.0 * c1 * c1 * c1 * c2 * scf_gamma - 12.0 * c1 * c1 * c2 * c3 * scf_gamma - 6.0 * c1 * c2 * c3 * c3 * scf_gamma - 6.0 * c1 * c1 * c3 * c4 * scf_gamma - 12.0 * c1 * c3 * c3 * c4 * scf_gamma - 6.0 * c3 * c3 * c3 * c4 * scf_gamma);
             pba->attractor_regime_scf = 3; // approximate small-field attractor (DoubleExp-specific)
+            if (pba->background_verbose > 0)
+            {
+              printf("Small-field attractor (DoubleExp-specific) is used. We assign phi_ini_scf=%e and phi_prime_ini_scf=%e.\n", pvecback_integration[pba->index_bi_phi_scf], pvecback_integration[pba->index_bi_phi_prime_scf]);
+            }
           }
           // If these conditions are not met, we still need to assign some value. The small-field attractor solution of the simple exponential avoids NaN. It has again the 'old' phi_prime_ini, which does not need to be changed.
           else
@@ -2833,6 +2872,10 @@ int background_initial_conditions(
             pvecback_integration[pba->index_bi_phi_scf] = (2.0 * c1 * c2 * c2 - 6.0 * c1 * scf_gamma - 3.0 * scf_gamma * rho_tracking + 3.0 * scf_gamma * rho_tracking * omega_background) /
                                                           (2.0 * c1 * c2 * c2 * c2 - 6.0 * c1 * c2 * scf_gamma);
             pba->attractor_regime_scf = 4; // small-field attractor (simple exponential)
+            if (pba->background_verbose > 0)
+            {
+              printf("Approximate small-field attractor (simple exponential) is used. We assign phi_ini_scf=%e and phi_prime_ini_scf=%e.\n", pvecback_integration[pba->index_bi_phi_scf], pvecback_integration[pba->index_bi_phi_prime_scf]);
+            }
           }
         }
         break;
