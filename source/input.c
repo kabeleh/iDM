@@ -3731,12 +3731,20 @@ int input_read_parameters_species(struct file_content *pfc,
       else
       {
         pba->attractor_ic_scf = _FALSE_;
-        /* Test */
-        class_test(pba->scf_parameters_size < 2,
-                   errmsg,
-                   "Since you are not using attractor initial conditions, you must specify phi and its derivative phi' as the last two entries in scf_parameters. See explanatory.ini for more details.");
-        pba->phi_ini_scf = pba->scf_parameters[pba->scf_parameters_size - 2];
-        pba->phi_prime_ini_scf = pba->scf_parameters[pba->scf_parameters_size - 1];
+      }
+      /* Test: phi_ini and phi_prime_ini are needed as fallback values even when using attractor ICs,
+         since some attractor solutions may not exist or may not meet the required physical conditions */
+      class_test(pba->scf_parameters_size < 2,
+                 errmsg,
+                 "You must specify phi and its derivative phi' as the last two entries in scf_parameters. See explanatory.ini for more details.");
+      pba->phi_ini_scf = pba->scf_parameters[pba->scf_parameters_size - 2];
+      pba->phi_prime_ini_scf = pba->scf_parameters[pba->scf_parameters_size - 1];
+      if (pba->background_verbose > 2)
+      {
+        printf("[input] attractor_ic_scf=%d, phi_ini_scf=%e, phi_prime_ini_scf=%e\n",
+               pba->attractor_ic_scf,
+               pba->phi_ini_scf,
+               pba->phi_prime_ini_scf);
       }
     }
 

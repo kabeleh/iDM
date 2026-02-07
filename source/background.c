@@ -2302,6 +2302,14 @@ int background_solve(
         printf("%.3e, ", pba->scf_parameters[index_scf]);
       }
       printf("%.3e]\n", pba->scf_parameters[pba->scf_parameters_size - 1]);
+      printf("     -> Initial conditions: phi_ini = %g, phi_prime_ini = %g\n", pba->phi_ini_scf_computed, pba->phi_prime_scf_computed);
+      printf("     -> Attractor regime: %d\n", pba->attractor_regime_scf);
+      printf("     -> Field range: phi_min = %g, phi_max = %g, range = %g\n", pba->phi_scf_min, pba->phi_scf_max, pba->phi_scf_range);
+      printf("     -> de Sitter Conjecture: dV/V_min = %g, d2V/V_max = %g\n", pba->dV_V_scf_min, pba->ddV_V_scf_max);
+      printf("     -> Associated values: d2V/V|_dV/V_min = %g, dV/V|_d2V/V_max = %g\n", pba->ddV_V_at_dV_V_min, pba->dV_V_at_ddV_V_max);
+      printf("     -> Scalar Weak Gravity Conjecture: SWGC_expr_min = %g, SSWGC_min = %g\n", pba->swgc_expr_min, pba->sswgc_min);
+      printf("     -> Anti-de Sitter Distance Conjecture: AdSDC2_max = %g, AdSDC4_max = %g\n", pba->AdSDC2_max, pba->AdSDC4_max);
+      printf("     -> Combined dS Conjecture: combined_dSC_min = %g\n", pba->combined_dSC_min);
     }
   }
 
@@ -2529,10 +2537,15 @@ int background_initial_conditions(
           if (pba->background_verbose > 0)
           {
             printf("scf_lambda is too small compared to scf_gamma. The root would be negative. Using phi_ini_scf and phi_prime_ini_scf instead of tracking solution.\n");
+            printf("The condition for the existence of the attractor solution is: scf_lambda^2 > 3*scf_gamma. Here, scf_lambda^2 = %e and 3*scf_gamma = %e.\n", scf_lambda * scf_lambda, 3. * scf_gamma);
           }
           /** - --> If no attractor initial conditions are assigned, gets the provided ones. */
           pvecback_integration[pba->index_bi_phi_scf] = pba->phi_ini_scf;
           pvecback_integration[pba->index_bi_phi_prime_scf] = pba->phi_prime_ini_scf;
+          if (pba->background_verbose > 0)
+          {
+            printf("scf_lambda is too small compared to scf_gamma. We assign phi_ini_scf=%e and phi_prime_ini_scf=%e instead of tracking solution.\n", pvecback_integration[pba->index_bi_phi_scf], pvecback_integration[pba->index_bi_phi_prime_scf]);
+          }
         }
         else
         {
@@ -2577,6 +2590,10 @@ int background_initial_conditions(
                                                               (8.0 * c1 * c2 * c2 - 6.0 * c1 * scf_gamma - 3.0 * scf_gamma * rho_tracking + 3.0 * scf_gamma * rho_tracking * omega_background) / (2.0 * c1 * (4.0 * c2 * c2 - 3.0 * scf_gamma))) /
                                                           c2;
             pba->attractor_regime_scf = 1; // large-field attractor
+            if (pba->background_verbose > 0)
+            {
+              printf("Large-field attractor is used. We assign phi_ini_scf=%e and phi_prime_ini_scf=%e instead of tracking solution.\n", pvecback_integration[pba->index_bi_phi_scf], pvecback_integration[pba->index_bi_phi_prime_scf]);
+            }
           }
           // if none of those conditions are met, there are weaker conditions under which an approximate attractor solution --- the one of the simple exponential potential --- exists. Phi_prime_ini is identical and does not need to be changed.
           else if (
@@ -2606,6 +2623,10 @@ int background_initial_conditions(
                     -2.0 * (c1 * c2 * c2 - 3.0 * c1 * scf_gamma) / (3.0 * scf_gamma * rho_tracking * (-1.0 + omega_background))) /
                 c2;
             pba->attractor_regime_scf = 2; // approximate attractor
+            if (pba->background_verbose > 0)
+            {
+              printf("Approximate large-field attractor is used. We assign phi_ini_scf=%e and phi_prime_ini_scf=%e instead of tracking solution.\n", pvecback_integration[pba->index_bi_phi_scf], pvecback_integration[pba->index_bi_phi_prime_scf]);
+            }
           }
           // If these conditions are not met as well, we still need to assign some value. The small-field attractor solution avoids NaN.
           else
@@ -2613,6 +2634,10 @@ int background_initial_conditions(
             pvecback_integration[pba->index_bi_phi_scf] = (2.0 * c1 * c2 * c2 - 6.0 * c1 * scf_gamma - 3.0 * scf_gamma * rho_tracking + 3.0 * scf_gamma * rho_tracking * omega_background) /
                                                           (2.0 * c1 * c2 * c2 * c2 - 6.0 * c1 * c2 * scf_gamma);
             pba->attractor_regime_scf = 3; // small-field attractor
+            if (pba->background_verbose > 0)
+            {
+              printf("Small-field attractor is used. We assign phi_ini_scf=%e and phi_prime_ini_scf=%e instead of tracking solution.\n", pvecback_integration[pba->index_bi_phi_scf], pvecback_integration[pba->index_bi_phi_prime_scf]);
+            }
           }
         }
         break;
@@ -2840,6 +2865,10 @@ int background_initial_conditions(
       pvecback_integration[pba->index_bi_phi_scf] = pba->phi_ini_scf;
       pvecback_integration[pba->index_bi_phi_prime_scf] = pba->phi_prime_ini_scf;
       pba->attractor_regime_scf = 0; // no attractor
+      if (pba->background_verbose > 0)
+      {
+        printf("No attractor is requested. We assign phi_ini_scf=%e and phi_prime_ini_scf=%e instead of tracking solution.\n", pvecback_integration[pba->index_bi_phi_scf], pvecback_integration[pba->index_bi_phi_prime_scf]);
+      }
     }
     // printf("initial phi = %e phi_prime = %e\n",
     //        pvecback_integration[pba->index_bi_phi_scf],
@@ -2868,12 +2897,23 @@ int background_initial_conditions(
 
     pba->phi_ini_scf_computed = pvecback_integration[pba->index_bi_phi_scf];
     pba->phi_prime_scf_computed = pvecback_integration[pba->index_bi_phi_prime_scf];
+    if (pba->background_verbose > 2)
+    {
+      printf("[background] attractor_regime_scf=%d, phi_ini_scf_computed=%e, phi_prime_scf_computed=%e\n",
+             pba->attractor_regime_scf,
+             pba->phi_ini_scf_computed,
+             pba->phi_prime_scf_computed);
+    }
   }
   else
   {
     pba->phi_ini_scf_computed = 0.0;
     pba->phi_prime_scf_computed = 0.0;
     pba->attractor_regime_scf = 0;
+    if (pba->background_verbose > 0)
+    {
+      printf("No scalar field present. No initial field values set.\n");
+    }
   }
 
   /* Infer pvecback from pvecback_integration */
@@ -3049,6 +3089,8 @@ int background_output_titles(
   class_store_columntitle(titles, "V_scf", pba->has_scf);
   class_store_columntitle(titles, "V'_scf", pba->has_scf);
   class_store_columntitle(titles, "V''_scf", pba->has_scf);
+  class_store_columntitle(titles, "V'''_scf", pba->has_scf);
+  class_store_columntitle(titles, "V''''_scf", pba->has_scf);
 
   class_store_columntitle(titles, "(.)rho_tot", _TRUE_);
   class_store_columntitle(titles, "(.)p_tot", _TRUE_);
