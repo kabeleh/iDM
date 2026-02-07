@@ -548,6 +548,19 @@ extern "C"
     int background_output_budget(
         struct background *pba);
 
+    /** Swampland Conjectures (KBL) **/
+    double sswgc(
+        struct background *pba,
+        double phi);
+
+    double AdSDC2(
+        struct background *pba,
+        double phi);
+
+    double AdSDC4(
+        struct background *pba,
+        double phi);
+
     /** DM–DE Interactions (KBL) **/
     double rho_cdm_prime(
         struct background *pba,
@@ -561,6 +574,10 @@ extern "C"
 
     /** Scalar field potential and its derivatives **/
     double V_scf(
+        struct background *pba,
+        double phi);
+
+    double dV_p_scf(
         struct background *pba,
         double phi);
 
