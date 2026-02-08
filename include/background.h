@@ -577,6 +577,15 @@ extern "C"
         struct background *pba,
         double phi);
 
+    void V_scf_derivs(
+        struct background *pba,
+        double phi,
+        double *V,
+        double *dV,
+        double *ddV,
+        double *d3V,
+        double *d4V);
+
     double dV_p_scf(
         struct background *pba,
         double phi);

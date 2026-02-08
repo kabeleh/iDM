@@ -2529,11 +2529,11 @@ int input_read_parameters_species(struct file_content *pfc,
   char string1[_ARGUMENT_LENGTH_MAX_];
   int fileentries;
   int N_ncdm = 0, n, entries_read;
-  int model_cdm; // CDM model (0:standard, 1: Hubbleian, 2: interacting with DE) //KBL
-  double cdm_c;  // constant in the hyperbolic CDM model //KBL
+  // int model_cdm; // CDM model (0:standard, 1: Hubbleian, 2: interacting with DE) //KBL
+  // double cdm_c;  // constant in the hyperbolic CDM model //KBL
   double rho_ncdm;
   // double scf_lambda;
-  int scf_potential; // type of scalar field potential //KBL
+  // int scf_potential; // type of scalar field potential //KBL
   double fnu_factor;
   double Omega_tot;
   double sigma_B; // Stefan-Boltzmann constant

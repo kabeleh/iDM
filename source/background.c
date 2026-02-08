@@ -505,15 +505,33 @@ int background_functions(
   {
     phi = pvecback_B[pba->index_bi_phi_scf];
     phi_prime = pvecback_B[pba->index_bi_phi_prime_scf];
-    pvecback[pba->index_bg_phi_scf] = phi;                                                          // value of the scalar field phi
-    pvecback[pba->index_bg_phi_prime_scf] = phi_prime;                                              // value of the scalar field phi derivative wrt conformal time
-    pvecback[pba->index_bg_V_scf] = V_scf(pba, phi);                                                // V_scf(pba,phi); //write here potential as function of phi
-    pvecback[pba->index_bg_dV_scf] = dV_scf(pba, phi, pvecback);                                    // dV_scf(pba,phi); //potential' as function of phi // KBL: added pvecback to pass to dV_scf for coupling
-    pvecback[pba->index_bg_ddV_scf] = ddV_scf(pba, phi);                                            // ddV_scf(pba,phi); //potential'' as function of phi
-    pvecback[pba->index_bg_d3V_scf] = d3V_scf(pba, phi);                                            // d3V_scf(pba,phi); //potential''' as function of phi
-    pvecback[pba->index_bg_d4V_scf] = d4V_scf(pba, phi);                                            // d4V_scf(pba,phi); //potential'''' as function of phi
-    pvecback[pba->index_bg_rho_scf] = (phi_prime * phi_prime / (2 * a * a) + V_scf(pba, phi)) / 3.; // energy of the scalar field. The field units are set automatically by setting the initial conditions
-    pvecback[pba->index_bg_p_scf] = (phi_prime * phi_prime / (2 * a * a) - V_scf(pba, phi)) / 3.;   // pressure of the scalar field
+    pvecback[pba->index_bg_phi_scf] = phi;             // value of the scalar field phi
+    pvecback[pba->index_bg_phi_prime_scf] = phi_prime; // value of the scalar field phi derivative wrt conformal time
+
+    /* Compute V, V', V'' (and optionally V''', V'''') in a single call.
+       This avoids redundant extraction of c1–c4 and redundant switch dispatch
+       that the separate V_scf/dV_p_scf/ddV_scf/d3V_scf/d4V_scf would each do. */
+    double V_phi, dV_p, ddV_val;
+    if (return_format == long_info)
+    {
+      double d3V_val, d4V_val;
+      V_scf_derivs(pba, phi, &V_phi, &dV_p, &ddV_val, &d3V_val, &d4V_val);
+      pvecback[pba->index_bg_d3V_scf] = d3V_val;
+      pvecback[pba->index_bg_d4V_scf] = d4V_val;
+    }
+    else
+    {
+      V_scf_derivs(pba, phi, &V_phi, &dV_p, &ddV_val, NULL, NULL);
+    }
+
+    double KE = phi_prime * phi_prime / (2 * a2); // kinetic energy term (reuse a2)
+
+    pvecback[pba->index_bg_V_scf] = V_phi;
+    pvecback[pba->index_bg_dV_scf] = dV_p + coupling_scf(pba, rho_cdm_prime(pba, phi, pvecback), pvecback); // V'_eff = V'_pure + coupling
+    pvecback[pba->index_bg_ddV_scf] = ddV_val;
+
+    pvecback[pba->index_bg_rho_scf] = (KE + V_phi) / 3.; // energy of the scalar field
+    pvecback[pba->index_bg_p_scf] = (KE - V_phi) / 3.;   // pressure of the scalar field
     rho_tot += pvecback[pba->index_bg_rho_scf];
     p_tot += pvecback[pba->index_bg_p_scf];
     dp_dloga += 0.0; /** <-- This depends on a_prime_over_a, so we cannot add it now! */
@@ -2049,22 +2067,7 @@ int background_solve(
              pba->error_message,
              pba->error_message);
 
-  if (pba->has_scf == _TRUE_)
-  {
-    pba->phi_scf_min = pvecback_integration[pba->index_bi_phi_scf];
-    pba->phi_scf_max = pvecback_integration[pba->index_bi_phi_scf];
-    pba->phi_scf_range = 0.0;
-    pba->dV_V_scf_min = 1.e100;   /* large initial value for minimum tracking */
-    pba->ddV_V_scf_max = -1.e100; /* small initial value for maximum tracking */
-    pba->ddV_V_at_dV_V_min = 0.0;
-    pba->dV_V_at_ddV_V_max = 0.0;
-    pba->swgc_expr_min = 1.e100;    /* large initial value for SWGC expression minimum */
-    pba->sswgc_min = 1.e100;        /* large initial value for strong SWGC minimum */
-    pba->AdSDC2_max = -1.e100;      /* small initial value for AdSDC2 maximum */
-    pba->AdSDC4_max = -1.e100;      /* small initial value for AdSDC4 maximum */
-    pba->combined_dSC_min = 1.e100; /* large initial value for minimum tracking */
-  }
-  else
+  if (pba->has_scf == _FALSE_)
   {
     pba->phi_scf_min = 0.0;
     pba->phi_scf_max = 0.0;
@@ -2190,39 +2193,144 @@ int background_solve(
     pba->background_table[index_loga * pba->bg_size + pba->index_bg_lum_distance] = comoving_radius * (1. + pba->z_table[index_loga]);
   }
 
+  /** - Post-integration: compute all scalar field diagnostic
+      quantities using vectorized operations on contiguous arrays.
+      Columns are extracted from the strided background table, derived
+      arrays are computed element-wise, and results are obtained via
+      min/max/argmin/argmax reductions on contiguous data. */
   if (pba->has_scf == _TRUE_)
   {
-    pba->phi_scf_range = pba->phi_scf_max - pba->phi_scf_min;
-    if (pba->dV_V_scf_min >= 1.e99) /* If still at initialization value, set to 0 */
+    int N = pba->bt_size;
+    int stride = pba->bg_size;
+    int i;
+
+    /* Allocate contiguous workspace: 13 arrays of length N */
+    double *work;
+    class_alloc(work, 13 * N * sizeof(double), pba->error_message);
+
+    double *phi_col = work;
+    double *V_col = work + N;
+    double *dV_col = work + 2 * N;
+    double *ddV_col = work + 3 * N;
+    double *d3V_col = work + 4 * N;
+    double *d4V_col = work + 5 * N;
+    double *ratio_dV = work + 6 * N;
+    double *ratio_ddV = work + 7 * N;
+    double *swgc_arr = work + 8 * N;
+    double *sswgc_arr = work + 9 * N;
+    double *AdSDC2_arr = work + 10 * N;
+    double *AdSDC4_arr = work + 11 * N;
+    double *comb_arr = work + 12 * N;
+
+    /* Cache column offsets */
+    int idx_phi = pba->index_bg_phi_scf;
+    int idx_V = pba->index_bg_V_scf;
+    int idx_dV = pba->index_bg_dV_scf;
+    int idx_ddV = pba->index_bg_ddV_scf;
+    int idx_d3V = pba->index_bg_d3V_scf;
+    int idx_d4V = pba->index_bg_d4V_scf;
+
+    /* Extract columns from strided table into contiguous arrays */
+    for (i = 0; i < N; i++)
     {
-      pba->dV_V_scf_min = 0.0;
-      pba->ddV_V_at_dV_V_min = 0.0;
+      double *row = pba->background_table + i * stride;
+      phi_col[i] = row[idx_phi];
+      V_col[i] = row[idx_V];
+      dV_col[i] = row[idx_dV];
+      ddV_col[i] = row[idx_ddV];
+      d3V_col[i] = row[idx_d3V];
+      d4V_col[i] = row[idx_d4V];
     }
-    if (pba->ddV_V_scf_max <= -1.e99) /* If still at initialization value, set to 0 */
+
+    /* Compute derived ratio arrays element-wise.
+       V==0 rows get sentinel values so they never win min/max. */
+    for (i = 0; i < N; i++)
     {
-      pba->ddV_V_scf_max = 0.0;
-      pba->dV_V_at_ddV_V_max = 0.0;
+      if (V_col[i] != 0.0)
+      {
+        double invV = 1.0 / V_col[i];
+        ratio_dV[i] = fabs(dV_col[i]) * invV;
+        ratio_ddV[i] = ddV_col[i] * invV;
+        swgc_arr[i] = 2.0 * d3V_col[i] * d3V_col[i] - ddV_col[i] * d4V_col[i] - ddV_col[i] * ddV_col[i];
+        double rp = dV_p_scf(pba, phi_col[i]) * invV;
+        comb_arr[i] = 0.25 * (3.0 * rp * rp - 2.0 * ratio_ddV[i]);
+      }
+      else
+      {
+        ratio_dV[i] = 1.e100;
+        ratio_ddV[i] = -1.e100;
+        swgc_arr[i] = 1.e100;
+        comb_arr[i] = 1.e100;
+      }
     }
-    if (pba->swgc_expr_min >= 1.e99) /* If still at initialization value, set to 0 */
+
+    /* Compute phi-only diagnostics element-wise */
+    for (i = 0; i < N; i++)
     {
-      pba->swgc_expr_min = 0.0;
+      sswgc_arr[i] = sswgc(pba, phi_col[i]);
+      AdSDC2_arr[i] = AdSDC2(pba, phi_col[i]);
+      AdSDC4_arr[i] = AdSDC4(pba, phi_col[i]);
     }
-    if (pba->sswgc_min >= 1.e99) /* If still at initialization value, set to 0 */
-    {
-      pba->sswgc_min = 0.0;
-    }
-    if (pba->AdSDC2_max <= -1.e99) /* If still at initialization value, set to 0 */
-    {
-      pba->AdSDC2_max = 0.0;
-    }
-    if (pba->AdSDC4_max <= -1.e99) /* If still at initialization value, set to 0 */
-    {
-      pba->AdSDC4_max = 0.0;
-    }
-    if (pba->combined_dSC_min >= 1.e99) /* If still at initialization value, set to 0 */
-    {
-      pba->combined_dSC_min = 0.0;
-    }
+
+    /* Reductions: min, max, argmin, argmax on contiguous arrays */
+    double phi_min_val, phi_max_val, swgc_min_val, sswgc_min_val;
+    double AdSDC2_max_val, AdSDC4_max_val, comb_min_val;
+    int idx_min_dV, idx_max_ddV;
+
+    /* Use cblas_idamax-style argmin/argmax: single pass each */
+    phi_min_val = phi_col[0];
+    for (i = 1; i < N; i++)
+      if (phi_col[i] < phi_min_val)
+        phi_min_val = phi_col[i];
+    phi_max_val = phi_col[0];
+    for (i = 1; i < N; i++)
+      if (phi_col[i] > phi_max_val)
+        phi_max_val = phi_col[i];
+    idx_min_dV = 0;
+    for (i = 1; i < N; i++)
+      if (ratio_dV[i] < ratio_dV[idx_min_dV])
+        idx_min_dV = i;
+    idx_max_ddV = 0;
+    for (i = 1; i < N; i++)
+      if (ratio_ddV[i] > ratio_ddV[idx_max_ddV])
+        idx_max_ddV = i;
+    swgc_min_val = swgc_arr[0];
+    for (i = 1; i < N; i++)
+      if (swgc_arr[i] < swgc_min_val)
+        swgc_min_val = swgc_arr[i];
+    sswgc_min_val = sswgc_arr[0];
+    for (i = 1; i < N; i++)
+      if (sswgc_arr[i] < sswgc_min_val)
+        sswgc_min_val = sswgc_arr[i];
+    AdSDC2_max_val = AdSDC2_arr[0];
+    for (i = 1; i < N; i++)
+      if (AdSDC2_arr[i] > AdSDC2_max_val)
+        AdSDC2_max_val = AdSDC2_arr[i];
+    AdSDC4_max_val = AdSDC4_arr[0];
+    for (i = 1; i < N; i++)
+      if (AdSDC4_arr[i] > AdSDC4_max_val)
+        AdSDC4_max_val = AdSDC4_arr[i];
+    comb_min_val = comb_arr[0];
+    for (i = 1; i < N; i++)
+      if (comb_arr[i] < comb_min_val)
+        comb_min_val = comb_arr[i];
+
+    /* Store results */
+    pba->phi_scf_min = phi_min_val;
+    pba->phi_scf_max = phi_max_val;
+    pba->phi_scf_range = phi_max_val - phi_min_val;
+
+    pba->dV_V_scf_min = (ratio_dV[idx_min_dV] < 1.e99) ? ratio_dV[idx_min_dV] : 0.0;
+    pba->ddV_V_at_dV_V_min = (ratio_dV[idx_min_dV] < 1.e99) ? ratio_ddV[idx_min_dV] : 0.0;
+    pba->ddV_V_scf_max = (ratio_ddV[idx_max_ddV] > -1.e99) ? ratio_ddV[idx_max_ddV] : 0.0;
+    pba->dV_V_at_ddV_V_max = (ratio_ddV[idx_max_ddV] > -1.e99) ? ratio_dV[idx_max_ddV] : 0.0;
+    pba->swgc_expr_min = (swgc_min_val < 1.e99) ? swgc_min_val : 0.0;
+    pba->sswgc_min = (sswgc_min_val < 1.e99) ? sswgc_min_val : 0.0;
+    pba->AdSDC2_max = (AdSDC2_max_val > -1.e99) ? AdSDC2_max_val : 0.0;
+    pba->AdSDC4_max = (AdSDC4_max_val > -1.e99) ? AdSDC4_max_val : 0.0;
+    pba->combined_dSC_min = (comb_min_val < 1.e99) ? comb_min_val : 0.0;
+
+    free(work);
   }
 
   /** - fill tables of second derivatives (in view of spline interpolation) */
@@ -3414,78 +3522,6 @@ int background_sources(
              pba->error_message,
              pba->error_message);
 
-  if (pba->has_scf == _TRUE_)
-  {
-    double phi_val = bg_table_row[pba->index_bg_phi_scf];
-    if (phi_val < pba->phi_scf_min)
-    {
-      pba->phi_scf_min = phi_val;
-    }
-    if (phi_val > pba->phi_scf_max)
-    {
-      pba->phi_scf_max = phi_val;
-    }
-
-    /* Track minimum of strong SWGC expression */
-    double sswgc_val = sswgc(pba, phi_val);
-    if (sswgc_val < pba->sswgc_min)
-    {
-      pba->sswgc_min = sswgc_val;
-    }
-
-    /* Track maximum of AdSDC boundary expressions */
-    double AdSDC2_val = AdSDC2(pba, phi_val);
-    if (AdSDC2_val > pba->AdSDC2_max)
-    {
-      pba->AdSDC2_max = AdSDC2_val;
-    }
-    double AdSDC4_val = AdSDC4(pba, phi_val);
-    if (AdSDC4_val > pba->AdSDC4_max)
-    {
-      pba->AdSDC4_max = AdSDC4_val;
-    }
-
-    /* Track minimum of |dV/V| for de Sitter Conjecture */
-    double V_scf = bg_table_row[pba->index_bg_V_scf];
-    double dV_scf = bg_table_row[pba->index_bg_dV_scf];
-    double ddV_scf = bg_table_row[pba->index_bg_ddV_scf];
-    if (V_scf != 0.0)
-    {
-      double ratio_dV = fabs(dV_scf) / V_scf;
-      if (ratio_dV < pba->dV_V_scf_min)
-      {
-        pba->dV_V_scf_min = ratio_dV;
-        pba->ddV_V_at_dV_V_min = ddV_scf / V_scf;
-      }
-
-      /* Track maximum of ddV/V for second de Sitter Conjecture */
-      double ratio_ddV = ddV_scf / V_scf;
-      if (ratio_ddV > pba->ddV_V_scf_max)
-      {
-        pba->ddV_V_scf_max = ratio_ddV;
-        pba->dV_V_at_ddV_V_max = ratio_dV;
-      }
-
-      /* Track minimum of SWGC expression: 2*(d3V)^2 - ddV*d4V - (ddV)^2 */
-      double d3V_scf = bg_table_row[pba->index_bg_d3V_scf];
-      double d4V_scf = bg_table_row[pba->index_bg_d4V_scf];
-      double swgc_expr = 2.0 * d3V_scf * d3V_scf - ddV_scf * d4V_scf - ddV_scf * ddV_scf;
-      if (swgc_expr < pba->swgc_expr_min)
-      {
-        pba->swgc_expr_min = swgc_expr;
-      }
-
-      /* Track minimum of (3*(dV_p)^2/V^2 - 2*ddV/V)/4 */
-      double dV_p_scf_val = dV_p_scf(pba, phi_val);
-      double ratio_dV_p = dV_p_scf_val / V_scf;
-      double swampland_expr = 0.25 * (3.0 * ratio_dV_p * ratio_dV_p - 2.0 * ratio_ddV);
-      if (swampland_expr < pba->combined_dSC_min)
-      {
-        pba->combined_dSC_min = swampland_expr;
-      }
-    }
-  }
-
   return _SUCCESS_;
 }
 
@@ -3739,8 +3775,6 @@ double coupling_scf(
   double q2 = pba->scf_parameters[pba->scf_parameters_size - 7];
   double q3 = pba->scf_parameters[pba->scf_parameters_size - 6];
   double q4 = pba->scf_parameters[pba->scf_parameters_size - 5];
-  double exp1 = pba->scf_parameters[pba->scf_parameters_size - 4];
-  double exp2 = pba->scf_parameters[pba->scf_parameters_size - 3];
 
   // Early return if no coupling is present to avoid numerical issues
   if (q1 == 0.0 && q2 == 0.0 && q3 == 0.0 && q4 == 0.0)
@@ -3748,27 +3782,72 @@ double coupling_scf(
     return 0.0;
   }
 
+  // Cache frequently accessed array elements in locals
+  double rho_cdm = pvecback[pba->index_bg_rho_cdm];
+  double rho_scf = pvecback[pba->index_bg_rho_scf];
+
+  // Direct coupling terms (always cheap, no transcendentals)
+  double direct = q3 * rho_cdm + q4 * rho_cdm_prime;
+
+  // If only direct coupling, skip all expensive pow/exp/log computations
+  if (q1 == 0.0 && q2 == 0.0)
+  {
+    return direct;
+  }
+
   // Guard against division by zero or near-zero phi_prime
-  // Physical justification: if phi' is near zero, phi is not changing, and so it's energy density should not change by its own dynamics, only by the coupling to DM density evolution.
-  if (fabs(pvecback[pba->index_bg_phi_prime_scf]) < 1e-20)
+  // Physical justification: if phi' is near zero, phi is not changing, and so its energy density
+  // should not change by its own dynamics, only by the coupling to DM density evolution.
+  double phi_prime = pvecback[pba->index_bg_phi_prime_scf];
+  if (fabs(phi_prime) < 1e-20)
   {
     if (pba->background_verbose > 2)
     {
-      printf("Warning: phi' is very small (%e). Using only the direct coupling terms q3=%e and q4=%e.\n", pvecback[pba->index_bg_phi_prime_scf], q3 * pvecback[pba->index_bg_rho_cdm], q4 * rho_cdm_prime);
+      printf("Warning: phi' is very small (%e). Using only the direct coupling terms q3=%e and q4=%e.\n",
+             phi_prime, q3 * rho_cdm, q4 * rho_cdm_prime);
     }
-    return q3 * pvecback[pba->index_bg_rho_cdm] + q4 * rho_cdm_prime;
+    return direct;
   }
+
+  double exp1 = pba->scf_parameters[pba->scf_parameters_size - 4];
+  double exp2 = pba->scf_parameters[pba->scf_parameters_size - 3];
+
+  // Precompute shared exponent differences
+  double e1m1 = exp1 - 1.0;
+  double e1me2 = exp1 - exp2;
+
+  // Replace 5 independent pow() calls with 3 log() + 5 exp().
+  // Each pow(base, y) is internally exp(y*log(base)), so sharing the 3 logarithms
+  // across 5 bases saves 2 transcendental evaluations.
+  double ln_sum = log(rho_cdm + rho_scf);
+  double ln_scf = log(rho_scf);
+  double ln_cdm = log(rho_cdm);
+
+  double inv_sum_e1m1 = exp(-e1m1 * ln_sum); // 1 / (rho_sum)^(exp1-1)
+  double scf_e1me2 = exp(e1me2 * ln_scf);    // rho_scf^(exp1-exp2)
+  double cdm_e2 = exp(exp2 * ln_cdm);        // rho_cdm^exp2
+  double cdm_e1me2 = exp(e1me2 * ln_cdm);    // rho_cdm^(exp1-exp2)
+  double scf_e2 = exp(exp2 * ln_scf);        // rho_scf^exp2
+
+  // Common prefactor: 3 * H / rho_sum^(exp1-1) / phi'
+  double common = 3.0 * pvecback[pba->index_bg_H] * inv_sum_e1m1 / phi_prime;
+
+  double term1 = q1 * scf_e1me2 * cdm_e2;
+  double term2 = q2 * cdm_e1me2 * scf_e2;
+  double indirect = common * (term1 + term2);
+  double result = indirect + direct;
+
   if (pba->background_verbose > 6)
   {
     printf("Coupling term Xi/phi': %e\nComponents: %e, %e, %e, %e\n",
-           3 * (pvecback[pba->index_bg_H] / pow(pvecback[pba->index_bg_rho_cdm] + pvecback[pba->index_bg_rho_scf], exp1 - 1)) * (q1 * pow(pvecback[pba->index_bg_rho_scf], exp1 - exp2) * pow(pvecback[pba->index_bg_rho_cdm], exp2) + q2 * pow(pvecback[pba->index_bg_rho_cdm], exp1 - exp2) * pow(pvecback[pba->index_bg_rho_scf], exp2)) / pvecback[pba->index_bg_phi_prime_scf] + q3 * pvecback[pba->index_bg_rho_cdm] + q4 * rho_cdm_prime,
-           3 * (pvecback[pba->index_bg_H] / pow(pvecback[pba->index_bg_rho_cdm] + pvecback[pba->index_bg_rho_scf], exp1 - 1)) * (q1 * pow(pvecback[pba->index_bg_rho_scf], exp1 - exp2) * pow(pvecback[pba->index_bg_rho_cdm], exp2)) / pvecback[pba->index_bg_phi_prime_scf],
-           3 * (pvecback[pba->index_bg_H] / pow(pvecback[pba->index_bg_rho_cdm] + pvecback[pba->index_bg_rho_scf], exp1 - 1)) * (q2 * pow(pvecback[pba->index_bg_rho_cdm], exp1 - exp2) * pow(pvecback[pba->index_bg_rho_scf], exp2)) / pvecback[pba->index_bg_phi_prime_scf],
-           q3 * pvecback[pba->index_bg_rho_cdm],
+           result,
+           common * term1,
+           common * term2,
+           q3 * rho_cdm,
            q4 * rho_cdm_prime);
   }
 
-  return 3 * (pvecback[pba->index_bg_H] / pow(pvecback[pba->index_bg_rho_cdm] + pvecback[pba->index_bg_rho_scf], exp1 - 1)) * (q1 * pow(pvecback[pba->index_bg_rho_scf], exp1 - exp2) * pow(pvecback[pba->index_bg_rho_cdm], exp2) + q2 * pow(pvecback[pba->index_bg_rho_cdm], exp1 - exp2) * pow(pvecback[pba->index_bg_rho_scf], exp2)) / pvecback[pba->index_bg_phi_prime_scf] + q3 * pvecback[pba->index_bg_rho_cdm] + q4 * rho_cdm_prime;
+  return result;
 }
 
 // double V_e_scf(struct background *pba,
@@ -3860,6 +3939,188 @@ double coupling_scf(
 // {
 //   return V_e_scf(pba, phi) * V_p_scf(pba, phi);
 // }
+
+/**
+ * Compute the scalar field potential and all its derivatives up to
+ * the requested order in a single function call. This avoids redundant
+ * extraction of c1–c4, redundant switch dispatch, and allows sharing
+ * common subexpressions (exp, pow, trig) across derivatives.
+ *
+ * @param pba        Input: pointer to background structure
+ * @param phi        Input: scalar field value
+ * @param V          Output: V(phi)
+ * @param dV         Output: V'(phi) (pure, without coupling)
+ * @param ddV        Output: V''(phi)
+ * @param d3V        Output: V'''(phi) (only written if d3V != NULL)
+ * @param d4V        Output: V''''(phi) (only written if d4V != NULL)
+ */
+void V_scf_derivs(
+    struct background *pba,
+    double phi,
+    double *V,
+    double *dV,
+    double *ddV,
+    double *d3V,
+    double *d4V)
+{
+  double c1 = pba->scf_parameters[0];
+  double c2 = pba->scf_parameters[1];
+  double c3 = pba->scf_parameters[2];
+  double c4 = pba->scf_parameters[3];
+
+  switch (pba->scf_potential)
+  {
+  case 1: /* power-law: V = c1^(4-c2) * phi^c2 + c3 */
+  {
+    double pref = pow(c1, 4. - c2);
+    double phic2 = pow(phi, c2);
+    double phic2m1 = phic2 / phi;   /* phi^(c2-1) */
+    double phic2m2 = phic2m1 / phi; /* phi^(c2-2) */
+    *V = pref * phic2 + c3;
+    *dV = c2 * pref * phic2m1;
+    *ddV = c2 * (c2 - 1.) * pref * phic2m2;
+    if (d3V)
+      *d3V = (c2 - 2.) * (c2 - 1.) * c2 * pref * phic2m2 / phi;
+    if (d4V)
+      *d4V = (c2 - 3.) * (c2 - 2.) * (c2 - 1.) * c2 * pref * phic2m2 / (phi * phi);
+    break;
+  }
+  case 2: /* cosine: V = c1 * cos(c2*phi) */
+  {
+    double s = sin(c2 * phi);
+    double c = cos(c2 * phi);
+    *V = c1 * c;
+    *dV = -c1 * c2 * s;
+    *ddV = -c1 * c2 * c2 * c;
+    if (d3V)
+      *d3V = c1 * c2 * c2 * c2 * s;
+    if (d4V)
+      *d4V = c1 * c2 * c2 * c2 * c2 * c;
+    break;
+  }
+  case 3: /* hyperbolic: V = c1 * [1 - tanh(c2*phi)] */
+  {
+    double t = tanh(c2 * phi);
+    double ch = cosh(c2 * phi);
+    double sech2 = 1.0 / (ch * ch);
+    *V = c1 * (1. - t);
+    *dV = -c1 * c2 * sech2;
+    *ddV = 2. * c1 * c2 * c2 * t * sech2;
+    if (d3V)
+      *d3V = -2. * c1 * c2 * c2 * c2 * (cosh(2. * c2 * phi) - 2.) * sech2 * sech2;
+    if (d4V)
+    {
+      double ch5 = ch * ch * ch * ch * ch;
+      *d4V = 2. * c1 * c2 * c2 * c2 * c2 * (sinh(3. * c2 * phi) - 11. * sinh(c2 * phi)) / ch5;
+    }
+    break;
+  }
+  case 4: /* pNG: V = c1^4 * [1 + cos(phi/c2)] */
+  {
+    double c1_4 = pow(c1, 4.);
+    double invc2 = 1.0 / c2;
+    double s = sin(phi * invc2);
+    double c = cos(phi * invc2);
+    *V = c1_4 * (1. + c);
+    *dV = -c1_4 * invc2 * s;
+    *ddV = -c1_4 * invc2 * invc2 * c;
+    if (d3V)
+      *d3V = c1_4 * invc2 * invc2 * invc2 * s;
+    if (d4V)
+      *d4V = c1_4 * invc2 * invc2 * invc2 * invc2 * c;
+    break;
+  }
+  case 5: /* iPL: V = c1^(4+c2) * phi^(-c2) */
+  {
+    double pref = pow(c1, 4. + c2);
+    double phimc2 = pow(phi, -c2);
+    double inv_phi = 1.0 / phi;
+    *V = pref * phimc2;
+    *dV = -c2 * pref * phimc2 * inv_phi;
+    *ddV = c2 * (c2 + 1.) * pref * phimc2 * inv_phi * inv_phi;
+    if (d3V)
+      *d3V = -c2 * (c2 + 1.) * (c2 + 2.) * pref * phimc2 * inv_phi * inv_phi * inv_phi;
+    if (d4V)
+      *d4V = c2 * (c2 + 1.) * (c2 + 2.) * (c2 + 3.) * pref * phimc2 * inv_phi * inv_phi * inv_phi * inv_phi;
+    break;
+  }
+  case 6: /* exponential: V = c1 * exp(-c2*phi) */
+  {
+    double e = c1 * exp(-c2 * phi); /* = V */
+    *V = e;
+    *dV = -c2 * e;
+    *ddV = c2 * c2 * e;
+    if (d3V)
+      *d3V = -c2 * c2 * c2 * e;
+    if (d4V)
+      *d4V = c2 * c2 * c2 * c2 * e;
+    break;
+  }
+  case 7: /* SqE: V = c1^(c2+4) * phi^(-c2) * exp(c1*phi^2) */
+  {
+    double pref = pow(c1, c2 + 4.);
+    double phimc2 = pow(phi, -c2);
+    double ep = exp(c1 * phi * phi);
+    double base = pref * phimc2 * ep;
+    double phi2 = phi * phi;
+    double inv_phi = 1.0 / phi;
+    *V = base;
+    *dV = base * inv_phi * (2. * c1 * phi2 - c2);
+    double phi4 = phi2 * phi2;
+    *ddV = base * inv_phi * inv_phi * (4. * c1 * c1 * phi4 + (-4. * c1 * c2 - 2. * c1) * phi2 + c2 * (c2 + 1.));
+    if (d3V)
+    {
+      double phi6 = phi4 * phi2;
+      *d3V = base * inv_phi * inv_phi * inv_phi * (8. * c1 * c1 * c1 * phi6 + (-12. * c1 * c1 * (c2 - 1) * phi4) + 6. * c1 * c2 * c2 * phi2 - c2 * (c2 + 1.) * (c2 + 2.));
+    }
+    if (d4V)
+    {
+      double phi4v = phi2 * phi2;
+      double phi6 = phi4v * phi2;
+      double phi8 = phi6 * phi2;
+      *d4V = base * inv_phi * inv_phi * inv_phi * inv_phi * (16. * c1 * c1 * c1 * c1 * phi8 + (16. * c1 * c1 * c1 * phi6 * (3. - 2. * c2)) + (12. * c1 * c1 * phi4v * (2. * (c2 - 1.) * c2 + 1.)) - 4 * c1 * phi2 * c2 * (c2 + 1.) * (2. * c2 + 1.) + c2 * (c2 + 1.) * (c2 + 2.) * (c2 + 3.));
+    }
+    break;
+  }
+  case 8: /* Bean: V = c1 * [(c4-phi)^2 + c2] * exp(-c3*phi) */
+  {
+    double e = exp(-c3 * phi);
+    double dp = c4 - phi;
+    double dp2 = dp * dp;
+    double bracket = dp2 + c2;
+    *V = c1 * bracket * e;
+    *dV = -c1 * e * (2. * dp + c3 * bracket);
+    *ddV = c1 * e * (2. - 4. * dp * c3 + c3 * c3 * bracket);
+    if (d3V)
+      *d3V = -c1 * c3 * e * (c3 * (c3 * (c2 + phi * phi) - 6. * phi) + 6.);
+    if (d4V)
+      *d4V = c1 * c3 * c3 * e * (c3 * (c3 * (c2 + phi * phi) - 8. * phi) + 12.);
+    break;
+  }
+  case 9: /* DoubleExp: V = c1 * (exp(-c2*phi) + c3 * exp(-c4*phi)) */
+  {
+    double e2 = exp(-c2 * phi);
+    double e4 = exp(-c4 * phi);
+    *V = c1 * (e2 + c3 * e4);
+    *dV = -c1 * (c2 * e2 + c3 * c4 * e4);
+    *ddV = c1 * (c2 * c2 * e2 + c3 * c4 * c4 * e4);
+    if (d3V)
+      *d3V = -c1 * (c2 * c2 * c2 * e2 + c3 * c4 * c4 * c4 * e4);
+    if (d4V)
+      *d4V = c1 * (c2 * c2 * c2 * c2 * e2 + c3 * c4 * c4 * c4 * c4 * e4);
+    break;
+  }
+  default:
+    *V = 0.;
+    *dV = 0.;
+    *ddV = 0.;
+    if (d3V)
+      *d3V = 0.;
+    if (d4V)
+      *d4V = 0.;
+    break;
+  }
+}
 
 /* Here, we implement all the different possible types of scalar field potentials*/
 // # power-law:    V(phi) = c_1^(4-c_2) * phi^(-c_2) + c_3
@@ -4061,7 +4322,6 @@ double AdSDC2(
 {
   if (pba->model_cdm == 2) // Interacting DM model
   {
-    double c = pba->cdm_c;
     return (1. - tanh(pba->cdm_c * phi)) / sqrt(fabs(V_scf(pba, phi)));
   }
   else
@@ -4075,7 +4335,6 @@ double AdSDC4(
 {
   if (pba->model_cdm == 2) // Interacting DM model
   {
-    double c = pba->cdm_c;
     return (1. - tanh(pba->cdm_c * phi)) / sqrt(sqrt(fabs(V_scf(pba, phi))));
   }
   else
