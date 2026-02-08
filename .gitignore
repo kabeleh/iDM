@@ -17,3 +17,4 @@ doc/manual/latex
 vscode-logs.log
 .vscode/
 .github/copilot-instructions.md
+.pgo_profiles/
