@@ -7,9 +7,9 @@
 #SBATCH --ntasks 1
 #SBATCH --ntasks-per-node 1
 #SBATCH --cpus-per-task 128
-#SBATCH --time 00:05:00
-#SBATCH --output compile_CLASS.%j.out
-#SBATCH --error compile_CLASS.%j.err
+#SBATCH --time 00:30:00
+#SBATCH --output %j.compile_CLASS.out
+#SBATCH --error %j.compile_CLASS.err
 #SBATCH --mail-user kay.lehnert.2023@mumail.ie
 #SBATCH --mail-type END,FAIL
 
