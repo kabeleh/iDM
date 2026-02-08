@@ -8,10 +8,10 @@ from ruamel.yaml.comments import CommentedSeq
 import re
 
 # Specify the parameters
-sampler: str = "post_mcmc"  # MCMC or Polychord
+sampler: str = "mcmc"  # MCMC or Polychord
 likelihood: str = "CV_PP_S_DESI"  # likelihood combination
 potential: str = "hyperbolic"  # LCDM or iDM potential for scalar field models
-attractor: str = "yes"  # Scaling Solution; Ignored for LCDM
+attractor: str = "no"  # Scaling Solution; Ignored for LCDM
 coupling: str = "uncoupled"  # Coupling; Ignored for LCDM
 
 yaml: YAML = YAML()
@@ -154,6 +154,7 @@ def create_cobaya_yaml(
                 "Rminus1_cl_stop": 0.2,
                 "learn_proposal": True,
                 "measure_speeds": True,
+                "max_tries": ".inf",
             }
         },
     }
@@ -581,6 +582,10 @@ def create_cobaya_yaml(
             "derived": "lambda sigma8, omegam: (omegam/0.3)**0.5/sigma8",
             "latex": "S_8",
         },
+        "M8": {
+            "derived": "lambda sigma8, omegam: (omegam/0.3)**0.5*sigma8",
+            "latex": "M_8",
+        },
         "omegamh3": {
             "derived": "lambda omegam, H0: omegam*(H0/100)**3",
             "latex": "\\Omega_\\mathrm{m} h^3",
@@ -624,6 +629,18 @@ def create_cobaya_yaml(
             "prior": {"min": -3, "max": 3},
             "latex": "c_\\mathrm{DM}",
         }
+        if potential == "hyperbolic":
+            cdm_c["ref"] = {
+                "dist": "norm",
+                "loc": 0.0,
+                "scale": 0.28,
+            }
+        if potential == "DoubleExp":
+            cdm_c["ref"] = {
+                "dist": "norm",
+                "loc": -0.071,
+                "scale": 0.38,
+            }
 
         # power-law:    V(phi) = c_1^(4-c_2) * phi^(c_2) + c_3
         # cosine:       V(phi) = c_1 * cos(phi*c_2)
@@ -658,7 +675,12 @@ def create_cobaya_yaml(
             scf_c4 = {"value": 0.0, "drop": True, "latex": "c_4"}
         elif potential in ("hyperbolic",):
             scf_c1 = {"value": 1e-7, "drop": True, "latex": "c_1"}
-            scf_c2 = {"prior": {"min": 0.0, "max": 3.0}, "drop": True, "latex": "c_2"}
+            scf_c2 = {
+                "prior": {"min": 0.0, "max": 3.0},
+                "drop": True,
+                "latex": "c_2",
+                "ref": {"dist": "norm", "loc": 0.98, "scale": 0.77},
+            }
             scf_c3 = {"value": 0.0, "drop": True, "latex": "c_3"}
             scf_c4 = {"value": 0.0, "drop": True, "latex": "c_4"}
         elif potential in ("pNG",):
@@ -708,9 +730,24 @@ def create_cobaya_yaml(
             scf_c4 = {"prior": {"min": 0.0, "max": 4.0}, "drop": True, "latex": "c_4"}
         elif potential in ("DoubleExp",):
             scf_c1 = {"value": 1e-7, "drop": True, "latex": "c_1"}
-            scf_c2 = {"prior": {"min": 0.0, "max": 500}, "drop": True, "latex": "c_2"}
-            scf_c3 = {"prior": {"min": 0.0, "max": 10.0}, "drop": True, "latex": "c_3"}
-            scf_c4 = {"prior": {"min": 0.0, "max": 2.0}, "drop": True, "latex": "c_4"}
+            scf_c2 = {
+                "prior": {"min": 0.0, "max": 500},
+                "drop": True,
+                "latex": "c_2",
+                "ref": {"dist": "uniform", "min": 198.0, "max": 500.0},
+            }
+            scf_c3 = {
+                "prior": {"min": 0.0, "max": 10.0},
+                "drop": True,
+                "latex": "c_3",
+                "ref": {"dist": "uniform", "min": 0.0, "max": 4.96},
+            }
+            scf_c4 = {
+                "prior": {"min": 0.0, "max": 2.0},
+                "drop": True,
+                "latex": "c_4",
+                "ref": {"dist": "norm", "loc": 0.71, "scale": 0.26},
+            }
         else:
             # Should not reach here due to validation, but provide defaults for type checker
             raise ValueError(f"Unknown potential: {potential}")
@@ -800,6 +837,29 @@ def create_cobaya_yaml(
             "Omega_fld": 0.00,
             "Omega_scf": {"value": -0.7, "latex": "\\Omega_\\phi"},
             "Omega_Lambda": {"value": 0.0, "latex": "\\Omega_\\Lambda"},
+            # Swampland parameters (derived from CLASS output)
+            "phi_ini_scf_ic": {"latex": "\\phi_{\\mathrm{ini}}"},
+            "phi_prime_scf_ic": {"latex": "\\phi^{\\prime}_{\\mathrm{ini}}"},
+            "phi_scf_min": {"latex": "\\phi_{\\mathrm{min}}"},
+            "phi_scf_max": {"latex": "\\phi_{\\mathrm{max}}"},
+            "phi_scf_range": {"latex": "\\Delta \\phi"},
+            "dV_V_scf_min": {"latex": "\\mathfrak{s}_{1,\\mathrm{min}}"},
+            "ddV_V_scf_max": {"latex": "-\\mathfrak{s}_{2,\\mathrm{max}}"},
+            "ddV_V_at_dV_V_min": {
+                "latex": "-\\mathfrak{s}_{2@\\mathfrak{s}_{1,\\mathrm{min}}}"
+            },
+            "dV_V_at_ddV_V_max": {
+                "latex": "\\mathfrak{s}_{1@\\mathfrak{s}_{2,\\mathrm{max}}}"
+            },
+            "swgc_expr_min": {"latex": "\\mathrm{SWGC}_\\phi"},
+            "sswgc_min": {"latex": "\\mathrm{SSWGC}_\\mathrm{DM}"},
+            "attractor_regime_scf": None,
+            "AdSDC2_max": {"latex": "m_\\mathrm{DM,min (no scale separation)}"},
+            "AdSDC4_max": {"latex": "m_\\mathrm{DM,min (scale separation)}"},
+            "combined_dSC_min": {
+                "latex": "\\mathrm{(FLB–SSWGC) combined dSC}_\\mathrm{min}"
+            },
+            "conformal_age": {"latex": "\\tau_0"},
         }
 
     # Combine all parameters
@@ -818,7 +878,9 @@ def create_cobaya_yaml(
     parameters: dict[str, Any] = {"params": params}
 
     # CLASS settings
-    # class_path: str = "/home/users/u103677/iDM/"
+    # For non-SPT_candl runs, use explicit path to custom CLASS installation
+    # For SPT_candl runs, omit path to use Cobaya's installed CLASS
+    class_path: str | None = "/home/users/u103677/iDM/" if not has_spt_candl else None
 
     # Different extra_args for LCDM/CosmoVerse vs iDM runs
     extra_args: dict[str, Any]
@@ -844,20 +906,40 @@ def create_cobaya_yaml(
             "non linear": "halofit",
             # "hmcode_version": 2020,
             "model_cdm": "i",
-            "tol_initial_Omega_r": 1e-3,
+            "tol_initial_Omega_r": 1e-2,
             "scf_tuning_index": 0,
             "scf_potential": potential,
             "attractor_ic_scf": attractor,
+            "output_params": [
+                "phi_ini_scf_ic",
+                "phi_prime_scf_ic",
+                "phi_scf_min",
+                "phi_scf_max",
+                "phi_scf_range",
+                "dV_V_scf_min",
+                "ddV_V_scf_max",
+                "ddV_V_at_dV_V_min",
+                "dV_V_at_ddV_V_max",
+                "swgc_expr_min",
+                "sswgc_min",
+                "attractor_regime_scf",
+                "AdSDC2_max",
+                "AdSDC4_max",
+                "combined_dSC_min",
+                "conformal_age",
+            ],
         }
 
     theorycode: dict[str, Any] = {
         "theory": {
             "classy": {
-                # "path": class_path,
                 "extra_args": extra_args,
             }
         }
     }
+    # Add explicit path for non-SPT_candl runs
+    if class_path is not None:
+        theorycode["theory"]["classy"]["path"] = class_path
 
     # Return one dict that represents user choice
     config: dict[str, Any] = {}
