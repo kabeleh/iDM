@@ -1,15 +1,15 @@
 #!/bin/bash -l
-#SBATCH --job-name=polychord_CV_PP_DESI_combined
+#SBATCH --job-name=HyperChord_CV_PP_S_DESI
 #SBATCH --account p201176
 #SBATCH --partition cpu
 #SBATCH --qos default
 #SBATCH --nodes 1
-#SBATCH --ntasks 16
-#SBATCH --ntasks-per-node 16
-#SBATCH --cpus-per-task 8
+#SBATCH --ntasks 8
+#SBATCH --ntasks-per-node 8
+#SBATCH --cpus-per-task 16
 #SBATCH --time 48:00:00
-#SBATCH --output %j.run_cobaya_polychord_CV_PP_DESI_combined.out
-#SBATCH --error %j.run_cobaya_polychord_CV_PP_DESI_combined.err
+#SBATCH --output %j.HyperChord_CV_PP_S_DESI.out
+#SBATCH --error %j.HyperChord_CV_PP_S_DESI.err
 #SBATCH --mail-user kay.lehnert.2023@mumail.ie
 #SBATCH --mail-type END,FAIL
 
@@ -28,8 +28,8 @@ export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
 
 srun -n 4 --exact --cpus-per-task=$SLURM_CPUS_PER_TASK cobaya-run /home/users/u103677/iDM/Cobaya/MCMC/cobaya_polychord_CV_PP_DESI_hyperbolic_tracking_uncoupled.yml --resume > "${SLURM_JOB_ID}_PolyChord_CV_PP_DESI_hyperbolic.txt" &
 srun -n 4 --exact --cpus-per-task=$SLURM_CPUS_PER_TASK cobaya-run /home/users/u103677/iDM/Cobaya/MCMC/cobaya_polychord_CV_PP_S_DESI_hyperbolic_tracking_uncoupled.yml --resume > "${SLURM_JOB_ID}_PolyChord_CV_PP_S_DESI_hyperbolic.txt" &
-srun -n 4 --exact --cpus-per-task=$SLURM_CPUS_PER_TASK cobaya-run /home/users/u103677/iDM/Cobaya/MCMC/cobaya_polychord_CV_PP_S_DESI_DoubleExp_tracking_uncoupled.yml --resume > "${SLURM_JOB_ID}_PolyChord_CV_PP_S_DESI_DoubleExp.txt" &
-srun -n 4 --exact --cpus-per-task=$SLURM_CPUS_PER_TASK cobaya-run /home/users/u103677/iDM/Cobaya/MCMC/cobaya_polychord_CV_PP_DESI_DoubleExp_tracking_uncoupled.yml --resume > "${SLURM_JOB_ID}_PolyChord_CV_PP_DESI_DoubleExp.txt" &
+# srun -n 4 --exact --cpus-per-task=$SLURM_CPUS_PER_TASK cobaya-run /home/users/u103677/iDM/Cobaya/MCMC/cobaya_polychord_CV_PP_S_DESI_DoubleExp_tracking_uncoupled.yml --resume > "${SLURM_JOB_ID}_PolyChord_CV_PP_S_DESI_DoubleExp.txt" &
+# srun -n 4 --exact --cpus-per-task=$SLURM_CPUS_PER_TASK cobaya-run /home/users/u103677/iDM/Cobaya/MCMC/cobaya_polychord_CV_PP_DESI_DoubleExp_tracking_uncoupled.yml --resume > "${SLURM_JOB_ID}_PolyChord_CV_PP_DESI_DoubleExp.txt" &
 wait
 #Check energy consumption after job completion
 sacct -j $SLURM_JOB_ID -o jobid,jobname,partition,account,state,consumedenergyraw

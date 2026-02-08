@@ -26,7 +26,7 @@ source my_python-env/bin/activate
 export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
 
 # Run minimize (no retry logic needed for optimization)
-srun --cpus-per-task=$SLURM_CPUS_PER_TASK cobaya-run /home/users/u103677/iDM/Cobaya/MCMC/cobaya_minimize_mcmc_CV_PP_S_DESI_hyperbolic_tracking_uncoupled.yml
+srun --cpus-per-task=$SLURM_CPUS_PER_TASK cobaya-run /home/users/u103677/iDM/Cobaya/MCMC/cobaya_minimize_mcmc_CV_PP_S_DESI_hyperbolic_tracking_uncoupled.yml --debug
 
 #Check energy consumption after job completion
 sacct -j $SLURM_JOB_ID -o jobid,jobname,partition,account,state,consumedenergyraw

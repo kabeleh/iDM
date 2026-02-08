@@ -1,14 +1,10 @@
 sampler:
-  mcmc:
-    covmat: /project/home/p201176/cobaya_mcmc_CV_CMB_SPA_PP_DESI_LCDM.covmat 
-    drag: true
-    oversample_power: 0.4
-    proposal_scale: 1.9
-    Rminus1_stop: 0.02
-    Rminus1_cl_stop: 0.2
-    learn_proposal: true
-    measure_speeds: true
+  minimize:
+    best_of: 4
+    ignore_prior: true
 likelihood:
+  bao.desi_dr2:
+  sn.pantheonplus:
   planck_2018_lowl.TT:
   act_dr6_cmbonly.PlanckActCut:
     package_install:
@@ -222,7 +218,7 @@ params:
     ref: 1.0
 theory:
   classy:
-    path: /home/users/u103677/iDM/
+    # path: /home/users/u103677/iDM/
     extra_args:
       gauge: newtonian
       nonlinear_min_k_max: 25
@@ -230,4 +226,4 @@ theory:
       N_ur: 2.046
       sBBN file: sBBN_2017.dat
       non linear: halofit
-output: /project/home/p201176/cobaya_mcmc_CV_CMB_SPA_LCDM
+output: /project/home/p201176/cobaya_mcmc_CV_CMB_SPA_PP_DESI_LCDM

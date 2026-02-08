@@ -25,8 +25,8 @@ source my_python-env/bin/activate
 #iNumber of OpenMP threads
 export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
 
-srun -n 4 --exact --cpus-per-task=$SLURM_CPUS_PER_TASK cobaya-run /home/users/u103677/iDM/Cobaya/MCMC/cobaya_mcmc_CV_CMB_SPA_PP_S_DESI_LCDM.yml --resume > "${SLURM_JOB_ID}_CV_CMB_SPA_PP_S_DESI_LCDM.txt" &
-srun -n 4 --exact --cpus-per-task=$SLURM_CPUS_PER_TASK cobaya-run /home/users/u103677/iDM/Cobaya/MCMC/cobaya_mcmc_CV_CMB_SPA_PP_DESI_LCDM.yml --resume > "${SLURM_JOB_ID}_CV_CMB_SPA_PP_DESI_LCDM.txt" &
+srun -n 4 --exact --cpus-per-task=$SLURM_CPUS_PER_TASK cobaya-run /home/users/u103677/iDM/Cobaya/MCMC/cobaya_mcmc_CV_CMB_SPA_PP_S_DESI_LCDM.yml --resume --allow-changes > "${SLURM_JOB_ID}_CV_CMB_SPA_PP_S_DESI_LCDM.txt" &
+srun -n 4 --exact --cpus-per-task=$SLURM_CPUS_PER_TASK cobaya-run /home/users/u103677/iDM/Cobaya/MCMC/cobaya_mcmc_CV_CMB_SPA_PP_DESI_LCDM.yml --resume --allow-changes > "${SLURM_JOB_ID}_CV_CMB_SPA_PP_DESI_LCDM.txt" &
 wait
 #Check energy consumption after job completion
 sacct -j $SLURM_JOB_ID -o jobid,jobname,partition,account,state,consumedenergyraw

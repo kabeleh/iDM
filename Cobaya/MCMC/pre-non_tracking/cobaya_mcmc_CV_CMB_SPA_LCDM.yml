@@ -1,6 +1,6 @@
 sampler:
   mcmc:
-    covmat: auto
+    covmat: /project/home/p201176/cobaya_mcmc_CV_CMB_SPA_PP_DESI_LCDM.covmat 
     drag: true
     oversample_power: 0.4
     proposal_scale: 1.9
@@ -9,8 +9,6 @@ sampler:
     learn_proposal: true
     measure_speeds: true
 likelihood:
-  bao.desi_dr2:
-  sn.pantheonplus:
   planck_2018_lowl.TT:
   act_dr6_cmbonly.PlanckActCut:
     package_install:
@@ -232,4 +230,4 @@ theory:
       N_ur: 2.046
       sBBN file: sBBN_2017.dat
       non linear: halofit
-output: /project/home/p201176/cobaya_mcmc_CV_CMB_SPA_PP_DESI_LCDM
+output: /project/home/p201176/cobaya_mcmc_CV_CMB_SPA_LCDM

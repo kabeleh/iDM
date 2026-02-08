@@ -1,5 +1,5 @@
 #!/bin/bash -l
-#SBATCH --job-name=run_cobaya_mcmc_CV_PP_S_DESI_DoubleExp_tracking_uncoupled
+#SBATCH --job-name=PP_S_DESI_DoubleExp_tracking_uncoupled
 #SBATCH --account p201176
 #SBATCH --partition cpu
 #SBATCH --qos short
@@ -8,8 +8,8 @@
 #SBATCH --ntasks-per-node 4
 #SBATCH --cpus-per-task 64
 #SBATCH --time 06:00:00
-#SBATCH --output %j.run_cobaya_mcmc_CV_PP_S_DESI_DoubleExp_tracking_uncoupled.out
-#SBATCH --error %j.run_cobaya_mcmc_CV_PP_S_DESI_DoubleExp_tracking_uncoupled.err
+#SBATCH --output %j.PP_S_DESI_DoubleExp_tracking_uncoupled.out
+#SBATCH --error %j.PP_S_DESI_DoubleExp_tracking_uncoupled.err
 #SBATCH --mail-user kay.lehnert.2023@mumail.ie
 #SBATCH --mail-type END,FAIL
 

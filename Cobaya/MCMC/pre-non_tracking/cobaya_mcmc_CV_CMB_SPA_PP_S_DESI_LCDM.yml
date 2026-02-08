@@ -224,7 +224,7 @@ params:
     ref: 1.0
 theory:
   classy:
-    path: /home/users/u103677/iDM/
+    # path: /home/users/u103677/iDM/
     extra_args:
       gauge: newtonian
       nonlinear_min_k_max: 25

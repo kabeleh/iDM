@@ -1,15 +1,15 @@
 #!/bin/bash -l
-#SBATCH --job-name=run_cobaya_minimize_mcmc_CV_PP_DESI_LCDM
+#SBATCH --job-name=test_cobaya_mcmc_CV_CMB_SPA_PP_S_DESI_LCDM
 #SBATCH --account p201176
 #SBATCH --partition cpu
-#SBATCH --qos short
+#SBATCH --qos test
 #SBATCH --nodes 1
-#SBATCH --ntasks 4
-#SBATCH --ntasks-per-node 4
-#SBATCH --cpus-per-task 64
-#SBATCH --time 01:00:00
-#SBATCH --output %j.run_cobaya_minimize_mcmc_CV_PP_DESI_LCDM.out
-#SBATCH --error %j.run_cobaya_minimize_mcmc_CV_PP_DESI_LCDM.err
+#SBATCH --ntasks 1
+#SBATCH --ntasks-per-node 1
+#SBATCH --cpus-per-task 256
+#SBATCH --time 00:05:00
+#SBATCH --output %j.test_cobaya_mcmc_CV_CMB_SPA_PP_S_DESI_LCDM.out
+#SBATCH --error %j.test_cobaya_mcmc_CV_CMB_SPA_PP_S_DESI_LCDM.err
 #SBATCH --mail-user kay.lehnert.2023@mumail.ie
 #SBATCH --mail-type END,FAIL
 
@@ -22,11 +22,9 @@ module load OpenBLAS
 #Activate Python virtual environment
 source my_python-env/bin/activate
 
-#Number of OpenMP threads
+#iNumber of OpenMP threads
 export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
-
-# Run minimize (no retry logic needed for optimization)
-srun --cpus-per-task=$SLURM_CPUS_PER_TASK cobaya-run /home/users/u103677/iDM/Cobaya/MCMC/cobaya_minimize_mcmc_CV_PP_DESI_LCDM.yml
+srun --cpus-per-task=$SLURM_CPUS_PER_TASK cobaya-run /home/users/u103677/iDM/Cobaya/MCMC/cobaya_mcmc_CV_CMB_SPA_PP_S_DESI_LCDM.yml --test --debug --force
 
 #Check energy consumption after job completion
 sacct -j $SLURM_JOB_ID -o jobid,jobname,partition,account,state,consumedenergyraw

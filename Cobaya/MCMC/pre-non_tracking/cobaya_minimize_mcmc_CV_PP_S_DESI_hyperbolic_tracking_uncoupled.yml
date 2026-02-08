@@ -2,6 +2,7 @@ sampler:
   minimize:
     best_of: 4
     ignore_prior: true
+    method: scipy
 likelihood:
   bao.desi_dr2:
   sn.pantheonplusshoes:
@@ -198,6 +199,7 @@ params:
     latex: \Omega_\phi
 theory:
   classy:
+    path: /home/users/u103677/iDM/
     extra_args:
       gauge: newtonian
       nonlinear_min_k_max: 25

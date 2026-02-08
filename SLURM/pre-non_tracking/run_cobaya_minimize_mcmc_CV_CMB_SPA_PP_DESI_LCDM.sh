@@ -2,12 +2,12 @@
 #SBATCH --job-name=run_cobaya_minimize_mcmc_CV_CMB_SPA_PP_DESI_LCDM
 #SBATCH --account p201176
 #SBATCH --partition cpu
-#SBATCH --qos short
+#SBATCH --qos test
 #SBATCH --nodes 1
 #SBATCH --ntasks 4
 #SBATCH --ntasks-per-node 4
 #SBATCH --cpus-per-task 64
-#SBATCH --time 01:00:00
+#SBATCH --time 00:30:00
 #SBATCH --output %j.run_cobaya_minimize_mcmc_CV_CMB_SPA_PP_DESI_LCDM.out
 #SBATCH --error %j.run_cobaya_minimize_mcmc_CV_CMB_SPA_PP_DESI_LCDM.err
 #SBATCH --mail-user kay.lehnert.2023@mumail.ie

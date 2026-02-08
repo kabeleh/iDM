@@ -23,7 +23,13 @@ module load Python foss
 #Activate Python virtual environment
 source my_python-env/bin/activate
 
+
+
 # python -m pip install candl_like
+# cd /home/users/u103677/cobaya_cosmo_packages/data/
+# git clone https://github.com/SouthPoleTelescope/spt_candl_data.git
+# cd spt_candl_data
+# pip install .
 # python -m cobaya install /home/users/u103677/iDM/Cobaya/MCMC/CV_PP_DESI_LCDM.yml --p /home/users/u103677/cobaya_cosmo_packages/
 # python -m cobaya /home/users/u103677/iDM/Cobaya/MCMC/CV_PP_DESI_LCDM.yml --test
 # python -m cobaya install /home/users/u103677/iDM/Cobaya/MCMC/CV_PP_S_DESI_LCDM.yml --p /home/users/u103677/cobaya_cosmo_packages/
