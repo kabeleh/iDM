@@ -154,7 +154,7 @@ def create_cobaya_yaml(
                 "Rminus1_cl_stop": 0.2,
                 "learn_proposal": True,
                 "measure_speeds": True,
-                "max_tries": ".inf",
+                "max_tries": float("inf"),
             }
         },
     }
@@ -1076,17 +1076,18 @@ if likelihood != "Run3_Planck_PP_SH0ES_DESIDR2" and not is_postprocessing_run:  
     configuration["output"] = "/project/home/p201176/" + output_filename
 
 # Writing nested data to a YAML file
+yaml_path = f"Cobaya/MCMC/{filename}"
 try:
-    with open(filename, "w") as file:
+    with open(yaml_path, "w") as file:
         yaml.dump(configuration, file)  # type: ignore[misc]
 
     # Post-process to use bracket notation for z and R lists (used by sigma_R())
     # Standard YAML serializes lists with dashes, but these need inline bracket notation
-    with open(filename, "r") as file:
+    with open(yaml_path, "r") as file:
         content = file.read()
     content = re.sub(r"(\s+)z:\s*\n\s*-\s*([0-9.]+)", r"\1z: [\2]", content)
     content = re.sub(r"(\s+)R:\s*\n\s*-\s*([0-9.]+)", r"\1R: [\2]", content)
-    with open(filename, "w") as file:
+    with open(yaml_path, "w") as file:
         file.write(content)
 except IOError as e:
     print(f"Error handling YAML file: {e}")
@@ -1095,7 +1096,7 @@ except Exception as e:
     print(f"Unexpected error during YAML processing: {e}")
     raise
 
-print(f"cobaya configuration has been written to '{filename}'")
+print(f"cobaya configuration has been written to '{yaml_path}'")
 
 # Now, we create the bash script to run the cobaya test job on the cluster and save it as test_<filename>.sh
 
@@ -1136,7 +1137,7 @@ def create_slurm_test_script(
     job_name: str = "test_" + yaml_filename.replace(".yml", "")
 
     # Generate script filename based on yaml filename
-    script_filename: str = f"test_{yaml_filename.replace('.yml', '.sh')}"
+    script_filename: str = f"SLURM/test_{yaml_filename.replace('.yml', '.sh')}"
 
     # Full path to the YAML file on the cluster
     yaml_full_path: str = yaml_base_path + yaml_filename
@@ -1228,7 +1229,7 @@ def create_slurm_run_script(
     job_name: str = "run_" + yaml_filename.replace(".yml", "")
 
     # Generate script filename based on yaml filename
-    script_filename: str = f"run_{yaml_filename.replace('.yml', '.sh')}"
+    script_filename: str = f"SLURM/run_{yaml_filename.replace('.yml', '.sh')}"
 
     # Full path to the YAML file on the cluster
     yaml_full_path: str = yaml_base_path + yaml_filename
@@ -1330,7 +1331,7 @@ def create_slurm_minimize_script(
     job_name: str = "run_" + yaml_filename.replace(".yml", "")
 
     # Generate script filename based on yaml filename
-    script_filename: str = f"run_{yaml_filename.replace('.yml', '.sh')}"
+    script_filename: str = f"SLURM/run_{yaml_filename.replace('.yml', '.sh')}"
 
     # Full path to the YAML file on the cluster
     yaml_full_path: str = yaml_base_path + yaml_filename
