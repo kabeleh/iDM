@@ -1,6 +1,6 @@
 sampler:
   mcmc:
-    covmat: /project/home/p201176/pre-non_tracking/cobaya_mcmc_CV_PP_S_DESI_hyperbolic_tracking_uncoupled.covmat
+    covmat: /project/home/p201176/pre-non_tracking/cobaya_mcmc_CV_PP_S_DESI_DoubleExp_tracking_uncoupled.covmat
     drag: false
     oversample_power: 0.4
     proposal_scale: 1.9
@@ -150,8 +150,8 @@ params:
     latex: c_\mathrm{DM}
     ref:
       dist: norm
-      loc: 0.0
-      scale: 0.28
+      loc: -0.071
+      scale: 0.38
   scf_c1:
     value: 1e-07
     drop: true
@@ -159,21 +159,33 @@ params:
   scf_c2:
     prior:
       min: 0.0
-      max: 3.0
+      max: 500
     drop: true
     latex: c_2
     ref:
-      dist: norm
-      loc: 0.98
-      scale: 0.77
+      dist: uniform
+      min: 198.0
+      max: 500.0
   scf_c3:
-    value: 0.0
+    prior:
+      min: 0.0
+      max: 10.0
     drop: true
     latex: c_3
+    ref:
+      dist: uniform
+      min: 0.0
+      max: 4.96
   scf_c4:
-    value: 0.0
+    prior:
+      min: 0.0
+      max: 2.0
     drop: true
     latex: c_4
+    ref:
+      dist: norm
+      loc: 0.71
+      scale: 0.26
   scf_q1:
     value: 0
     drop: true
@@ -262,8 +274,8 @@ theory:
       model_cdm: i
       tol_initial_Omega_r: 0.01
       scf_tuning_index: 0
-      scf_potential: hyperbolic
+      scf_potential: DoubleExp
       attractor_ic_scf: no
     path: /home/users/u103677/iDM/
 output: 
-  /project/home/p201176/cobaya_mcmc_CV_PP_S_DESI_hyperbolic_InitCond_uncoupled
+  /project/home/p201176/cobaya_mcmc_CV_PP_S_DESI_DoubleExp_InitCond_uncoupled

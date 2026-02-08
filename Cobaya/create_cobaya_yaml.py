@@ -10,7 +10,7 @@ import re
 # Specify the parameters
 sampler: str = "mcmc"  # MCMC or Polychord
 likelihood: str = "CV_PP_S_DESI"  # likelihood combination
-potential: str = "hyperbolic"  # LCDM or iDM potential for scalar field models
+potential: str = "DoubleExp"  # LCDM or iDM potential for scalar field models
 attractor: str = "no"  # Scaling Solution; Ignored for LCDM
 coupling: str = "uncoupled"  # Coupling; Ignored for LCDM
 
@@ -910,24 +910,6 @@ def create_cobaya_yaml(
             "scf_tuning_index": 0,
             "scf_potential": potential,
             "attractor_ic_scf": attractor,
-            "output_params": [
-                "phi_ini_scf_ic",
-                "phi_prime_scf_ic",
-                "phi_scf_min",
-                "phi_scf_max",
-                "phi_scf_range",
-                "dV_V_scf_min",
-                "ddV_V_scf_max",
-                "ddV_V_at_dV_V_min",
-                "dV_V_at_ddV_V_max",
-                "swgc_expr_min",
-                "sswgc_min",
-                "attractor_regime_scf",
-                "AdSDC2_max",
-                "AdSDC4_max",
-                "combined_dSC_min",
-                "conformal_age",
-            ],
         }
 
     theorycode: dict[str, Any] = {
