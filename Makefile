@@ -38,6 +38,7 @@ PYTHON ?= python3
 OPTFLAG = -O3
 OPTFLAG += -funroll-loops -ftree-vectorize -ftree-slp-vectorize -flto=auto -fPIC
 OPTFLAG += -march=native -mtune=native
+OPTFLAG += -fno-math-errno -fno-trapping-math # CLASS does not check for math errors, and these flags allow the compiler to vectorize more code, which can lead to significant speed-ups. See https://gcc.gnu.org/wiki/Vectorization#Floating_Point_Math_Errors for more details.
 
 # your openmp flag (comment for compiling without openmp)
 OMPFLAG   = -pthread #-fopenmp
@@ -46,12 +47,30 @@ OMPFLAG   = -pthread #-fopenmp
 
 # all other compilation flags
 CCFLAG = -g -fPIC
+LDFLAG = -g -fPIC
+# DEV-ONLY FLAGS (uncomment for development, but comment out for production runs, as they can significantly slow down the code and increase memory usage)
 # CCFLAG += -Wall #for developing only
 # CCFLAG += -Wextra #for developing only
 # CCFLAG += -Wpedantic #for developing only
 # CCFLAG += -Wno-unused-parameter #for developing only
 # CCFLAG += -Wno-variadic-macros # CLASS uses too many of them to fix this (pedantic) warning
-LDFLAG = -g -fPIC
+# Undefined behavior (catches integer overflow, misaligned access, etc.)
+# CCFLAG += -fsanitize=undefined 
+# LDFLAG += -fsanitize=undefined
+# Address sanitizer (heap overflow, use-after-free, leaks)
+# CCFLAG += -fsanitize=address
+# LDFLAG += -fsanitize=address
+
+#PGO runs
+# First, compile with -fprofile-generate and run the code on a typical input to generate the profile data. Then, recompile with -fprofile-use to optimize the code based on the profile data.
+# OPTFLAG += -fprofile-generate=$(MDIR)/pgo_profiles
+# LDFLAG += -fprofile-generate=$(MDIR)/pgo_profiles
+
+#Second, run typical input to generate the profile data.
+
+#Third, recompile with -fprofile-use to optimize the code based on the profile data. Comment the flags from the first PGO run, and uncomment the flags below for the second PGO run.
+OPTFLAG += -fprofile-use=$(MDIR)/pgo_profiles -fprofile-correction
+LDFLAG += -fprofile-use=$(MDIR)/pgo_profiles -fprofile-correction
 
 # leave blank to compile without HyRec, or put path to HyRec directory
 # (with no slash at the end: e.g. "external/RecfastCLASS")
