@@ -9,7 +9,7 @@ import re
 
 # Specify the parameters
 sampler: str = "mcmc"  # MCMC or Polychord
-likelihood: str = "CV_PP_S_DESI"  # likelihood combination
+likelihood: str = "CV_PP_DESI"  # likelihood combination
 potential: str = "DoubleExp"  # LCDM or iDM potential for scalar field models
 attractor: str = "no"  # Scaling Solution; Ignored for LCDM
 coupling: str = "uncoupled"  # Coupling; Ignored for LCDM
@@ -165,7 +165,7 @@ def create_cobaya_yaml(
                 "covmat": "auto",
                 "drag": True,
                 "oversample_power": 0.4,
-                "proposal_scale": 1.9,
+                "proposal_scale": 3.1,
                 "Rminus1_stop": 0.05,
                 "Rminus1_cl_stop": 0.3,
                 "learn_proposal": True,
@@ -579,15 +579,11 @@ def create_cobaya_yaml(
         "z_eq": {"latex": "z_\\mathrm{eq}", "derived": True},
         "k_eq": {"latex": "k_\\mathrm{eq}", "derived": True},
         "S8": {
-            "derived": "lambda sigma8, omegam: (omegam/0.3)**0.5/sigma8",
+            "derived": "lambda sigma8, Omega_m: (Omega_m/0.3)**0.5*sigma8",
             "latex": "S_8",
         },
-        "M8": {
-            "derived": "lambda sigma8, omegam: (omegam/0.3)**0.5*sigma8",
-            "latex": "M_8",
-        },
         "omegamh3": {
-            "derived": "lambda omegam, H0: omegam*(H0/100)**3",
+            "derived": "lambda Omega_m, H0: Omega_m*(H0/100)**3",
             "latex": "\\Omega_\\mathrm{m} h^3",
         },
         "rs_d_h": {"latex": "r_\\mathrm{drag}", "derived": True},
@@ -1024,6 +1020,9 @@ def create_cobaya_yaml(
             config.update(scf_exp_f)  # Add constraint on scf_exp2 < scf_exp1 / 2
         config.update(theorycode)  # Add "theory"
 
+    # Add packages_path at top level
+    config["packages_path"] = "/home/users/u103677/cobaya_packages_2026"
+
     return config
 
 
@@ -1140,13 +1139,9 @@ def create_slurm_test_script(
 #SBATCH --mail-type END,FAIL
 
 ## Load software environment
-module load GCC
-module load Python
-module load Cython
-module load OpenMPI/5.0.3-GCC-13.3.0
-module load OpenBLAS
+module load Python foss
 #Activate Python virtual environment
-source my_python-env/bin/activate
+source my_foss-env/bin/activate
 
 #iNumber of OpenMP threads
 export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
@@ -1232,13 +1227,9 @@ def create_slurm_run_script(
 #SBATCH --mail-type END,FAIL
 
 ## Load software environment
-module load GCC
-module load Python
-module load Cython
-module load OpenMPI/5.0.3-GCC-13.3.0
-module load OpenBLAS
+module load Python foss
 #Activate Python virtual environment
-source my_python-env/bin/activate
+source my_foss-env/bin/activate
 
 #iNumber of OpenMP threads
 export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
@@ -1334,13 +1325,9 @@ def create_slurm_minimize_script(
 #SBATCH --mail-type END,FAIL
 
 ## Load software environment
-module load GCC
-module load Python
-module load Cython
-module load OpenMPI/5.0.3-GCC-13.3.0
-module load OpenBLAS
+module load Python foss
 #Activate Python virtual environment
-source my_python-env/bin/activate
+source my_foss-env/bin/activate
 
 #Number of OpenMP threads
 export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
