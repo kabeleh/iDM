@@ -1,0 +1,13 @@
+output:
+  # /home/kl/kDrive/Sci/PhD/Research/HDM/MCMCfast/cobaya_mcmc_CV_CMB_SPA_PP_S_DESI_LCDM
+  /project/home/p201176/cobaya_mcmc_CV_CMB_SPA_PP_S_DESI_LCDM
+post:
+  suffix: S8
+  remove:
+    params:
+      S8:
+  add:
+    params:
+      S8:
+        derived: 'lambda sigma8, Omega_m: (Omega_m/0.3)**0.5*sigma8'
+        latex: S_8
