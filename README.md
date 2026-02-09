@@ -3,31 +3,31 @@
 
 <p align="center">
     <img alt="GitHub License" src="https://img.shields.io/github/license/kabeleh/iDM">
-    <img alt="GitHub last commit" src="https://img.shields.io/github/last-commit/kabeleh/iDM">
-    <img alt="GitHub commit activity" src="https://img.shields.io/github/commit-activity/w/kabeleh/iDM">
+    <br>
     <img alt="GitHub language count" src="https://img.shields.io/github/languages/count/kabeleh/iDM">
     <img alt="GitHub top language" src="https://img.shields.io/github/languages/top/kabeleh/iDM">
     <img alt="Codacy grade" src="https://img.shields.io/codacy/grade/68ad366818ce43e28d91b709155dac0f">
+    <a href="https://github.com/psf/black"><img alt="Python Code style: black" src="https://img.shields.io/badge/code%20style-black-000000.svg"></a>
+    <br>
+    <img alt="GitHub last commit" src="https://img.shields.io/github/last-commit/kabeleh/iDM">
+    <img alt="GitHub commit activity" src="https://img.shields.io/github/commit-activity/w/kabeleh/iDM">
     <img alt="GitHub code size in bytes" src="https://img.shields.io/github/languages/code-size/kabeleh/iDM">
     <img alt="GitHub repo size" src="https://img.shields.io/github/repo-size/kabeleh/iDM">
-<a href="https://github.com/psf/black"><img alt="Python Code style: black" src="https://img.shields.io/badge/code%20style-black-000000.svg"></a>
 </p>
 
 # Dark Energy–Dark Matter Interactions
 - Author: Kay Lehnert
-- Publications: 
+- Related Publications: 
     - [Hitchhiker's Guide to the Swampland: The Cosmologist's Handbook to the string-theoretical Swampland Programme](https://arxiv.org/abs/2509.02632)
     - [PhD Thesis](url.com)
 
-This repository contains the CLASS[^1], MontePython[^2], and Mathematica [^3] files for a swampland-inspired model of dark energy in the form of quintessence as a scalar field that is interacting with dynamical dark matter. The interactions and mathematical details of the model are all explained in my PhD thesis [^4].
+This repository contains the [`CLASS`](https://github.com/lesgourg/class_public) source code used for the cosmological simulations, the [`Cobaya`](https://cobaya.readthedocs.io/en/latest/) configuration files for the Markov chain Monte Carlo runs, and the [Mathematica](https://www.wolfram.com/mathematica/) notebooks with the derivations of the relevant equations for a swampland-inspired model of dark energy in the form of quintessence as a scalar field that is interacting with dynamical dark matter. The motivation, theory behind, and mathematical details of the model are explained in my PhD thesis [^4]. For the technical implementation of the mathematical equations into `CLASS`, please refer to the extensive [GitHub Wiki](https://github.com/kabeleh/iDM/wiki).
 
-[^1]: https://github.com/lesgourg/class_public
-[^2]: https://github.com/brinckmann/montepython_public
-[^3]: https://www.wolfram.com/mathematica/
+
 [^4]: TBA
 
 ## CLASS
-The source code in this repository is a fork of the Cosmic Linear Anisotropy Solving System ([CLASS](https://github.com/lesgourg/class_public)) v3.3.3 by Julien Lesgourgues, Thomas Tram, Nils Schoeneberg et al.
+The source code in this repository is a fork of the Cosmic Linear Anisotropy Solving System ([CLASS](https://github.com/lesgourg/class_public)) v3.3.4 by Julien Lesgourgues, Thomas Tram, Nils Schoeneberg et al.
 
 <details>
 <summary>Technical implementation of the cosmological model</summary>
@@ -41,42 +41,48 @@ Please note the extensive [Wiki Page](https://github.com/kabeleh/iDM/wiki) that 
     
 1. Either download the archive of the source code or `git pull` this repository to make a local copy.
 2. Navigate to the folder that contains the root of the CLASS source code (the one that contains the *.ini-files as well as the `Makefile`).
-3. `make clean; make class -j` to compile the code.
-4. Run the cosmological simulation with `./class iDM.ini`
+3. <details>
+    <summary>If you want to profit from Profile-Guided Optimizations (PGO)</summary>
+    1. Uncomment the PGO flags in the makefile (read our comment regarding PGO).
+    2. Run typical workload, e.g. several *.ini files with different model settings.
+    3. Comment the PGO-creation compile flags and uncomment the PGO-implementation flags.
+    </details>
+4. Run `make clean; make class -j` to compile the code.
+5. Run the cosmological simulation with `./class iDM.ini`
 </details>
 
-If you want to use this code, please cite [CLASS II: Approximation schemes](http://arxiv.org/abs/1104.2933) as well as `my thesis`.
+If you want to use this code, please cite [CLASS II: Approximation schemes](http://arxiv.org/abs/1104.2933) as well as `my thesis`.[^4]
 
-## MontePython
-The Markov chain Monte Carlo (MCMC) runs to find the best-fit parameters of the model and compare it to $`\Lambda`$CDM were performed using [MontePython](https://github.com/brinckmann/montepython_public) v3.6.1 by Thejs Brinckmann, Benjamin Audren, et al.
+## Cobaya
+The Markov chain Monte Carlo (MCMC) runs to find the best-fit parameters of the model and compare it to $`\Lambda`$CDM were performed using [`Cobaya`](https://cobaya.readthedocs.io/en/latest/) v3.6.1 by Jesus Torrado and Antony Lewis. To assess our work, the full pipeline is openly available, with the MCMC products stored on [`Zenodo`](TODO).
 
-This repository contains
-- parameter-files
-- best-fit values 
+The [`Zenodo`](TODO) repository contains
+- Cobaya configuration-files (YAML)
+- best-fit values from `--minimize` runs
 - covariance matrices
+- the full chains
 
 These files allow you to fully reproduce my findings:
-- The parameter-files recreate the exact MCMC-pipeline, choosing the likelihoods and starting parameters.
-- The best-fit values can be used to accelerate the reproduction of my MCMC chains. Those can be passed on to `MontePython` as a starting value, i.e. your MCMC will then start at the best-fit value right away.
-- The covariance matrices can also be passed to `MontePython`, as initial guess. This also accelerates reproduction of my results.
-
-The Markov chains themselves are too big to be stored on GitHub. You can find them at [Zenodo](TODO). This allows you to directly analyse the chains yourself.
+- The configuration-files recreate the exact MCMC-pipeline, choosing the likelihoods, starting parameters/priors, and run configuration.
+- The best-fit values can be used to accelerate the reproduction of my MCMC chains. Those can be used as a starting value, i.e. your MCMC will then start at the best-fit value right away.
+- The covariance matrices can also be passed to `Cobaya`, as initial guess. This also accelerates reproduction of my results.
 
 The following naming scheme is applied to these files: 
 ```
-Type of Dark Matter    -    Type of Dark Energy                                         -    Data Set                                           .    file-type
-< CDM | H | I >        -    < pL | c | h | pNG | iPL | exp | SqE | Bean | DoublExp >    -    < plik | PPDESI | PlikPPDESI | CMB-SPA | Full >    .    < param | bestfit | covmat >
+        Sampler            _    Likelihoods                         _    Type of Dark Energy                _    Dark Energy Conditions                            .    file-type
+cobaya  <mcmc | polychord> _    <CMB | SPA | PP | S | DESI | DES>   _    < LCDM | hyperbolic | DoubleExp >  _    < InitCond | tracking | coupled | uncoupled >    .    < txt | bestfit | covmat | yml >
 ```
 For example, the parameter file to test standard CDM with quintessence in the form of a simple exponential scalar field tested against Plank 2018 data is `CDM-exp-plik.param`.
 
-The types of dark matter are explained in the [Wiki](https://github.com/kabeleh/iDM/wiki),
-and so are the [types of dark energy](https://github.com/kabeleh/iDM/wiki/New-User-Input-Parameters#scalar-field).
+The [types of dark energy](https://github.com/kabeleh/iDM/wiki/New-User-Input-Parameters#scalar-field) are explained in the [Wiki](https://github.com/kabeleh/iDM/wiki), as well as the [coupling](https://github.com/kabeleh/iDM/wiki/Coupling) the [initial conditions](https://github.com/kabeleh/iDM/wiki/Attractor-Solutions).
+
 The data sets are the following:
-- plik: Planck 2018 (Plik),
-- PPDESI: PantheonPlus + DESI DR2
-- PlikPPDESI: Planck 2018 (Plik) + PantheonPlus + DESI DR2
-- CMB-SPA: SPT-3G D1 + ACT DR6 + Planck (Plik)
-- Full: CMB-SPA + PantheonPlus + DESI DR2
+- CMB: Planck 2018 (low TT|EE, marginalised high TT|TE|EE, lensed)
+- SPA: SPT-3G + ACT DR6 + Planck (low TT)
+- PP: Pantheon+
+- DESI: DESI DR2
+- S: SH0ES
+- DES: DESY1 (shear)
 
 ## Mathematica
 The Mathematica notebooks contain the derivation of the governing equations, equations of motions, the potentials and their derivatives, as well as additional tests for swampland-compatibility.
