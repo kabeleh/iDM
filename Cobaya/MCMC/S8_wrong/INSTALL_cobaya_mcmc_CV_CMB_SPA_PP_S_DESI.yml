@@ -333,19 +333,5 @@ params:
       max: 1.2
       min: 0.8
     ref: 1.0
-theory:
-  classy:
-    extra_args:
-      gauge: newtonian
-      nonlinear_min_k_max: 25
-      N_ncdm: 1
-      N_ur: 2.046
-      sBBN file: sBBN_2017.dat
-      non linear: halofit
-      model_cdm: i
-      tol_initial_Omega_r: 0.01
-      scf_tuning_index: 0
-      scf_potential: hyperbolic
-      attractor_ic_scf: no
 output: 
   /project/home/p201176/cobaya_mcmc_CV_CMB_SPA_PP_S_DESI_hyperbolic_InitCond_uncoupled
