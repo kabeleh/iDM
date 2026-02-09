@@ -8,9 +8,9 @@ from ruamel.yaml.comments import CommentedSeq
 import re
 
 # Specify the parameters
-sampler: str = "mcmc"  # MCMC or Polychord
-likelihood: str = "CV_PP_DESI"  # likelihood combination
-potential: str = "DoubleExp"  # LCDM or iDM potential for scalar field models
+sampler: str = "mcmc_fast"  # MCMC or Polychord
+likelihood: str = "CMB"  # likelihood combination
+potential: str = "LCDM"  # LCDM or iDM potential for scalar field models
 attractor: str = "no"  # Scaling Solution; Ignored for LCDM
 coupling: str = "uncoupled"  # Coupling; Ignored for LCDM
 
@@ -44,10 +44,11 @@ def create_cobaya_yaml(
         - sampler (str): Sampling method. Options: 'polychord', 'mcmc', 'mcmc_fast', 'minimize_polychord', 'minimize_mcmc', 'minimize_mcmc_fast', 'post_mcmc', 'post_polychord'.
             Note: 'minimize_*' samplers use the minimize sampler but output paths point to corresponding sampler chains.
             Note: 'post_*' samplers create a post-processing configuration with the static swampland params block; only the output path is dynamic.
-    - likelihood (str): Likelihood combination. Options:
-      'Run1_Planck_2018', 'Run2_PP_SH0ES_DESIDR2', 'Run3_Planck_PP_SH0ES_DESIDR2',
-      'CV_CMB_SPA', 'CV_CMB_SPA_PP_DESI', 'CV_CMB_SPA_PP_S_DESI', 'CV_PP_DESI', 'CV_PP_S_DESI'.
-      Note: 'Run3_Planck_PP_SH0ES_DESIDR2' is a post-processing run that adds likelihoods to Run 1 chains.
+        - likelihood (str): Likelihood combination. Options:
+            'CMB', 'Run1_Planck_2018', 'Run2_PP_SH0ES_DESIDR2', 'Run3_Planck_PP_SH0ES_DESIDR2',
+            'CV_CMB_SPA', 'CV_CMB_SPA_PP_DESI', 'CV_CMB_SPA_PP_S_DESI', 'CV_PP_DESI', 'CV_PP_S_DESI'.
+            Note: 'CMB' is Planck low-l TT/EE + plik high-l TTTEEE lite native + native lensing.
+            Note: 'Run3_Planck_PP_SH0ES_DESIDR2' is a post-processing run that adds likelihoods to Run 1 chains.
     - potential (str): Model. Options: 'LCDM', 'power-law', 'cosine', 'hyperbolic', 'pNG', 'iPL', 'SqE', 'exponential', 'Bean', 'DoubleExp'.
       Note: 'LCDM' uses standard CLASS - attractor and coupling settings are ignored.
       Note: 'power-law', 'cosine', 'pNG', 'iPL', 'SqE' do not support attractor initial conditions.
@@ -79,6 +80,7 @@ def create_cobaya_yaml(
         )
 
     valid_likelihoods = [
+        "CMB",
         "Run1_Planck_2018",
         "Run2_PP_SH0ES_DESIDR2",
         "Run3_Planck_PP_SH0ES_DESIDR2",
@@ -165,11 +167,13 @@ def create_cobaya_yaml(
                 "covmat": "auto",
                 "drag": True,
                 "oversample_power": 0.4,
-                "proposal_scale": 3.1,
-                "Rminus1_stop": 0.05,
-                "Rminus1_cl_stop": 0.3,
+                "proposal_scale": 3.4,
+                "Rminus1_stop": 0.02,
+                "Rminus1_cl_stop": 0.2,
                 "learn_proposal": True,
                 "measure_speeds": True,
+                "max_tries": float("inf"),
+                "temperature": 2.0,
             }
         },
     }
@@ -205,6 +209,16 @@ def create_cobaya_yaml(
                     "min_version": "1.0.2",
                 }
             },
+        },
+    }
+
+    # Planck-only CMB (no SPT candl)
+    CMB: dict[str, Any] = {
+        "likelihood": {
+            "planck_2018_lowl.TT": None,
+            "planck_2018_lowl.EE": None,
+            "planck_2018_highl_plik.TTTEEE_lite_native": None,
+            "planck_2018_lensing.native": None,
         },
     }
 
@@ -464,6 +478,7 @@ def create_cobaya_yaml(
     }
 
     LIKELIHOODS: dict[str, dict[str, Any]] = {
+        "CMB": CMB,
         "Run1_Planck_2018": Run1_Planck_2018,
         "Run2_PP_SH0ES_DESIDR2": Run2_PP_SH0ES_DESIDR2,
         "Run3_Planck_PP_SH0ES_DESIDR2": Run3_Planck_PP_SH0ES_DESIDR2_add,
@@ -476,6 +491,7 @@ def create_cobaya_yaml(
 
     # Check if likelihood includes CMB data (for tau_reio handling)
     has_cmb = likelihood in [
+        "CMB",
         "Run1_Planck_2018",
         "Run3_Planck_PP_SH0ES_DESIDR2",
         "CV_CMB_SPA",
@@ -488,6 +504,8 @@ def create_cobaya_yaml(
         "CV_CMB_SPA_PP_DESI",
         "CV_CMB_SPA_PP_S_DESI",
     ]
+    # The CMB likelihood uses defaults for nonlinear_min_k_max
+    skip_nonlinear_min_k_max = likelihood == "CMB"
 
     # Define cosmological Parameters
 
@@ -589,7 +607,7 @@ def create_cobaya_yaml(
         "rs_d_h": {"latex": "r_\\mathrm{drag}", "derived": True},
     }
 
-    # SPT candl nuisance parameters (only for CV_CMB_SPA runs)
+    # SPT candl nuisance parameters (only for CV_CMB_SPA* runs)
     parameters_spt_candl: dict[str, Any] = {
         "Tcal": {
             "latex": "T_{\\rm cal}",
@@ -864,7 +882,7 @@ def create_cobaya_yaml(
         params.update(parameters_iDM)
     if has_spt_candl:
         params.update(parameters_spt_candl)
-    # For iDM Planck runs, use theta_s_100 as sampled parameter instead of H0
+    # For Planck runs with theta_s_100 sampled, use it instead of H0
     if likelihood in [
         "Run1_Planck_2018",
         "Run3_Planck_PP_SH0ES_DESIDR2",
@@ -884,7 +902,6 @@ def create_cobaya_yaml(
         # CosmoVerse LCDM settings (standard CLASS)
         extra_args = {
             "gauge": "newtonian",
-            "nonlinear_min_k_max": 25,
             "N_ncdm": 1,
             "N_ur": 2.046,
             "sBBN file": "sBBN_2017.dat",
@@ -895,7 +912,6 @@ def create_cobaya_yaml(
         # iDM scalar field settings
         extra_args = {
             "gauge": "newtonian",
-            "nonlinear_min_k_max": 25,
             "N_ncdm": 1,
             "N_ur": 2.046,
             "sBBN file": "sBBN_2017.dat",
@@ -907,6 +923,9 @@ def create_cobaya_yaml(
             "scf_potential": potential,
             "attractor_ic_scf": attractor,
         }
+
+    if not skip_nonlinear_min_k_max:
+        extra_args["nonlinear_min_k_max"] = 25
 
     theorycode: dict[str, Any] = {
         "theory": {
