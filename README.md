@@ -114,7 +114,7 @@ Our research complies with FAIR data principles:
   - The `Mathematica` notebooks are provided here. These are not per se 'interoperable', since the closed source software `Mathematica` must be used to read them. To mitigate this shortcoming, PDF prints of the evaluated notebooks are provided here.
   - The `CLASS` source code can be compiled with any `C` compiler.
   - The `Cobaya` related setup files can be used with the open access tool [`Cobaya`](https://cobaya.readthedocs.io/en/latest/).
-  - The `Cobaya` chains can be analyzed with various tools. We used [`GetDist`](https://getdist.readthedocs.io/en/latest/) through `Python`
+  - The `Cobaya` chains can be analyzed with various tools. We used [`GetDist`](https://getdist.readthedocs.io/en/latest/) through `Python`.
 - **R**eusable:
   - The `LaTeX` code can act as a template for other theses. The equations can be used for other papers.
   - The `Mathematica` notebooks can be used to derive the perturbed equations of motions for other systems with only slight modifications, in particular setting the corresponding Lagrangian respectively action terms.
