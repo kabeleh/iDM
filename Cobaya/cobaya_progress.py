@@ -18,7 +18,7 @@ def has_progress_data(progress_file: str) -> bool:
 
 
 # Folder containing MCMC chains
-mcmc_folder: str = "/Users/klmba/kDrive/Sci/PhD/Research/HDM/MCMCfast"
+mcmc_folder: str = "/Users/klmba/kDrive/Sci/PhD/Research/HDM/MCMC_chains"
 
 # Find all .progress files in the folder
 progress_files: list[str] = glob.glob(os.path.join(mcmc_folder, "*.progress"))
