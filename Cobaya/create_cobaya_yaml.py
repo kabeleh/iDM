@@ -8,9 +8,9 @@ from ruamel.yaml.comments import CommentedSeq
 import re
 
 # Specify the parameters
-sampler: str = "mcmc_fast"  # MCMC or Polychord
+sampler: str = "polychord"  # MCMC or Polychord
 likelihood: str = "CMB"  # likelihood combination
-potential: str = "LCDM"  # LCDM or iDM potential for scalar field models
+potential: str = "hyperbolic"  # LCDM or iDM potential for scalar field models
 attractor: str = "no"  # Scaling Solution; Ignored for LCDM
 coupling: str = "uncoupled"  # Coupling; Ignored for LCDM
 
