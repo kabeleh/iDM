@@ -9,6 +9,7 @@ sampler:
     learn_proposal: true
     measure_speeds: true
     max_tries: .inf
+    learn_every: 10
 likelihood:
   bao.desi_dr2:
   sn.pantheonplus:

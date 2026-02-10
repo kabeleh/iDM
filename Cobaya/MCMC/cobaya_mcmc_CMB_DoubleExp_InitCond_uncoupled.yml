@@ -10,6 +10,7 @@ sampler:
     measure_speeds: true
     max_tries: .inf
     temperature: 2.0
+    learn_every: 50
 likelihood:
   planck_2018_lowl.TT:
   planck_2018_lowl.EE:

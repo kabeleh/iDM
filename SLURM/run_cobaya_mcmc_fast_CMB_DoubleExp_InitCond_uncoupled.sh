@@ -7,7 +7,7 @@
 #SBATCH --ntasks 4
 #SBATCH --ntasks-per-node 4
 #SBATCH --cpus-per-task 64
-#SBATCH --time 06:00:00
+#SBATCH --time 00:10:00
 #SBATCH --output %j.run_cobaya_mcmc_fast_CMB_DoubleExp_InitCond_uncoupled.out
 #SBATCH --error %j.run_cobaya_mcmc_fast_CMB_DoubleExp_InitCond_uncoupled.err
 #SBATCH --mail-user kay.lehnert.2023@mumail.ie
@@ -22,14 +22,14 @@ source my_foss-env/bin/activate
 export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
 
 # Retry logic for exit code 143 (SIGTERM)
-MAX_RETRIES=99
+MAX_RETRIES=10
 RETRY_COUNT=0
 EXIT_CODE=143
 
 while [ $EXIT_CODE -eq 143 ] && [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
     RETRY_COUNT=$((RETRY_COUNT + 1))
     echo "Attempt $RETRY_COUNT of $MAX_RETRIES"
-    srun --cpus-per-task=$SLURM_CPUS_PER_TASK cobaya-run /home/users/u103677/iDM/Cobaya/MCMC/cobaya_mcmc_fast_CMB_DoubleExp_InitCond_uncoupled.yml --resume
+    srun --cpus-per-task=$SLURM_CPUS_PER_TASK cobaya-run /home/users/u103677/iDM/Cobaya/MCMC/cobaya_mcmc_CMB_DoubleExp_InitCond_uncoupled.yml --resume --debug
     EXIT_CODE=$?
     echo "Exit code: $EXIT_CODE"
     if [ $EXIT_CODE -eq 143 ]; then

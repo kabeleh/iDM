@@ -22,8 +22,8 @@ source my_foss-env/bin/activate
 export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
 
 
-srun -n 4 --exact --cpus-per-task=$SLURM_CPUS_PER_TASK cobaya-run /home/users/u103677/iDM/Cobaya/MCMC/cobaya_mcmc_CV_CMB_SPA_PP_S_DESI_DoubleExp_InitCond_uncoupled.yml --resume > "${SLURM_JOB_ID}_DoubleExp_SPAPPS.txt" &
-srun -n 4 --exact --cpus-per-task=$SLURM_CPUS_PER_TASK cobaya-run /home/users/u103677/iDM/Cobaya/MCMC/cobaya_mcmc_CV_CMB_SPA_PP_S_DESI_hyperbolic_InitCond_uncoupled.yml --resume > "${SLURM_JOB_ID}_hyperbolic_SPAPPS.txt" &
+srun -n 4 --exact --cpus-per-task=$SLURM_CPUS_PER_TASK cobaya-run /home/users/u103677/iDM/Cobaya/MCMC/cobaya_mcmc_CV_PP_DESI_DoubleExp_InitCond_uncoupled.yml --resume > "${SLURM_JOB_ID}_DoubleExp_PP.txt" &
+srun -n 4 --exact --cpus-per-task=$SLURM_CPUS_PER_TASK cobaya-run /home/users/u103677/iDM/Cobaya/MCMC/cobaya_mcmc_CV_PP_DESI_hyperbolic_InitCond_uncoupled.yml --resume > "${SLURM_JOB_ID}_hyperbolic_PP.txt" &
 srun -n 4 --exact --cpus-per-task=$SLURM_CPUS_PER_TASK cobaya-run /home/users/u103677/iDM/Cobaya/MCMC/cobaya_mcmc_CV_PP_S_DESI_DoubleExp_InitCond_uncoupled.yml --resume > "${SLURM_JOB_ID}_DoubleExp_PPS.txt" &
 srun -n 4 --exact --cpus-per-task=$SLURM_CPUS_PER_TASK cobaya-run /home/users/u103677/iDM/Cobaya/MCMC/cobaya_mcmc_CV_PP_S_DESI_hyperbolic_InitCond_uncoupled.yml --resume > "${SLURM_JOB_ID}_hyperbolic_PPS.txt" &
 wait
