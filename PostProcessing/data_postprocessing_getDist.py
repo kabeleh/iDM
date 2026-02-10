@@ -6,6 +6,7 @@
 from typing import Any, Callable, Mapping, Sequence, cast
 import os
 import re
+import glob
 import numpy as np  # type: ignore[import-untyped]
 
 import matplotlib.pyplot as plt  # type: ignore[import-untyped]
@@ -21,6 +22,7 @@ Color = Any
 
 # Global cache for loaded samples to avoid redundant loading
 _SAMPLES_CACHE: dict[str, Any] = {}
+_ROOT_PATH_CACHE: dict[str, str] = {}
 
 # GetDist imports for MCMC analysis
 from getdist import MCSamples, loadMCSamples  # type: ignore[import-untyped]
@@ -56,13 +58,14 @@ def preload_all_chains(
         print(f"Preloading {len(roots)} chain(s) into cache...")
 
     for i, root in enumerate(roots, 1):
-        cache_key = f"{chain_dir}/{root}"
+        resolved_root = resolve_chain_root(root, chain_dir)
+        cache_key = _cache_key(chain_dir, resolved_root)
         if cache_key not in _SAMPLES_CACHE:
             try:
                 if verbose:
                     print(f"  [{i}/{len(roots)}] Loading {root}...")
                 samples = loadMCSamples(
-                    os.path.join(chain_dir, root), settings=settings
+                    _root_base_path(resolved_root, chain_dir), settings=settings
                 )
                 _SAMPLES_CACHE[cache_key] = samples
             except Exception as e:
@@ -85,29 +88,19 @@ def preload_all_chains(
 
 # Directory where MCMC chain files are stored
 # Try both paths and use the one that works
-_path1 = r"/Users/klmba/kDrive/Sci/PhD/Research/HDM/MCMCfast/"
-_path2 = r"/home/kl/kDrive/Sci/PhD/Research/HDM/MCMCfast/"
+_path1 = r"/Users/klmba/kDrive/Sci/PhD/Research/HDM/MCMC_archive/"
+_path2 = r"/home/kl/kDrive/Sci/PhD/Research/HDM/MCMC_archive/"
 CHAIN_DIR: str = _path1 if os.path.exists(_path1) else _path2
 ANALYSIS_SETTINGS: dict[str, float] = {"ignore_rows": 0.33}
 
 # Define the root names of the MCMC chains (file prefixes without extensions)
 ROOTS: list[str] = [
-    # "Cobaya_mcmc_Run3_Planck_PP_SH0ES_DESIDR2_DoubleExp_tracking_uncoupled",
-    # "cobaya_iDM_20251230_dexp",
-    # "cobaya_mcmc_fast_Run1_Planck_2018_DoubleExp_tracking_uncoupled",
-    # "cobaya_mcmc_fast_Run1_Planck_2018_hyperbolic_tracking_uncoupled",
-    # "cobaya_mcmc_fast_Run1_Planck_2018_LCDM",
-    # "cobaya_mcmc_Run2_PP_SH0ES_DESIDR2_hyperbolic_tracking_uncoupled",
-    # "cobaya_mcmc_Run2_PP_SH0ES_DESIDR2_DoubleExp_tracking_uncoupled",
-    # "cobaya_mcmc_Run2_PP_SH0ES_DESIDR2_LCDM",
-    # "cobaya_mcmc_CV_PP_DESI_DoubleExp_tracking_uncoupled",
-    # "cobaya_mcmc_CV_PP_DESI_hyperbolic_tracking_uncoupled",
-    # "cobaya_mcmc_CV_PP_S_DESI_DoubleExp_tracking_uncoupled",
-    # "cobaya_mcmc_CV_PP_S_DESI_LCDM",
-    "cobaya_mcmc_CV_PP_S_DESI_hyperbolic_tracking_uncoupled",
-    "cobaya_mcmc_CV_PP_S_DESI_hyperbolic_tracking_uncoupled.post.swampland",
-    # "cobaya_polychord_CV_PP_DESI_LCDM",
-    # "cobaya_polychord_CV_PP_S_DESI_LCDM",
+    # "cobaya_polychord_CV_PP_DESI_LCDM.post.S8",
+    "cobaya_mcmc_fast_CMB_LCDM",
+    "cobaya_mcmc_CV_PP_S_DESI_LCDM.post.S8",
+    "cobaya_mcmc_CV_CMB_SPA_LCDM.post.S8",
+    "cobaya_mcmc_CV_CMB_SPA_PP_DESI_LCDM.post.S8",
+    "cobaya_mcmc_CV_CMB_SPA_PP_S_DESI_LCDM.post.S8",
 ]
 
 # Extract a list of colors from the categorical batlowKS colourmap
@@ -115,6 +108,169 @@ ROOTS: list[str] = [
 ALL_COLOURS: list[Color] = [tuple(c) for c in cm.batlowKS.colors]
 BAND_COLOURS: list[Color] = ALL_COLOURS[:2]  # colours[0] for H0, colours[1] for S8
 CHAIN_COLOURS: list[Color] = ALL_COLOURS[2 : 2 + len(ROOTS)]  # consistent chain colours
+
+
+def _root_from_filepath(path: str, chain_dir: str) -> str:
+    """Return a chain root path (relative to chain_dir) from a file path."""
+    rel = os.path.relpath(path, chain_dir)
+    rel = rel.replace(os.sep, "/")
+    rel = re.sub(r"\.\d+\.txt$", "", rel)
+    rel = re.sub(r"\.txt$", "", rel)
+    rel = re.sub(r"\.bestfit$", "", rel)
+    rel = re.sub(r"\.input\.yaml$", "", rel)
+    rel = re.sub(r"\.updated\.yaml$", "", rel)
+    return rel
+
+
+def resolve_chain_root(root: str, chain_dir: str = CHAIN_DIR) -> str:
+    """
+    Resolve a root name to a subfoldered root path if needed.
+
+    If root already contains a path segment, it is returned as-is.
+    Otherwise, search under chain_dir for matching chain files and cache the result.
+    """
+    if os.path.isabs(root):
+        try:
+            common = os.path.commonpath([chain_dir, root])
+        except ValueError:
+            common = None
+        if common == chain_dir:
+            return _root_from_filepath(root, chain_dir)
+        return root
+
+    if "/" in root or os.sep in root:
+        base = _root_base_path(root, chain_dir)
+        if (
+            os.path.exists(f"{base}.txt")
+            or os.path.exists(f"{base}.bestfit")
+            or os.path.exists(f"{base}.input.yaml")
+            or os.path.exists(f"{base}.updated.yaml")
+            or bool(glob.glob(f"{base}.*.txt"))
+        ):
+            return root
+        # Path-like root not found; try resolving under subfolders
+        search_root = root.replace(os.sep, "/")
+        patterns = [
+            f"**/{search_root}.*.txt",
+            f"**/{search_root}.txt",
+            f"**/{search_root}.bestfit",
+            f"**/{search_root}.input.yaml",
+            f"**/{search_root}.updated.yaml",
+        ]
+        matches: list[str] = []
+        for pattern in patterns:
+            matches.extend(glob.glob(os.path.join(chain_dir, pattern), recursive=True))
+
+        if not matches:
+            return root
+
+        matches = sorted(set(matches))
+        resolved = _root_from_filepath(matches[0], chain_dir)
+        _ROOT_PATH_CACHE[root] = resolved
+
+        if len(matches) > 1:
+            rel_matches = [os.path.relpath(p, chain_dir) for p in matches[:5]]
+            print(
+                "Warning: Multiple chain matches for root "
+                f"'{root}', using '{resolved}'. Examples: {rel_matches}"
+            )
+
+        return resolved
+
+    if root in _ROOT_PATH_CACHE:
+        return _ROOT_PATH_CACHE[root]
+
+    patterns = [
+        f"**/{root}.*.txt",
+        f"**/{root}.txt",
+        f"**/{root}.bestfit",
+        f"**/{root}.input.yaml",
+        f"**/{root}.updated.yaml",
+    ]
+    matches: list[str] = []
+    for pattern in patterns:
+        matches.extend(glob.glob(os.path.join(chain_dir, pattern), recursive=True))
+
+    if not matches:
+        _ROOT_PATH_CACHE[root] = root
+        return root
+
+    matches = sorted(set(matches))
+    resolved = _root_from_filepath(matches[0], chain_dir)
+    _ROOT_PATH_CACHE[root] = resolved
+
+    if len(matches) > 1:
+        rel_matches = [os.path.relpath(p, chain_dir) for p in matches[:5]]
+        print(
+            "Warning: Multiple chain matches for root "
+            f"'{root}', using '{resolved}'. Examples: {rel_matches}"
+        )
+
+    return resolved
+
+
+def _cache_key(chain_dir: str, root: str) -> str:
+    if os.path.isabs(root):
+        return root
+    return f"{chain_dir}/{root}"
+
+
+def _root_base_path(root: str, chain_dir: str) -> str:
+    """Return absolute root base path without extensions."""
+    if os.path.isabs(root):
+        return root
+    return os.path.join(chain_dir, root)
+
+
+def get_samples_for_root(
+    root: str,
+    chain_dir: str = CHAIN_DIR,
+    settings: Mapping[str, Any] = ANALYSIS_SETTINGS,
+) -> Any | None:
+    """Load samples for a root with caching and subfolder resolution."""
+    resolved_root = resolve_chain_root(root, chain_dir)
+    cache_key = _cache_key(chain_dir, resolved_root)
+    if cache_key in _SAMPLES_CACHE:
+        return _SAMPLES_CACHE[cache_key]
+    try:
+        samples = loadMCSamples(
+            _root_base_path(resolved_root, chain_dir), settings=settings
+        )
+    except Exception as e:
+        print(f"Note: GetDist failed for {root}: {e}")
+        samples = None
+    _SAMPLES_CACHE[cache_key] = samples
+    return samples
+
+
+def build_legend_label(root: str) -> str:
+    """Build a legend label from the chain root name."""
+    root_lower = root.lower()
+
+    if "lcdm" in root_lower:
+        model_label = r"$\Lambda$CDM"
+    elif "hyperbolic" in root_lower:
+        model_label = "Hyperbolic"
+    elif "doubleexp" in root_lower or "doubleexponential" in root_lower:
+        model_label = "Double Exponential"
+    else:
+        model_label = "Model"
+
+    likelihoods: list[str] = []
+    if "fast" in root_lower:
+        likelihoods.append("Planck 2018")
+    if "spa" in root_lower:
+        likelihoods.append("SPA")
+    if "pp" in root_lower:
+        likelihoods.append("Pantheon+")
+    if "_s_" in root_lower:
+        likelihoods.append("SH0ES")
+    if "desi" in root_lower:
+        likelihoods.append("DESI DR2")
+
+    if likelihoods:
+        return f"{model_label}: " + " | ".join(likelihoods)
+    return f"{model_label}: (no likelihood tags)"
 
 
 # ============================================================================
@@ -160,11 +316,14 @@ def make_triangle_plot(
 
     # Load samples, drop roots with none of the requested params,
     # and keep only params present in all remaining roots.
-    samples_by_root: list[tuple[str, Any]] = []
+    samples_by_root: list[tuple[str, str, Any]] = []
     for root in ROOTS:
-        samples = g.sample_analyser.samples_for_root(root)
+        samples = get_samples_for_root(root, CHAIN_DIR, ANALYSIS_SETTINGS)
+        if samples is None:
+            continue
         if any(samples.paramNames.parWithName(p) is not None for p in params):
-            samples_by_root.append((root, samples))
+            resolved_root = resolve_chain_root(root, CHAIN_DIR)
+            samples_by_root.append((root, resolved_root, samples))
 
     if not samples_by_root:
         raise ValueError(
@@ -176,7 +335,7 @@ def make_triangle_plot(
         for p in params
         if all(
             samples.paramNames.parWithName(p) is not None
-            for _, samples in samples_by_root
+            for _, _, samples in samples_by_root
         )
     ]
 
@@ -187,14 +346,14 @@ def make_triangle_plot(
 
     # Apply custom labels if provided
     if param_labels:
-        for _, samples in samples_by_root:
+        for _, _, samples in samples_by_root:
             for param_name, label in param_labels.items():
                 p = samples.paramNames.parWithName(param_name)
                 if p is not None:
                     p.label = label
 
-    used_roots: list[str] = [root for root, _ in samples_by_root]
-    roots_to_plot: Sequence[Any] = [samples for _, samples in samples_by_root]
+    used_roots: list[str] = [root for root, _, _ in samples_by_root]
+    roots_to_plot: Sequence[Any] = [samples for _, _, samples in samples_by_root]
     root_to_color: dict[str, Color] = {
         root: CHAIN_COLOURS[i] for i, root in enumerate(ROOTS) if root in used_roots
     }
@@ -216,7 +375,8 @@ def make_triangle_plot(
 
     # Build legend handles for MCMC chains
     chain_handles: list[Patch] = [
-        Patch(facecolor=root_to_color[root], label=root) for root in used_roots
+        Patch(facecolor=root_to_color[root], label=build_legend_label(root))
+        for root in used_roots
     ]
 
     # Apply custom annotations and collect their legend handles
@@ -266,17 +426,16 @@ def annotate_H0_S8(g: Any) -> list[Patch]:
     Returns legend handles for these annotations.
     """
     # SH0ES 2020b: H0 = 73.2 ± 1.3 km/s/Mpc
-    g.add_x_bands(73.2, 1.3, ax=0, color=BAND_COLOURS[0])
-    g.add_x_bands(73.2, 1.3, ax=2, color=BAND_COLOURS[0])
+    g.add_x_bands(73.18, 0.88, ax=0, color=BAND_COLOURS[0])
+    g.add_x_bands(73.18, 0.88, ax=2, color=BAND_COLOURS[0])
 
     # KiDS-1000 2023: S8 = 0.776 ± 0.031
-    # CosmoVerse asks for 1/S8, so the error is d(1/S8)=dS8/S8^2
-    g.add_x_bands(1.289, 0.051, ax=3, color=BAND_COLOURS[1])
-    g.add_y_bands(1.289, 0.051, ax=2, color=BAND_COLOURS[1])
+    g.add_x_bands(0.776, 0.031, ax=3, color=BAND_COLOURS[1])
+    g.add_y_bands(0.776, 0.031, ax=2, color=BAND_COLOURS[1])
 
     return [
-        Patch(facecolor=BAND_COLOURS[0], alpha=0.5, label=r"$H_0$ SH0ES 2020"),
-        Patch(facecolor=BAND_COLOURS[1], label=r"$1/S_8$ KiDS-1000"),
+        Patch(facecolor=BAND_COLOURS[0], alpha=0.5, label=r"$H_0$ SH0ES 2025"),
+        Patch(facecolor=BAND_COLOURS[1], label=r"$S_8$ KiDS-1000"),
     ]
 
 
@@ -483,8 +642,9 @@ def get_likelihoods_for_chain(root: str, chain_dir: str = CHAIN_DIR) -> list[str
     likelihoods: list[str] = []
 
     # Try YAML file first (more reliable)
+    resolved_root = resolve_chain_root(root, chain_dir)
     for yaml_suffix in [".input.yaml", ".updated.yaml"]:
-        yaml_file = os.path.join(chain_dir, f"{root}{yaml_suffix}")
+        yaml_file = _root_base_path(resolved_root, chain_dir) + yaml_suffix
         if os.path.exists(yaml_file):
             likelihoods = parse_cobaya_yaml(yaml_file)
             if likelihoods:
@@ -492,7 +652,7 @@ def get_likelihoods_for_chain(root: str, chain_dir: str = CHAIN_DIR) -> list[str
 
     # If no likelihoods found in YAML, try .minimum file as fallback
     if not likelihoods:
-        minimum_file = os.path.join(chain_dir, f"{root}.bestfit")
+        minimum_file = _root_base_path(resolved_root, chain_dir) + ".bestfit"
         if os.path.exists(minimum_file):
             min_data = parse_minimum_file(minimum_file)
             if min_data.get("chi_sq_components"):
@@ -603,13 +763,16 @@ def get_chain_statistics(
     chain_data: dict[str, Any] = {}
 
     # Try GetDist first (with caching)
-    cache_key = f"{chain_dir}/{root}"
+    resolved_root = resolve_chain_root(root, chain_dir)
+    cache_key = _cache_key(chain_dir, resolved_root)
     if cache_key in _SAMPLES_CACHE:
         samples = _SAMPLES_CACHE[cache_key]
         use_getdist = samples is not None
     else:
         try:
-            samples = loadMCSamples(os.path.join(chain_dir, root), settings=settings)
+            samples = loadMCSamples(
+                _root_base_path(resolved_root, chain_dir), settings=settings
+            )
             _SAMPLES_CACHE[cache_key] = samples
             use_getdist = True
         except Exception as e:
@@ -762,11 +925,14 @@ def count_free_parameters(
         Number of free parameters.
     """
     # Use cache if available
-    cache_key = f"{chain_dir}/{root}"
+    resolved_root = resolve_chain_root(root, chain_dir)
+    cache_key = _cache_key(chain_dir, resolved_root)
     if cache_key in _SAMPLES_CACHE and _SAMPLES_CACHE[cache_key] is not None:
         samples: Any = _SAMPLES_CACHE[cache_key]
     else:
-        samples = loadMCSamples(os.path.join(chain_dir, root), settings=settings)
+        samples = loadMCSamples(
+            _root_base_path(resolved_root, chain_dir), settings=settings
+        )
         _SAMPLES_CACHE[cache_key] = samples
     # paramNames.names includes all parameters; we want only sampled ones
     # The .paramNames.list() returns sampled params, .paramNames.numberOfName() for derived
@@ -983,7 +1149,8 @@ def generate_cosmology_table(
     # Collect data for all chains
     chain_data: dict[str, Any] = {}
     for root in roots:
-        minimum_file = os.path.join(chain_dir, f"{root}.bestfit")
+        resolved_root = resolve_chain_root(root, chain_dir)
+        minimum_file = _root_base_path(resolved_root, chain_dir) + ".bestfit"
         if os.path.exists(minimum_file):
             min_data: dict[str, Any] = parse_minimum_file(minimum_file)
         else:
@@ -1224,7 +1391,8 @@ def generate_scf_table(
         # Collect data for this model's chains
         chain_data: dict[str, Any] = {}
         for root in model_roots:
-            minimum_file = os.path.join(chain_dir, f"{root}.bestfit")
+            resolved_root = resolve_chain_root(root, chain_dir)
+            minimum_file = _root_base_path(resolved_root, chain_dir) + ".bestfit"
             if os.path.exists(minimum_file):
                 min_data: dict[str, Any] = parse_minimum_file(minimum_file)
             else:
@@ -1321,17 +1489,25 @@ def read_chain_data_directly(
     """
     import glob
 
+    resolved_root = resolve_chain_root(root, chain_dir)
+    base_path = _root_base_path(resolved_root, chain_dir)
+
     # Find all chain files matching the root
-    pattern = os.path.join(chain_dir, f"{root}.*.txt")
+    pattern = f"{base_path}.*.txt"
     chain_files = sorted(glob.glob(pattern))
 
     if not chain_files:
         # Try without the .* pattern (single file)
-        single_file = os.path.join(chain_dir, f"{root}.txt")
+        single_file = f"{base_path}.txt"
         if os.path.exists(single_file):
             chain_files = [single_file]
         else:
-            raise FileNotFoundError(f"No chain files found for root {root}")
+            fallback = glob.glob(
+                os.path.join(chain_dir, f"**/{root}.*.txt"), recursive=True
+            )
+            chain_files = sorted(fallback)
+            if not chain_files:
+                raise FileNotFoundError(f"No chain files found for root {root}")
 
     all_data: list[Any] = []
     param_indices: dict[str, int] = {}
@@ -1447,11 +1623,14 @@ def get_integer_parameter_mode(
     """
     try:
         # First try GetDist (with caching)
-        cache_key = f"{chain_dir}/{root}"
+        resolved_root = resolve_chain_root(root, chain_dir)
+        cache_key = _cache_key(chain_dir, resolved_root)
         if cache_key in _SAMPLES_CACHE and _SAMPLES_CACHE[cache_key] is not None:
             samples: Any = _SAMPLES_CACHE[cache_key]
         else:
-            samples = loadMCSamples(os.path.join(chain_dir, root), settings=settings)
+            samples = loadMCSamples(
+                _root_base_path(resolved_root, chain_dir), settings=settings
+            )
             _SAMPLES_CACHE[cache_key] = samples
         param_values = samples[param_name]
         weights = samples.weights
@@ -1518,11 +1697,14 @@ def check_parameter_identity(
     """
     try:
         # First try GetDist (with caching)
-        cache_key = f"{chain_dir}/{root}"
+        resolved_root = resolve_chain_root(root, chain_dir)
+        cache_key = _cache_key(chain_dir, resolved_root)
         if cache_key in _SAMPLES_CACHE and _SAMPLES_CACHE[cache_key] is not None:
             samples: Any = _SAMPLES_CACHE[cache_key]
         else:
-            samples = loadMCSamples(os.path.join(chain_dir, root), settings=settings)
+            samples = loadMCSamples(
+                _root_base_path(resolved_root, chain_dir), settings=settings
+            )
             _SAMPLES_CACHE[cache_key] = samples
         values1 = samples[param1]
         values2 = samples[param2]
@@ -1587,7 +1769,8 @@ def generate_detailed_table(
         _, model_name, _ = identify_dataset_from_root(root)
         model_names[root] = model_name
 
-        minimum_file = os.path.join(chain_dir, f"{root}.bestfit")
+        resolved_root = resolve_chain_root(root, chain_dir)
+        minimum_file = _root_base_path(resolved_root, chain_dir) + ".bestfit"
         if os.path.exists(minimum_file):
             min_data: dict[str, Any] = parse_minimum_file(minimum_file)
         else:
@@ -1751,7 +1934,8 @@ def generate_swampland_table(
     integer_modes: dict[str, tuple[float, int]] = {}
 
     for root in swampland_roots:
-        minimum_file = os.path.join(chain_dir, f"{root}.bestfit")
+        resolved_root = resolve_chain_root(root, chain_dir)
+        minimum_file = _root_base_path(resolved_root, chain_dir) + ".bestfit"
         if os.path.exists(minimum_file):
             min_data: dict[str, Any] = parse_minimum_file(minimum_file)
         else:
