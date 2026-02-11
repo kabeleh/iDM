@@ -235,6 +235,17 @@ int evolver_ndf15(
 
   class_call((*derivs)(t0, y + 1, f0 + 1, parameters_and_workspace_for_derivs, error_message), error_message, error_message);
   stepstat[2] += 1;
+
+  /* Catch NaN/Inf in initial derivative evaluation before entering the main loop */
+  for (ii = 1; ii <= neq; ii++)
+  {
+    class_test(isnan(f0[ii]) || isinf(f0[ii]),
+               error_message,
+               "NaN or Inf in initial derivative evaluation (component %d of %d at t=%e). "
+               "The physical model produced unphysical values for these input parameters.",
+               ii, neq, t0);
+  }
+
   if ((tfinal - t0) < 0.0)
   {
     tdir = -1;
@@ -1521,7 +1532,19 @@ int numjac(
 
     *nfe += 1;
     for (i = 1; i <= neq; i++)
+    {
+      /* Guard against NaN from derivs: replace NaN with zero to prevent
+         uninitialized Rowmax and subsequent out-of-bounds access (segfault) */
+      if (isnan(nj_ws->ffdel[i]) || isinf(nj_ws->ffdel[i]))
+      {
+        sprintf(error_message,
+                "numjac: NaN or Inf detected in derivative vector (component %d of %d at t=%e). "
+                "This usually means the physical model produced unphysical values.",
+                i, neq, t);
+        return _FAILURE_;
+      }
       nj_ws->ydel_Fdel[i][j] = nj_ws->ffdel[i];
+    }
   }
 
   /*Using the Fdel array, form the jacobian and construct max-value arrays.
@@ -1535,6 +1558,11 @@ int numjac(
       group = jac->col_group[j];
       Fdiff_new = 0.0;
       Fdiff_absrm = 0.0;
+      /* Initialize Rowmax to a safe default so that even if no row
+         satisfies the max condition (e.g. due to all-zero columns),
+         we never use an uninitialized index */
+      nj_ws->Rowmax[j + 1] = (Ap[j] < Ap[j + 1]) ? (Ai[Ap[j]] + 1) : 1;
+      nj_ws->Difmax[j + 1] = 0.0;
       for (i = Ap[j]; i < Ap[j + 1]; i++)
       {
         /* Loop over rows in the sparse matrix */
@@ -1561,6 +1589,11 @@ int numjac(
     {
       Fdiff_new = 0.0;
       Fdiff_absrm = 0.0;
+      /* Initialize Rowmax to a safe default so that even if no row
+         satisfies the max condition (e.g. all values are NaN or zero),
+         we never use an uninitialized/stale index */
+      nj_ws->Rowmax[j] = 1;
+      nj_ws->Difmax[j] = 0.0;
       for (i = 1; i <= neq; i++)
       {
         Fdiff_absrm = MAX(fabs(Fdiff_new), Fdiff_absrm);

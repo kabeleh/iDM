@@ -63,14 +63,14 @@ LDFLAG = -g -fPIC
 
 #PGO runs
 # First, compile with -fprofile-generate and run the code on a typical input to generate the profile data. Then, recompile with -fprofile-use to optimize the code based on the profile data.
-# OPTFLAG += -fprofile-generate=$(MDIR)/pgo_profiles
-# LDFLAG += -fprofile-generate=$(MDIR)/pgo_profiles
+OPTFLAG += -fprofile-generate=$(MDIR)/pgo_profiles
+LDFLAG += -fprofile-generate=$(MDIR)/pgo_profiles
 
 #Second, run typical input to generate the profile data.
 
 #Third, recompile with -fprofile-use to optimize the code based on the profile data. Comment the flags from the first PGO run, and uncomment the flags below for the second PGO run.
-OPTFLAG += -fprofile-use=$(MDIR)/pgo_profiles -fprofile-correction
-LDFLAG += -fprofile-use=$(MDIR)/pgo_profiles -fprofile-correction
+# OPTFLAG += -fprofile-use=$(MDIR)/pgo_profiles -fprofile-correction
+# LDFLAG += -fprofile-use=$(MDIR)/pgo_profiles -fprofile-correction
 
 # leave blank to compile without HyRec, or put path to HyRec directory
 # (with no slash at the end: e.g. "external/RecfastCLASS")

@@ -9913,6 +9913,21 @@ int perturbations_derivs(double tau,
                                            - pba->cdm_c * (1 + tanh_c_phi) * pvecback[pba->index_bg_rho_cdm] * y[pv->index_pt_delta_cdm]                                                                                                                                                                                                                                                                                                  // -a^2 m' delta_n, using m'/m = c (1 + tanh(c phi)) and delta_cdm = delta_n/n
                                            + 2 * pvecmetric[ppw->index_mt_psi] * pvecback[pba->index_bg_rho_cdm] * (-pba->cdm_c * (1 + tanh_c_phi)));                                                                                                                                                                                                                                                                                     //-2a^2 psi *  m' n, Psi in CLASS = phi in xPand
       }
+
+      /** - ----> catch NaN/Inf in scalar field perturbation derivatives
+          before they propagate to numjac and cause a segfault */
+      class_test(isnan(dy[pv->index_pt_phi_scf]) || isinf(dy[pv->index_pt_phi_scf]) ||
+                     isnan(dy[pv->index_pt_mom_scf]) || isinf(dy[pv->index_pt_mom_scf]),
+                 error_message,
+                 "NaN or Inf in scalar field perturbation derivatives (tau=%e, k=%e). "
+                 "Background quantities: phi=%e, phi_prime=%e, V=%e, dV=%e, ddV=%e. "
+                 "The scalar field parameter combination is likely unphysical.",
+                 tau, k,
+                 pvecback[pba->index_bg_phi_scf],
+                 pvecback[pba->index_bg_phi_prime_scf],
+                 pvecback[pba->index_bg_V_scf],
+                 pvecback[pba->index_bg_dV_scf],
+                 pvecback[pba->index_bg_ddV_scf]);
     }
 
     /** - ---> ultra-relativistic neutrino/relics (ur) */

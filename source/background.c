@@ -530,6 +530,21 @@ int background_functions(
     pvecback[pba->index_bg_dV_scf] = dV_p + coupling_scf(pba, rho_cdm_prime(pba, phi, pvecback), pvecback); // V'_eff = V'_pure + coupling
     pvecback[pba->index_bg_ddV_scf] = ddV_val;
 
+    /* Check for NaN/Inf in scalar field potential and its derivatives.
+       This catches extreme parameter combinations (e.g. very large phi * c2
+       in the DoubleExp potential) before they propagate further. */
+    class_test(isnan(V_phi) || isinf(V_phi) || isnan(dV_p) || isinf(dV_p) || isnan(ddV_val) || isinf(ddV_val),
+               pba->error_message,
+               "NaN or Inf in scalar field potential at phi=%e (V=%e, dV=%e, ddV=%e). "
+               "The scalar field parameter combination is likely unphysical.",
+               phi, V_phi, dV_p, ddV_val);
+
+    class_test(isnan(pvecback[pba->index_bg_dV_scf]) || isinf(pvecback[pba->index_bg_dV_scf]),
+               pba->error_message,
+               "NaN or Inf in effective scalar field derivative dV_eff at phi=%e. "
+               "The coupling or scalar field parameters may be unphysical.",
+               phi);
+
     pvecback[pba->index_bg_rho_scf] = (KE + V_phi) / 3.; // energy of the scalar field
     pvecback[pba->index_bg_p_scf] = (KE - V_phi) / 3.;   // pressure of the scalar field
     rho_tot += pvecback[pba->index_bg_rho_scf];
@@ -2006,6 +2021,41 @@ int background_checks(
     }
   }
 
+  /** - early sanity check for scalar field parameters:
+      Evaluate the potential and its derivatives at the initial field value.
+      If they produce NaN/Inf (e.g. from extreme exponents in DoubleExp),
+      reject immediately rather than wasting time on the full background integration
+      or risking a segfault later in perturbations. */
+  if (pba->has_scf == _TRUE_)
+  {
+    double phi_ini_check = pba->phi_ini_scf;
+    double V_check, dV_check, ddV_check;
+    V_scf_derivs(pba, phi_ini_check, &V_check, &dV_check, &ddV_check, NULL, NULL);
+
+    class_test(isnan(V_check) || isinf(V_check) ||
+                   isnan(dV_check) || isinf(dV_check) ||
+                   isnan(ddV_check) || isinf(ddV_check),
+               pba->error_message,
+               "Scalar field potential (type %d) evaluates to NaN or Inf at phi_ini=%e "
+               "(V=%e, dV=%e, ddV=%e). This typically happens when exp(), cosh() or "
+               "similar functions overflow for extreme parameter combinations — "
+               "skipping this parameter point.",
+               pba->scf_potential, phi_ini_check, V_check, dV_check, ddV_check);
+
+    /* Note: we do NOT test V < 0 here. At early times the scalar field
+       is typically kinetic-dominated, so rho_scf = (phi'^2/2a^2 + V)/3
+       can be positive even with V < 0. If rho_tot ever goes negative
+       during integration (H^2 < 0), the resulting NaN in sqrt(H^2) is
+       caught by the isnan/isinf guards in background_functions() and
+       background_derivs(). */
+
+    if (pba->background_verbose > 1)
+    {
+      printf(" -> Scalar field potential at phi_ini=%e: V=%e, dV=%e, ddV=%e\n",
+             phi_ini_check, V_check, dV_check, ddV_check);
+    }
+  }
+
   return _SUCCESS_;
 }
 
@@ -3459,6 +3509,14 @@ int background_derivs(
     {
       dy[pba->index_bi_phi_prime_scf] = -2 * y[pba->index_bi_phi_prime_scf] - a * dV_scf(pba, y[pba->index_bi_phi_scf], pvecback) / H;
     }
+
+    /** - Check for NaN/Inf in scalar field derivatives (can happen for extreme parameter combinations) */
+    class_test(isnan(dy[pba->index_bi_phi_scf]) || isinf(dy[pba->index_bi_phi_scf]) ||
+                   isnan(dy[pba->index_bi_phi_prime_scf]) || isinf(dy[pba->index_bi_phi_prime_scf]),
+               error_message,
+               "NaN or Inf in scalar field background derivatives at a=%e, phi=%e, phi_prime=%e. "
+               "This typically indicates extreme/unphysical scalar field parameters.",
+               a, y[pba->index_bi_phi_scf], y[pba->index_bi_phi_prime_scf]);
   }
 
   return _SUCCESS_;
