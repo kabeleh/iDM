@@ -91,12 +91,18 @@ def preload_all_chains(
 _path1 = r"/Users/klmba/kDrive/Sci/PhD/Research/HDM/MCMC_archive/"
 _path2 = r"/home/kl/kDrive/Sci/PhD/Research/HDM/MCMC_archive/"
 CHAIN_DIR: str = _path1 if os.path.exists(_path1) else _path2
-ANALYSIS_SETTINGS: dict[str, float] = {"ignore_rows": 0.33}
+ANALYSIS_SETTINGS: dict[str, float] = {
+    "ignore_rows": 0.33,
+    # "fine_bins": 2048,
+    "fine_bins_2D": 2048,
+}
 
 # Define the root names of the MCMC chains (file prefixes without extensions)
 ROOTS: list[str] = [
-    # "cobaya_polychord_CV_PP_DESI_LCDM.post.S8",
     "cobaya_mcmc_fast_CMB_LCDM",
+    "cobaya_mcmc_fast_CMB_LCDM.post.PP",
+    "cobaya_mcmc_fast_CMB_LCDM.post.PPS",
+    "cobaya_polychord_CV_PP_DESI_LCDM.post.S8",
     "cobaya_mcmc_CV_PP_S_DESI_LCDM.post.S8",
     "cobaya_mcmc_CV_CMB_SPA_LCDM.post.S8",
     "cobaya_mcmc_CV_CMB_SPA_PP_DESI_LCDM.post.S8",
@@ -168,12 +174,16 @@ def resolve_chain_root(root: str, chain_dir: str = CHAIN_DIR) -> str:
         resolved = _root_from_filepath(matches[0], chain_dir)
         _ROOT_PATH_CACHE[root] = resolved
 
+        # Only warn if there are multiple distinct chain roots (truly ambiguous)
+        # GetDist naturally has multiple files per chain (.1.txt, .2.txt, .bestfit, etc.)
         if len(matches) > 1:
-            rel_matches = [os.path.relpath(p, chain_dir) for p in matches[:5]]
-            print(
-                "Warning: Multiple chain matches for root "
-                f"'{root}', using '{resolved}'. Examples: {rel_matches}"
-            )
+            unique_roots = set(_root_from_filepath(m, chain_dir) for m in matches)
+            if len(unique_roots) > 1:
+                rel_roots = sorted(unique_roots)
+                print(
+                    f"Warning: Multiple distinct chains match root '{root}'. "
+                    f"Using '{resolved}'. Found chains: {rel_roots}"
+                )
 
         return resolved
 
@@ -199,12 +209,16 @@ def resolve_chain_root(root: str, chain_dir: str = CHAIN_DIR) -> str:
     resolved = _root_from_filepath(matches[0], chain_dir)
     _ROOT_PATH_CACHE[root] = resolved
 
+    # Only warn if there are multiple distinct chain roots (truly ambiguous)
+    # GetDist naturally has multiple files per chain (.1.txt, .2.txt, .bestfit, etc.)
     if len(matches) > 1:
-        rel_matches = [os.path.relpath(p, chain_dir) for p in matches[:5]]
-        print(
-            "Warning: Multiple chain matches for root "
-            f"'{root}', using '{resolved}'. Examples: {rel_matches}"
-        )
+        unique_roots = set(_root_from_filepath(m, chain_dir) for m in matches)
+        if len(unique_roots) > 1:
+            rel_roots = sorted(unique_roots)
+            print(
+                f"Warning: Multiple distinct chains match root '{root}'. "
+                f"Using '{resolved}'. Found chains: {rel_roots}"
+            )
 
     return resolved
 
@@ -261,9 +275,15 @@ def build_legend_label(root: str) -> str:
         likelihoods.append("Planck 2018")
     if "spa" in root_lower:
         likelihoods.append("SPA")
-    if "pp" in root_lower:
+    # Check for .post.PPS (PantheonPlus + SH0ES) and .post.PP (PantheonPlus only)
+    if ".post.pps" in root_lower or root_lower.endswith(".post.pps"):
         likelihoods.append("Pantheon+")
-    if "_s_" in root_lower:
+        likelihoods.append("SH0ES")
+    elif ".post.pp" in root_lower or root_lower.endswith(".post.pp"):
+        likelihoods.append("Pantheon+")
+    elif "pp" in root_lower:
+        likelihoods.append("Pantheon+")
+    if "_s_" in root_lower and "SH0ES" not in likelihoods:
         likelihoods.append("SH0ES")
     if "desi" in root_lower:
         likelihoods.append("DESI DR2")
@@ -503,17 +523,20 @@ scf_labels = {
     "scf_c3": r"c_3",
     "scf_c4": r"c_4",
 }
-g2 = make_triangle_plot(
-    params_scf,
-    annotations=annotate_scf_constraints,
-    param_labels=scf_labels,
-    title=None,
-)
+try:
+    g2 = make_triangle_plot(
+        params_scf,
+        annotations=annotate_scf_constraints,
+        param_labels=scf_labels,
+        title=None,
+    )
 
-# Export example:
-# g2.fig.savefig("plot_scf_params_PP_S_DESI_hyperbolic.png", bbox_inches="tight", dpi=300)
+    # Export example:
+    # g2.fig.savefig("plot_scf_params_PP_S_DESI_hyperbolic.png", bbox_inches="tight", dpi=300)
 
-plt.show()
+    plt.show()
+except ValueError as e:
+    print(f"Skipping scalar field parameters plot: {e}")
 
 # ============================================================================
 # TABLE GENERATION: Extract data from chains and create LaTeX tables
@@ -664,16 +687,20 @@ def get_likelihoods_for_chain(root: str, chain_dir: str = CHAIN_DIR) -> list[str
 # Lookup table for number of data points per likelihood
 # These are the effective number of data points used in the chi-squared calculation
 # The values are extracted from the covmat and mean.txt files from the cobaya data folder.
+# Keys are stored in lowercase to match the case-insensitive lookup logic
 LIKELIHOOD_DATA_POINTS: dict[str, int] = {
     "bao.desi_dr2": 13,  # DESI DR2 BAO (13 data points)
     "sn.pantheonplus": 1701,  # Pantheon+ without SH0ES (1701 SNe)
     "sn.pantheonplusshoes": 1701,  # Pantheon+ with SH0ES calibration (1701 SNe + SH0ES prior)
-    "planck_2018_lowl.TT": 28,  # Low-l TT (l=2-29)
-    "act_dr6_cmbonly.PlanckActCut": 613,  # Combined Planck+ACT DR6 CMB-only (613 data points)
-    "act_dr6_cmbonly.ACTDR6CMBonly": 135,  # ACT DR6 CMB-only (135 data points)
-    "act_dr6_lenslike.ACTDR6LensLike": 19,  # ACT DR6 lensing-like (19 data points)
+    "planck_2018_lowl.tt": 28,  # Low-l TT (l=2-29)
+    "planck_2018_lowl.ee": 28,  # Low-l EE (l=2-29)
+    "planck_2018_highl_plik.ttteee_lite_native": 613,  # Planck 2018 high-l TT, TE, EE (lite version with 613 data points)
+    "planck_2018_lensing.native": 9,  # Planck 2018 lensing (9 data points)
+    "act_dr6_cmbonly.planckactcut": 613,  # Combined Planck+ACT DR6 CMB-only (613 data points)
+    "act_dr6_cmbonly.actdr6cmbonly": 135,  # ACT DR6 CMB-only (135 data points)
+    "act_dr6_lenslike.actdr6lenslike": 19,  # ACT DR6 lensing-like (19 data points)
     "spt3g_d1_tne": 196,  # SPT-3G D1 temperature and E-mode polarization (196 data points)
-    "muse3glike.cobaya.spt3g_2yr_delensed_ee_optimal_pp_muse": 16,  # Since only phi phi component is used.
+    "muse3glike.cobaya.spt3g_2yr_delensed_ee_optimal_pp_muse": 16,  # MUSE-3G SPT-3G phi-phi component (16 data points)
 }
 
 
@@ -973,8 +1000,17 @@ def identify_dataset_from_root(root: str) -> tuple[str, str, bool]:
     root_lower = root.lower()
 
     # Identify dataset components
-    has_pp = "pp" in root_lower or "pantheon" in root_lower
-    has_sh0es = "sh0es" in root_lower or "shoes" in root_lower or "_s_" in root_lower
+    # Check for .post.PPS (PantheonPlus + SH0ES) and .post.PP (PantheonPlus only)
+    has_pps = ".post.pps" in root_lower
+    has_pp = (
+        has_pps
+        or ".post.pp" in root_lower
+        or "pp" in root_lower
+        or "pantheon" in root_lower
+    )
+    has_sh0es = (
+        has_pps or "sh0es" in root_lower or "shoes" in root_lower or "_s_" in root_lower
+    )
     has_desi = "desi" in root_lower
     has_planck = "planck" in root_lower
 
@@ -1305,9 +1341,17 @@ def get_dataset_label(root: str) -> str:
     parts: list[str] = []
     if "planck" in root_lower:
         parts.append("Planck")
-    if "pp" in root_lower or "pantheon" in root_lower:
+    # Check for .post.PPS (PantheonPlus + SH0ES) and .post.PP (PantheonPlus only)
+    has_pps = ".post.pps" in root_lower
+    has_pp = (
+        has_pps
+        or ".post.pp" in root_lower
+        or "pp" in root_lower
+        or "pantheon" in root_lower
+    )
+    if has_pp:
         parts.append("PP")
-    if "sh0es" in root_lower or "shoes" in root_lower:
+    if has_pps or "sh0es" in root_lower or "shoes" in root_lower:
         parts.append("SH0ES")
     elif "_s_" in root_lower:  # Check for _S_ pattern (short for SH0ES)
         parts.append("SH0ES")

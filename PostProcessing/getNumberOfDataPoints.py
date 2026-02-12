@@ -7,7 +7,8 @@ get_model = cast(Callable[[Any], Any], get_model)
 yaml_load = cast(Callable[[str], dict[str, Any]], yaml_load)
 
 # Set the correct packages path
-packages_path = "/Users/klmba/Cosmology"
+# packages_path = "/Users/klmba/Cosmology"
+packages_path = "/home/kl/kDrive/Sci/PhD/Research/HDM/cobaya_klarch/"
 
 # --- 1. Define the input information (YAML as a string) ---
 info_yaml = f"""
@@ -15,54 +16,35 @@ packages_path: {packages_path}
 
 theory:
   classy:
+    path: /home/kl/kDrive/Sci/PhD/Research/HDM/class_public
     extra_args:
       gauge: newtonian
-      nonlinear_min_k_max: 25
       N_ncdm: 1
       N_ur: 2.046
       sBBN file: sBBN_2017.dat
-      non linear: hmcode
-      hmcode_version: 2020
-
+      non linear: halofit
 likelihood:
-  muse3glike:
-    class: muse3glike.cobaya.spt3g_2yr_delensed_ee_optimal_pp_muse
-    # package_install block is only needed for installation, not runtime
-    components:
-    - "\\u03D5\\u03D5" # Correct Python string representation for phi-phi (lensing)
-    
-    # Nuisance parameters for muse3glike are typically internal/inherited, 
-    # but we include A_planck for completeness if it's required.
-    params:
-        A_planck: {{value: 1.0}}
+  # planck_2018_lowl.TT:
+  # planck_2018_lowl.EE:
+  # planck_2018_highl_plik.TTTEEE_lite_native:
+  planck_2018_lensing.native:
 
 params:
-  # --- LCDM parameters (must be fixed for initialization) ---
   logA: {{value: 3.05}}
   n_s: {{value: 0.965}}
   H0: {{value: 67}}
   tau_reio: {{value: 0.051}}
   omega_b: {{value: 0.0224}}
   omega_cdm: {{value: 0.12}}
-
-  # --- SPT (candl) nuisance parameters (must be fixed) ---
-  Tcal: {{value: 1.0}}
-  Ecal: {{value: 1.0}}
-
-  # --- Global nuisance parameters (must be fixed) ---
-  A_planck: {{value: 1.0}} 
-  A_act: {{value: 1.0}}
-  P_act: {{value: 1.0}}
-
-  # Derived parameter placeholder value (only needed if they were sampled inputs)
   m_ncdm: {{value: 0.06}}
+  A_planck: {{value: 1.0}}
 """
 
 # Load the YAML string into a Python dictionary
 info: dict[str, Any] = yaml_load(info_yaml)
 
 # --- 2. Instantiate the model ---
-like_name: str = "muse3glike"
+like_name: str = "planck_2018_lensing.native"
 
 try:
     model = get_model(info)
