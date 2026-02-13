@@ -70,7 +70,7 @@ These files allow you to fully reproduce my findings:
 The following naming scheme is applied to these files: 
 ```
         Sampler                 _    Likelihoods                            _    Type of Dark Energy                _    Dark Energy Conditions                           .    file-type
-cobaya  < mcmc | polychord >    _    < CMB | SPA | PP | S | DESI | DES >    _    < LCDM | hyperbolic | DoubleExp >  _    < InitCond | tracking | coupled | uncoupled >    .    < txt | bestfit | covmat | yml >
+cobaya  < mcmc | polychord >    _    < CMB | SPA | PP | S | DESI >    _    < LCDM | hyperbolic | DoubleExp >  _    < InitCond | tracking | coupled | uncoupled >    .    < txt | bestfit | covmat | yml >
 ```
 The [types of dark energy](https://github.com/kabeleh/iDM/wiki/New-User-Input-Parameters#scalar-field) are explained in the [Wiki](https://github.com/kabeleh/iDM/wiki), as well as the [coupling](https://github.com/kabeleh/iDM/wiki/Coupling) the [initial conditions](https://github.com/kabeleh/iDM/wiki/Attractor-Solutions).
 
@@ -80,7 +80,6 @@ The data sets are the following:
 - PP: Pantheon+
 - DESI: DESI DR2
 - S: SH0ES
-- DES: DESY1 (shear)
 
 ## Mathematica
 The Mathematica notebooks contain the derivation of the governing equations, equations of motions, the potentials and their derivatives, as well as additional tests for swampland-compatibility.
