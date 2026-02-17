@@ -527,6 +527,7 @@ int background_functions(
     double KE = phi_prime * phi_prime / (2 * a2); // kinetic energy term (reuse a2)
 
     pvecback[pba->index_bg_V_scf] = V_phi;
+    pvecback[pba->index_bg_dV_p_scf] = dV_p;                                                                // pure derivative (no coupling) — cached for swampland diagnostics
     pvecback[pba->index_bg_dV_scf] = dV_p + coupling_scf(pba, rho_cdm_prime(pba, phi, pvecback), pvecback); // V'_eff = V'_pure + coupling
     pvecback[pba->index_bg_ddV_scf] = ddV_val;
 
@@ -1184,6 +1185,7 @@ int background_indices(
   class_define_index(pba->index_bg_phi_scf, pba->has_scf, index_bg, 1);
   class_define_index(pba->index_bg_phi_prime_scf, pba->has_scf, index_bg, 1);
   class_define_index(pba->index_bg_V_scf, pba->has_scf, index_bg, 1);
+  class_define_index(pba->index_bg_dV_p_scf, pba->has_scf, index_bg, 1);
   class_define_index(pba->index_bg_dV_scf, pba->has_scf, index_bg, 1);
   class_define_index(pba->index_bg_ddV_scf, pba->has_scf, index_bg, 1);
   class_define_index(pba->index_bg_d3V_scf, pba->has_scf, index_bg, 1);
@@ -2215,172 +2217,283 @@ int background_solve(
   /* -> scale-invariant growth rate today */
   D_today = pvecback_integration[pba->index_bi_D];
 
-  /** - In a loop over lines, fill rest of background table for
-      quantities that depend on numbers like "conformal_age" or
-      "D_today" that were calculated just before */
-  for (index_loga = 0; index_loga < pba->bt_size; index_loga++)
+  /** - In a single fused loop over lines, fill the rest of the
+      background table for quantities that depend on "conformal_age"
+      or "D_today" (computed just above), AND compute all scalar
+      field swampland diagnostic quantities (min/max reductions).
+      Fusing both passes into one loop improves cache locality
+      since each table row is only loaded from memory once. */
   {
+    /** Number of rows in the background table */
+    int num_bg_rows = pba->bt_size;
+    /** Number of columns per row (stride between consecutive rows) */
+    int cols_per_row = pba->bg_size;
+    /** Reciprocal of the growth factor today, used to normalise D(a) */
+    double inv_D_today = 1.0 / D_today;
+    /** Flag: whether scalar field is active and swampland diagnostics are needed */
+    int has_scalar_field = (pba->has_scf == _TRUE_);
 
-    pba->background_table[index_loga * pba->bg_size + pba->index_bg_D] *= 1. / D_today;
-
-    conformal_distance = pba->conformal_age - pba->tau_table[index_loga];
-    pba->background_table[index_loga * pba->bg_size + pba->index_bg_conf_distance] = conformal_distance;
-
-    if (pba->sgnK == 0)
-    {
-      comoving_radius = conformal_distance;
-    }
-    else if (pba->sgnK == 1)
-    {
-      comoving_radius = sin(sqrt(pba->K) * conformal_distance) / sqrt(pba->K);
-    }
+    /* Pre-cache curvature quantities for comoving radius computation.
+       These avoid recomputing sqrt() on every row. */
+    /** sqrt(K) for closed geometry (sgnK == +1), 0 otherwise */
+    double sqrt_curv_pos = 0.0;
+    /** sqrt(-K) for open geometry (sgnK == -1), 0 otherwise */
+    double sqrt_curv_neg = 0.0;
+    if (pba->sgnK == 1)
+      sqrt_curv_pos = sqrt(pba->K);
     else if (pba->sgnK == -1)
+      sqrt_curv_neg = sqrt(-pba->K);
+
+    /* ---- SCF column-offset cache and swampland accumulators ----
+       These are only meaningful when has_scalar_field is true.
+       Initialised to safe sentinel values so they never produce
+       spurious results if the scf branch is skipped. */
+
+    /** Column offsets into the strided background table for scalar field quantities */
+    int col_phi = 0;     /**< offset for scalar field value phi */
+    int col_V = 0;       /**< offset for scalar field potential V */
+    int col_dV_pure = 0; /**< offset for pure potential derivative V'_pure (no coupling) */
+    int col_ddV = 0;     /**< offset for second derivative V'' */
+    int col_d3V = 0;     /**< offset for third derivative V''' */
+    int col_d4V = 0;     /**< offset for fourth derivative V'''' */
+
+    /** Whether the dark matter model is interacting (model_cdm==2),
+        which activates the SSWGC and AdSDC diagnostics */
+    int is_interacting_dm = 0;
+    /** Dark matter coupling constant c (from pba->cdm_c) */
+    double dm_coupling_c = 0.0;
+
+    /* Running extrema for the scalar field range */
+    /** Running minimum of phi across all table rows */
+    double phi_running_min = 0.0;
+    /** Running maximum of phi across all table rows */
+    double phi_running_max = 0.0;
+
+    /* ---- de Sitter Conjecture (dSC) accumulators ---- */
+    /** Running minimum of |V'_pure|/V (first de Sitter Conjecture parameter).
+        Initialised to +sentinel so any real value wins. */
+    double dV_over_V_min = 1.e100;
+    /** Running maximum of V''/V (second de Sitter Conjecture parameter).
+        Initialised to -sentinel so any real value wins. */
+    double ddV_over_V_max = -1.e100;
+    /** Value of V''/V at the row where |V'_pure|/V is minimised
+        (cross-diagnostic: evaluates second dSC where first dSC is weakest) */
+    double ddV_over_V_at_dV_min = -1.e100;
+    /** Value of |V'_pure|/V at the row where V''/V is maximised
+        (cross-diagnostic: evaluates first dSC where second dSC is strongest) */
+    double dV_over_V_at_ddV_max = 1.e100;
+
+    /* ---- Scalar Weak Gravity Conjecture (SWGC) accumulator ---- */
+    /** Running minimum of 2(V''')^2 - V''*V'''' - (V'')^2.
+        Positive values indicate the SWGC is satisfied.
+        Initialised to +sentinel so any real value wins. */
+    double swgc_running_min = 1.e100;
+
+    /* ---- Combined de Sitter Conjecture accumulator ---- */
+    /** Running minimum of (3*(V'_pure/V)^2 - 2*V''/V)/4.
+        This combined bound comes from the FLB and SSWGC.
+        Initialised to +sentinel so any real value wins. */
+    double combined_dSC_running_min = 1.e100;
+
+    /* ---- Strong Scalar WGC (SSWGC) accumulator ---- */
+    /** Running minimum of the SSWGC expression: M_P^2 m^2 d^2(1/m^2)/dphi^2.
+        Only meaningful for interacting DM (model_cdm==2). */
+    double sswgc_running_min = 1.e100;
+
+    /* ---- Anti-de Sitter Distance Conjecture (AdSDC) accumulators ---- */
+    /** Running maximum of (1-tanh(c*phi))/|V|^{1/2}  (AdSDC with exponent 1/2) */
+    double AdSDC2_running_max = 0.0;
+    /** Running maximum of (1-tanh(c*phi))/|V|^{1/4}  (AdSDC with exponent 1/4) */
+    double AdSDC4_running_max = 0.0;
+
+    if (has_scalar_field)
     {
-      comoving_radius = sinh(sqrt(-pba->K) * conformal_distance) / sqrt(-pba->K);
-    }
+      /* Cache column offsets from the background struct */
+      col_phi = pba->index_bg_phi_scf;
+      col_V = pba->index_bg_V_scf;
+      col_dV_pure = pba->index_bg_dV_p_scf;
+      col_ddV = pba->index_bg_ddV_scf;
+      col_d3V = pba->index_bg_d3V_scf;
+      col_d4V = pba->index_bg_d4V_scf;
 
-    pba->background_table[index_loga * pba->bg_size + pba->index_bg_ang_distance] = comoving_radius / (1. + pba->z_table[index_loga]);
-    pba->background_table[index_loga * pba->bg_size + pba->index_bg_lum_distance] = comoving_radius * (1. + pba->z_table[index_loga]);
-  }
+      is_interacting_dm = (pba->model_cdm == 2);
+      dm_coupling_c = pba->cdm_c;
 
-  /** - Post-integration: compute all scalar field diagnostic
-      quantities using vectorized operations on contiguous arrays.
-      Columns are extracted from the strided background table, derived
-      arrays are computed element-wise, and results are obtained via
-      min/max/argmin/argmax reductions on contiguous data. */
-  if (pba->has_scf == _TRUE_)
-  {
-    int N = pba->bt_size;
-    int stride = pba->bg_size;
-    int i;
+      /* Seed all accumulators from the first row (i==0) of the table,
+         so the main loop can start comparisons from i==1. */
+      double *first_row = pba->background_table;
+      double phi_seed = first_row[col_phi];     /**< phi at earliest time in table */
+      double V_seed = first_row[col_V];         /**< V(phi) at earliest time */
+      double dVp_seed = first_row[col_dV_pure]; /**< V'_pure at earliest time */
+      double ddV_seed = first_row[col_ddV];     /**< V'' at earliest time */
+      double d3V_seed = first_row[col_d3V];     /**< V''' at earliest time */
+      double d4V_seed = first_row[col_d4V];     /**< V'''' at earliest time */
 
-    /* Allocate contiguous workspace: 13 arrays of length N */
-    double *work;
-    class_alloc(work, 13 * N * sizeof(double), pba->error_message);
+      phi_running_min = phi_seed;
+      phi_running_max = phi_seed;
 
-    double *phi_col = work;
-    double *V_col = work + N;
-    double *dV_col = work + 2 * N;
-    double *ddV_col = work + 3 * N;
-    double *d3V_col = work + 4 * N;
-    double *d4V_col = work + 5 * N;
-    double *ratio_dV = work + 6 * N;
-    double *ratio_ddV = work + 7 * N;
-    double *swgc_arr = work + 8 * N;
-    double *sswgc_arr = work + 9 * N;
-    double *AdSDC2_arr = work + 10 * N;
-    double *AdSDC4_arr = work + 11 * N;
-    double *comb_arr = work + 12 * N;
-
-    /* Cache column offsets */
-    int idx_phi = pba->index_bg_phi_scf;
-    int idx_V = pba->index_bg_V_scf;
-    int idx_dV = pba->index_bg_dV_scf;
-    int idx_ddV = pba->index_bg_ddV_scf;
-    int idx_d3V = pba->index_bg_d3V_scf;
-    int idx_d4V = pba->index_bg_d4V_scf;
-
-    /* Extract columns from strided table into contiguous arrays */
-    for (i = 0; i < N; i++)
-    {
-      double *row = pba->background_table + i * stride;
-      phi_col[i] = row[idx_phi];
-      V_col[i] = row[idx_V];
-      dV_col[i] = row[idx_dV];
-      ddV_col[i] = row[idx_ddV];
-      d3V_col[i] = row[idx_d3V];
-      d4V_col[i] = row[idx_d4V];
-    }
-
-    /* Compute derived ratio arrays element-wise.
-       V==0 rows get sentinel values so they never win min/max. */
-    for (i = 0; i < N; i++)
-    {
-      if (V_col[i] != 0.0)
+      if (V_seed != 0.0)
       {
-        double invV = 1.0 / V_col[i];
-        ratio_dV[i] = fabs(dV_col[i]) * invV;
-        ratio_ddV[i] = ddV_col[i] * invV;
-        swgc_arr[i] = 2.0 * d3V_col[i] * d3V_col[i] - ddV_col[i] * d4V_col[i] - ddV_col[i] * ddV_col[i];
-        double rp = dV_p_scf(pba, phi_col[i]) * invV;
-        comb_arr[i] = 0.25 * (3.0 * rp * rp - 2.0 * ratio_ddV[i]);
+        double inv_V_seed = 1.0 / V_seed;
+        dV_over_V_min = fabs(dVp_seed) * inv_V_seed;
+        ddV_over_V_max = ddV_seed * inv_V_seed;
+        ddV_over_V_at_dV_min = ddV_over_V_max;
+        dV_over_V_at_ddV_max = dV_over_V_min;
+        swgc_running_min = 2.0 * d3V_seed * d3V_seed - ddV_seed * d4V_seed - ddV_seed * ddV_seed;
+        double dVp_over_V_seed = dVp_seed * inv_V_seed;
+        combined_dSC_running_min = 0.25 * (3.0 * dVp_over_V_seed * dVp_over_V_seed - 2.0 * ddV_over_V_max);
       }
-      else
+
+      if (is_interacting_dm)
       {
-        ratio_dV[i] = 1.e100;
-        ratio_ddV[i] = -1.e100;
-        swgc_arr[i] = 1.e100;
-        comb_arr[i] = 1.e100;
+        double c_times_phi_seed = dm_coupling_c * phi_seed;
+        double tanh_seed = tanh(c_times_phi_seed);
+        double cosh_seed = cosh(c_times_phi_seed);
+        /** SSWGC expression: 2*c^2 * [4*(1+tanh(c*phi)) - sech^2(c*phi)] */
+        sswgc_running_min = 2.0 * dm_coupling_c * dm_coupling_c * (4.0 * (1.0 + tanh_seed) - 1.0 / (cosh_seed * cosh_seed));
+        double abs_V_seed = fabs(V_seed);
+        double sqrt_abs_V_seed = sqrt(abs_V_seed);
+        double one_minus_tanh_seed = 1.0 - tanh_seed;
+        AdSDC2_running_max = one_minus_tanh_seed / sqrt_abs_V_seed;
+        AdSDC4_running_max = one_minus_tanh_seed / sqrt(sqrt_abs_V_seed);
       }
     }
 
-    /* Compute phi-only diagnostics element-wise */
-    for (i = 0; i < N; i++)
+    /* ---- Main fused loop over all rows of the background table ---- */
+    for (int i = 0; i < num_bg_rows; i++)
     {
-      sswgc_arr[i] = sswgc(pba, phi_col[i]);
-      AdSDC2_arr[i] = AdSDC2(pba, phi_col[i]);
-      AdSDC4_arr[i] = AdSDC4(pba, phi_col[i]);
+      double *row = pba->background_table + i * cols_per_row;
+
+      /* --- Part 1: Growth factor normalisation and distance computation ---
+         Normalise D(a) by D_today so that D(a_today)=1, then compute
+         conformal distance, comoving radius and angular/luminosity distances. */
+      row[pba->index_bg_D] *= inv_D_today;
+
+      conformal_distance = pba->conformal_age - pba->tau_table[i];
+      row[pba->index_bg_conf_distance] = conformal_distance;
+
+      if (pba->sgnK == 0)
+        comoving_radius = conformal_distance;
+      else if (pba->sgnK == 1)
+        comoving_radius = sin(sqrt_curv_pos * conformal_distance) / sqrt_curv_pos;
+      else /* sgnK == -1 */
+        comoving_radius = sinh(sqrt_curv_neg * conformal_distance) / sqrt_curv_neg;
+
+      /** 1 + z for this row, used for angular/luminosity distance */
+      double one_plus_z = 1.0 + pba->z_table[i];
+      row[pba->index_bg_ang_distance] = comoving_radius / one_plus_z;
+      row[pba->index_bg_lum_distance] = comoving_radius * one_plus_z;
+
+      /* --- Part 2: Scalar field swampland diagnostics ---
+         Row 0 was already used to seed the accumulators above,
+         so comparisons start from row 1 onwards. */
+      if (has_scalar_field && i > 0)
+      {
+        /** Scalar field value at this time step */
+        double phi = row[col_phi];
+        /** Scalar field potential V(phi) at this time step */
+        double V = row[col_V];
+        /** Pure potential derivative V'_pure(phi) (without coupling to DM) */
+        double dV_pure = row[col_dV_pure];
+        /** Second derivative V''(phi) */
+        double V_second_deriv = row[col_ddV];
+        /** Third derivative V'''(phi) */
+        double V_third_deriv = row[col_d3V];
+        /** Fourth derivative V''''(phi) */
+        double V_fourth_deriv = row[col_d4V];
+
+        /* Update running phi range */
+        if (phi < phi_running_min)
+          phi_running_min = phi;
+        if (phi > phi_running_max)
+          phi_running_max = phi;
+
+        /* V-dependent Swampland diagnostics (skip if V==0 to avoid division) */
+        if (V != 0.0)
+        {
+          double inv_V = 1.0 / V;
+
+          /** |V'_pure|/V for the first de Sitter Conjecture */
+          double dV_over_V = fabs(dV_pure) * inv_V;
+          /** V''/V for the second de Sitter Conjecture */
+          double ddV_over_V = V_second_deriv * inv_V;
+
+          /* Track minimum of |V'|/V and record V''/V at that point */
+          if (dV_over_V < dV_over_V_min)
+          {
+            dV_over_V_min = dV_over_V;
+            ddV_over_V_at_dV_min = ddV_over_V;
+          }
+          /* Track maximum of V''/V and record |V'|/V at that point */
+          if (ddV_over_V > ddV_over_V_max)
+          {
+            ddV_over_V_max = ddV_over_V;
+            dV_over_V_at_ddV_max = dV_over_V;
+          }
+
+          /** SWGC expression: 2*(V''')^2 - V''*V'''' - (V'')^2 */
+          double swgc_expr = 2.0 * V_third_deriv * V_third_deriv - V_second_deriv * V_fourth_deriv - V_second_deriv * V_second_deriv;
+          if (swgc_expr < swgc_running_min)
+            swgc_running_min = swgc_expr;
+
+          /** V'_pure/V ratio for the combined dSC bound
+              (read directly from table — no dV_p_scf() call needed) */
+          double dVp_over_V = dV_pure * inv_V;
+          /** Combined dSC: (3*(V'/V)^2 - 2*V''/V) / 4 */
+          double combined_dSC_expr = 0.25 * (3.0 * dVp_over_V * dVp_over_V - 2.0 * ddV_over_V);
+          if (combined_dSC_expr < combined_dSC_running_min)
+            combined_dSC_running_min = combined_dSC_expr;
+        }
+
+        /* Interacting-DM-specific diagnostics: SSWGC and AdSDC */
+        if (is_interacting_dm)
+        {
+          /** Argument c*phi for hyperbolic functions */
+          double c_times_phi = dm_coupling_c * phi;
+          double tanh_c_phi = tanh(c_times_phi);
+          double cosh_c_phi = cosh(c_times_phi);
+
+          /** SSWGC expression: 2*c^2 * [4*(1+tanh(c*phi)) - sech^2(c*phi)] */
+          double sswgc_expr = 2.0 * dm_coupling_c * dm_coupling_c * (4.0 * (1.0 + tanh_c_phi) - 1.0 / (cosh_c_phi * cosh_c_phi));
+          if (sswgc_expr < sswgc_running_min)
+            sswgc_running_min = sswgc_expr;
+
+          double abs_V = fabs(V);
+          double sqrt_abs_V = sqrt(abs_V);
+          /** 1 - tanh(c*phi): measure of distance from the AdS boundary */
+          double one_minus_tanh = 1.0 - tanh_c_phi;
+
+          /** AdSDC boundary with exponent 1/2: (1-tanh(c*phi)) / |V|^{1/2} */
+          double AdSDC2_expr = one_minus_tanh / sqrt_abs_V;
+          if (AdSDC2_expr > AdSDC2_running_max)
+            AdSDC2_running_max = AdSDC2_expr;
+
+          /** AdSDC boundary with exponent 1/4: (1-tanh(c*phi)) / |V|^{1/4} */
+          double AdSDC4_expr = one_minus_tanh / sqrt(sqrt_abs_V);
+          if (AdSDC4_expr > AdSDC4_running_max)
+            AdSDC4_running_max = AdSDC4_expr;
+        }
+      }
     }
 
-    /* Reductions: min, max, argmin, argmax on contiguous arrays */
-    double phi_min_val, phi_max_val, swgc_min_val, sswgc_min_val;
-    double AdSDC2_max_val, AdSDC4_max_val, comb_min_val;
-    int idx_min_dV, idx_max_ddV;
+    /* Store swampland results into the background struct for the Python wrapper.
+       Sentinel values (from rows where V==0 everywhere) are mapped to 0. */
+    if (has_scalar_field)
+    {
+      pba->phi_scf_min = phi_running_min;
+      pba->phi_scf_max = phi_running_max;
+      pba->phi_scf_range = phi_running_max - phi_running_min;
 
-    /* Use cblas_idamax-style argmin/argmax: single pass each */
-    phi_min_val = phi_col[0];
-    for (i = 1; i < N; i++)
-      if (phi_col[i] < phi_min_val)
-        phi_min_val = phi_col[i];
-    phi_max_val = phi_col[0];
-    for (i = 1; i < N; i++)
-      if (phi_col[i] > phi_max_val)
-        phi_max_val = phi_col[i];
-    idx_min_dV = 0;
-    for (i = 1; i < N; i++)
-      if (ratio_dV[i] < ratio_dV[idx_min_dV])
-        idx_min_dV = i;
-    idx_max_ddV = 0;
-    for (i = 1; i < N; i++)
-      if (ratio_ddV[i] > ratio_ddV[idx_max_ddV])
-        idx_max_ddV = i;
-    swgc_min_val = swgc_arr[0];
-    for (i = 1; i < N; i++)
-      if (swgc_arr[i] < swgc_min_val)
-        swgc_min_val = swgc_arr[i];
-    sswgc_min_val = sswgc_arr[0];
-    for (i = 1; i < N; i++)
-      if (sswgc_arr[i] < sswgc_min_val)
-        sswgc_min_val = sswgc_arr[i];
-    AdSDC2_max_val = AdSDC2_arr[0];
-    for (i = 1; i < N; i++)
-      if (AdSDC2_arr[i] > AdSDC2_max_val)
-        AdSDC2_max_val = AdSDC2_arr[i];
-    AdSDC4_max_val = AdSDC4_arr[0];
-    for (i = 1; i < N; i++)
-      if (AdSDC4_arr[i] > AdSDC4_max_val)
-        AdSDC4_max_val = AdSDC4_arr[i];
-    comb_min_val = comb_arr[0];
-    for (i = 1; i < N; i++)
-      if (comb_arr[i] < comb_min_val)
-        comb_min_val = comb_arr[i];
-
-    /* Store results */
-    pba->phi_scf_min = phi_min_val;
-    pba->phi_scf_max = phi_max_val;
-    pba->phi_scf_range = phi_max_val - phi_min_val;
-
-    pba->dV_V_scf_min = (ratio_dV[idx_min_dV] < 1.e99) ? ratio_dV[idx_min_dV] : 0.0;
-    pba->ddV_V_at_dV_V_min = (ratio_dV[idx_min_dV] < 1.e99) ? ratio_ddV[idx_min_dV] : 0.0;
-    pba->ddV_V_scf_max = (ratio_ddV[idx_max_ddV] > -1.e99) ? ratio_ddV[idx_max_ddV] : 0.0;
-    pba->dV_V_at_ddV_V_max = (ratio_ddV[idx_max_ddV] > -1.e99) ? ratio_dV[idx_max_ddV] : 0.0;
-    pba->swgc_expr_min = (swgc_min_val < 1.e99) ? swgc_min_val : 0.0;
-    pba->sswgc_min = (sswgc_min_val < 1.e99) ? sswgc_min_val : 0.0;
-    pba->AdSDC2_max = (AdSDC2_max_val > -1.e99) ? AdSDC2_max_val : 0.0;
-    pba->AdSDC4_max = (AdSDC4_max_val > -1.e99) ? AdSDC4_max_val : 0.0;
-    pba->combined_dSC_min = (comb_min_val < 1.e99) ? comb_min_val : 0.0;
-
-    free(work);
+      pba->dV_V_scf_min = (dV_over_V_min < 1.e99) ? dV_over_V_min : 0.0;
+      pba->ddV_V_at_dV_V_min = (dV_over_V_min < 1.e99) ? ddV_over_V_at_dV_min : 0.0;
+      pba->ddV_V_scf_max = (ddV_over_V_max > -1.e99) ? ddV_over_V_max : 0.0;
+      pba->dV_V_at_ddV_V_max = (ddV_over_V_max > -1.e99) ? dV_over_V_at_ddV_max : 0.0;
+      pba->swgc_expr_min = (swgc_running_min < 1.e99) ? swgc_running_min : 0.0;
+      pba->sswgc_min = (sswgc_running_min < 1.e99) ? sswgc_running_min : 0.0;
+      pba->AdSDC2_max = (AdSDC2_running_max > -1.e99) ? AdSDC2_running_max : 0.0;
+      pba->AdSDC4_max = (AdSDC4_running_max > -1.e99) ? AdSDC4_running_max : 0.0;
+      pba->combined_dSC_min = (combined_dSC_running_min < 1.e99) ? combined_dSC_running_min : 0.0;
+    }
   }
 
   /** - fill tables of second derivatives (in view of spline interpolation) */
@@ -3288,6 +3401,7 @@ int background_output_titles(
   class_store_columntitle(titles, "phi_scf", pba->has_scf);
   class_store_columntitle(titles, "phi'_scf", pba->has_scf);
   class_store_columntitle(titles, "V_scf", pba->has_scf);
+  class_store_columntitle(titles, "V'_p_scf", pba->has_scf);
   class_store_columntitle(titles, "V'_scf", pba->has_scf);
   class_store_columntitle(titles, "V''_scf", pba->has_scf);
   class_store_columntitle(titles, "V'''_scf", pba->has_scf);
@@ -3369,6 +3483,7 @@ int background_output_data(
     class_store_double(dataptr, pvecback[pba->index_bg_phi_scf], pba->has_scf, storeidx);
     class_store_double(dataptr, pvecback[pba->index_bg_phi_prime_scf], pba->has_scf, storeidx);
     class_store_double(dataptr, pvecback[pba->index_bg_V_scf], pba->has_scf, storeidx);
+    class_store_double(dataptr, pvecback[pba->index_bg_dV_p_scf], pba->has_scf, storeidx);
     class_store_double(dataptr, pvecback[pba->index_bg_dV_scf], pba->has_scf, storeidx);
     class_store_double(dataptr, pvecback[pba->index_bg_ddV_scf], pba->has_scf, storeidx);
     class_store_double(dataptr, pvecback[pba->index_bg_d3V_scf], pba->has_scf, storeidx);

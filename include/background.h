@@ -207,6 +207,7 @@ struct background
     int index_bg_phi_scf;       /**< scalar field value */
     int index_bg_phi_prime_scf; /**< scalar field derivative wrt conformal time */
     int index_bg_V_scf;         /**< scalar field potential V */
+    int index_bg_dV_p_scf;      /**< scalar field pure potential derivative V'_pure (without coupling) */
     int index_bg_dV_scf;        /**< scalar field potential derivative V' */
     int index_bg_ddV_scf;       /**< scalar field potential second derivative V'' */
     int index_bg_d3V_scf;       /**< scalar field potential third derivative V''' */
