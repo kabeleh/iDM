@@ -1678,7 +1678,7 @@ def get_integer_parameter_mode(
             _SAMPLES_CACHE[cache_key] = samples
         param_values = samples[param_name]
         weights = samples.weights
-    except Exception as e:
+    except Exception:
         # Fallback: read directly from chain files
         try:
             chain_data = read_chain_data_directly(
@@ -1752,7 +1752,7 @@ def check_parameter_identity(
             _SAMPLES_CACHE[cache_key] = samples
         values1 = samples[param1]
         values2 = samples[param2]
-    except Exception as e:
+    except Exception:
         # Fallback: read directly from chain files
         try:
             chain_data = read_chain_data_directly(
