@@ -6045,9 +6045,9 @@ int perturbations_initial_conditions(struct precision *ppr,
 
         ppw->pv->y[ppw->pv->index_pt_phi_scf] += alpha * ppw->pvecback[pba->index_bg_phi_prime_scf];
         /*ppw->pv->y[ppw->pv->index_pt_phi_prime_scf] +=
-            (-2. * a_prime_over_a * alpha * ppw->pvecback[pba->index_bg_phi_prime_scf] - a * a * dV_scf(pba, ppw->pvecback[pba->index_bg_phi_scf], ppw->pvecback) * alpha + ppw->pvecback[pba->index_bg_phi_prime_scf] * alpha_prime); // KBL: added pvecback as an argument to dV_scf*/
+            (-2. * a_prime_over_a * alpha * ppw->pvecback[pba->index_bg_phi_prime_scf] - a * a * ppw->pvecback[pba->index_bg_dV_scf] * alpha + ppw->pvecback[pba->index_bg_phi_prime_scf] * alpha_prime);*/
         ppw->pv->y[ppw->pv->index_pt_mom_scf] +=
-            (-2. * a_prime_over_a * alpha * ppw->pvecback[pba->index_bg_phi_prime_scf] - a * a * dV_scf(pba, ppw->pvecback[pba->index_bg_phi_scf], ppw->pvecback) * alpha + ppw->pvecback[pba->index_bg_phi_prime_scf] * alpha_prime); // KBL: added pvecback as an argument to dV_scf
+            (-2. * a_prime_over_a * alpha * ppw->pvecback[pba->index_bg_phi_prime_scf] - a * a * ppw->pvecback[pba->index_bg_dV_scf] * alpha + ppw->pvecback[pba->index_bg_phi_prime_scf] * alpha_prime);
 
       } // KBL: Since this is a contribution to scalar field velocity, it should contribute equally to the scalar field momentum, as the two only differ by Psi*phi_prime.
 

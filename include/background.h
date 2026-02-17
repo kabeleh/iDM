@@ -574,9 +574,11 @@ extern "C"
         double *pvecback);
 
     /** Scalar field potential and its derivatives **/
-    double V_scf(
-        struct background *pba,
-        double phi);
+    /* Dead code: individual derivative functions superseded by V_scf_derivs().
+       Declarations kept for reference. */
+    // double V_scf(
+    //     struct background *pba,
+    //     double phi);
 
     void V_scf_derivs(
         struct background *pba,
@@ -587,32 +589,32 @@ extern "C"
         double *d3V,
         double *d4V);
 
-    double dV_p_scf(
-        struct background *pba,
-        double phi);
+    // double dV_p_scf(
+    //     struct background *pba,
+    //     double phi);
 
-    double dV_scf(
-        struct background *pba,
-        double phi,
-        double *pvecback); // KBL needed for coupling
+    // double dV_scf(
+    //     struct background *pba,
+    //     double phi,
+    //     double *pvecback); // KBL needed for coupling
 
-    double ddV_scf(
-        struct background *pba,
-        double phi);
+    // double ddV_scf(
+    //     struct background *pba,
+    //     double phi);
 
-    double d3V_scf(
-        struct background *pba,
-        double phi);
+    // double d3V_scf(
+    //     struct background *pba,
+    //     double phi);
 
-    double d4V_scf(
-        struct background *pba,
-        double phi);
+    // double d4V_scf(
+    //     struct background *pba,
+    //     double phi);
 
-    /** Coupling between scalar field and matter **/
-    double Q_scf(
-        struct background *pba,
-        double phi,
-        double phi_prime);
+    // /** Coupling between scalar field and matter **/
+    // double Q_scf(
+    //     struct background *pba,
+    //     double phi,
+    //     double phi_prime);
 
 #ifdef __cplusplus
 }

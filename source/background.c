@@ -3615,14 +3615,16 @@ int background_derivs(
     /** - Scalar field equation: \f$ \phi'' + 2 a H \phi' + a^2 (dV + rho') = 0 \f$  (note H is wrt cosmological time)
         written as \f$ d\phi/dlna = phi' / (aH) \f$ and \f$ d\phi'/dlna = -2*phi' - (a/H) (dV + rho_prime) \f$ */
     dy[pba->index_bi_phi_scf] = y[pba->index_bi_phi_prime_scf] / a / H;
+    /** - Use the pre-computed effective derivative pvecback[index_bg_dV_scf]
+        (= V'_pure + coupling) from background_functions() above,
+        avoiding a redundant dV_p_scf() switch + coupling_scf() evaluation. */
     if (pba->model_cdm == 2)
     {
-      dy[pba->index_bi_phi_prime_scf] = -2 * y[pba->index_bi_phi_prime_scf] - a * dV_scf(pba, y[pba->index_bi_phi_scf], pvecback) / H // KBL: Added pvecback in dV_scf for coupling
-                                        - a * rho_cdm_prime(pba, y[pba->index_bi_phi_scf], pvecback) / H;                             // rho_cdm_prime is part of the Klein–Gordon equation
+      dy[pba->index_bi_phi_prime_scf] = -2 * y[pba->index_bi_phi_prime_scf] - a * pvecback[pba->index_bg_dV_scf] / H - a * rho_cdm_prime(pba, y[pba->index_bi_phi_scf], pvecback) / H; // rho_cdm_prime is part of the Klein–Gordon equation
     }
     else
     {
-      dy[pba->index_bi_phi_prime_scf] = -2 * y[pba->index_bi_phi_prime_scf] - a * dV_scf(pba, y[pba->index_bi_phi_scf], pvecback) / H;
+      dy[pba->index_bi_phi_prime_scf] = -2 * y[pba->index_bi_phi_prime_scf] - a * pvecback[pba->index_bg_dV_scf] / H;
     }
 
     /** - Check for NaN/Inf in scalar field derivatives (can happen for extreme parameter combinations) */
@@ -4295,221 +4297,226 @@ void V_scf_derivs(
   }
 }
 
-/* Here, we implement all the different possible types of scalar field potentials*/
-// # power-law:    V(phi) = c_1^(4-c_2) * phi^(-c_2) + c_3
-// # cosine:       V(phi) = c_1 * cos(phi*c_2)
-// # hyperbolic:   V(phi) = c_1 * [1-tanh(c_2*phi)]
-// # pNG:          V(phi) = c_1^4 * [1 + cos(phi/c_2)]
-// # iPL:          V(phi) = c_1^(4+c_2) * phi^(-c_2)
-// # exponential:  V(phi) = c_1 * exp(-c_2*phi)
-// # SqE:          V(phi) = c_1^(c_2+4) * phi^(-c_2) * exp(-c_1*phi^2)
-// # Bean:         V(phi) = c_1 * [(c_4-phi)^2 + c_2] * exp(-c_3*phi)
-// # DoubleExp:    V(phi) = c_1 * (exp(-c_2*phi) + c_3 * exp(-c_4*phi))
+/* Dead code: the individual V_scf / dV_p_scf / dV_scf / ddV_scf / d3V_scf / d4V_scf
+   functions are superseded by V_scf_derivs() (which computes all derivatives in one
+   pass, sharing subexpressions) and by the pre-computed pvecback[index_bg_*] values.
+   Kept here for reference only. */
 
-double V_scf(
-    struct background *pba,
-    double phi)
-{
-  double c1 = pba->scf_parameters[0];
-  double c2 = pba->scf_parameters[1];
-  double c3 = pba->scf_parameters[2];
-  double c4 = pba->scf_parameters[3];
-
-  switch (pba->scf_potential)
-  {
-  case 1: // power-law
-    return pow(c1, 4. - c2) * pow(phi, c2) + c3;
-  case 2: // cosine
-    return c1 * cos(phi * c2);
-  case 3: // hyperbolic
-    return c1 * (1. - tanh(c2 * phi));
-  case 4: // pNG
-    return pow(c1, 4.) * (1. + cos(phi / c2));
-  case 5: // iPL
-    return pow(c1, 4. + c2) * pow(phi, -c2);
-  case 6: // exponential
-    return c1 * exp(-c2 * phi);
-  case 7: // SqE
-    return pow(c1, c2 + 4.) * pow(phi, -c2) * exp(c1 * phi * phi);
-  case 8: // Bean
-    return c1 * ((c4 - phi) * (c4 - phi) + c2) * exp(-c3 * phi);
-  case 9: // DoubleExp
-    return c1 * (exp(-c2 * phi) + c3 * exp(-c4 * phi));
-  default:
-    return 0.;
-  }
-}
-
-/* Pure scalar field derivative: We compute the first derivatives of the scalar field potential. In the end, we will return the effective potential that includes the generalised coupling to dark matter */
-double dV_p_scf(
-    struct background *pba,
-    double phi)
-{
-  double c1 = pba->scf_parameters[0];
-  double c2 = pba->scf_parameters[1];
-  double c3 = pba->scf_parameters[2];
-  double c4 = pba->scf_parameters[3];
-
-  switch (pba->scf_potential)
-  {
-  case 1: // power-law
-    return c2 * pow(c1, 4. - c2) * pow(phi, c2 - 1.);
-  case 2: // cosine
-    return -c1 * c2 * sin(phi * c2);
-  case 3: // hyperbolic
-    return -c1 * c2 / (cosh(c2 * phi) * cosh(c2 * phi));
-  case 4: // pNG
-    return -pow(c1, 4.) / c2 * sin(phi / c2);
-  case 5: // iPL
-    return -c2 * pow(c1, 4. + c2) * pow(phi, -c2 - 1.);
-  case 6: // exponential
-    return -c1 * c2 * exp(-c2 * phi);
-  case 7: // SqE
-    return pow(c1, c2 + 4.) * pow(phi, -c2 - 1.) * exp(c1 * phi * phi) * (2. * c1 * phi * phi - c2);
-  case 8: // Bean
-    return -c1 * exp(-c3 * phi) * (2. * (c4 - phi) + c3 * ((phi - c4) * (phi - c4) + c2));
-  case 9: // DoubleExp
-    return -c1 * c2 * exp(-c2 * phi) - c1 * c3 * c4 * exp(-c4 * phi);
-  default:
-    return 0.;
-  }
-}
-
-// KBL: The generalised coupling X/phi' is added here to get V'_eff
-double dV_scf(
-    struct background *pba,
-    double phi,
-    double *pvecback)
-{
-  return dV_p_scf(pba, phi) + coupling_scf(pba, rho_cdm_prime(pba, phi, pvecback), pvecback);
-}
-
-/* Lastly, we compute the second derivative of all these potentials*/
-double ddV_scf(
-    struct background *pba,
-    double phi)
-{
-  double c1 = pba->scf_parameters[0];
-  double c2 = pba->scf_parameters[1];
-  double c3 = pba->scf_parameters[2];
-  double c4 = pba->scf_parameters[3];
-
-  switch (pba->scf_potential)
-  {
-  case 1: // power-law
-    return c2 * (c2 - 1.) * pow(c1, 4. - c2) * pow(phi, c2 - 2.);
-  case 2: // cosine
-    return -c1 * c2 * c2 * cos(phi * c2);
-  case 3: // hyperbolic
-    return 2. * c1 * c2 * c2 * tanh(c2 * phi) / (cosh(c2 * phi) * cosh(c2 * phi));
-  case 4: // pNG
-    return -pow(c1, 4.) / (c2 * c2) * cos(phi / c2);
-  case 5: // iPL
-    return c2 * (c2 + 1.) * pow(c1, 4. + c2) * pow(phi, -c2 - 2.);
-  case 6: // exponential
-    return c1 * c2 * c2 * exp(-c2 * phi);
-  case 7: // SqE
-    return pow(c1, c2 + 4.) * pow(phi, -c2 - 2.) * exp(c1 * phi * phi) * (4. * c1 * c1 * phi * phi * phi * phi + (-4. * c1 * c2 - 2. * c1) * phi * phi + c2 * (c2 + 1.));
-  case 8: // Bean
-    return c1 * exp(-c3 * phi) * (2. - 4. * (c4 - phi) * c3 + c3 * c3 * ((phi - c4) * (phi - c4) + c2));
-  case 9: // DoubleExp
-    return c1 * c2 * c2 * exp(-c2 * phi) + c1 * c3 * c4 * c4 * exp(-c4 * phi);
-  default:
-    return 0.;
-  }
-}
-
-// To assess the scalar weak gravity conjecture, we also need the third and fourth derivatives.
-double d3V_scf(
-    struct background *pba,
-    double phi)
-{
-  double c1 = pba->scf_parameters[0];
-  double c2 = pba->scf_parameters[1];
-  double c3 = pba->scf_parameters[2];
-  double c4 = pba->scf_parameters[3];
-
-  switch (pba->scf_potential)
-  {
-  case 1: // power-law
-    return (c2 - 2.) * (c2 - 1.) * c2 * pow(c1, 4. - c2) * pow(phi, c2 - 3.);
-  case 2: // cosine
-    return c1 * c2 * c2 * c2 * sin(phi * c2);
-  case 3: // hyperbolic
-    return -2. * c1 * c2 * c2 * c2 * (cosh(2. * c2 * phi) - 2.) / (cosh(c2 * phi) * cosh(c2 * phi) * cosh(c2 * phi) * cosh(c2 * phi));
-  case 4: // pNG
-    return pow(c1, 4.) / (c2 * c2 * c2) * sin(phi / c2);
-  case 5: // iPL
-    return -c2 * (c2 + 1.) * (c2 + 2.) * pow(c1, 4. + c2) * pow(phi, -c2 - 3.);
-  case 6: // exponential
-    return -c1 * c2 * c2 * c2 * exp(-c2 * phi);
-  case 7: // SqE
-    return pow(c1, c2 + 4.) * pow(phi, -c2 - 3.) * exp(c1 * phi * phi) * (8. * c1 * c1 * c1 * phi * phi * phi * phi * phi * phi + (-12. * c1 * c1 * (c2 - 1) * phi * phi * phi * phi) + 6. * c1 * c2 * c2 * phi * phi - c2 * (c2 + 1.) * (c2 + 2.));
-  case 8: // Bean
-    return -c1 * c3 * exp(-c3 * phi) * (c3 * (c3 * (c2 + (phi * phi)) - 6. * phi) + 6.);
-  case 9: // DoubleExp
-    return -c1 * c2 * c2 * c2 * exp(-c2 * phi) - c1 * c3 * c4 * c4 * c4 * exp(-c4 * phi);
-  default:
-    return 0.;
-  }
-}
-
-double d4V_scf(
-    struct background *pba,
-    double phi)
-{
-  double c1 = pba->scf_parameters[0];
-  double c2 = pba->scf_parameters[1];
-  double c3 = pba->scf_parameters[2];
-  double c4 = pba->scf_parameters[3];
-
-  switch (pba->scf_potential)
-  {
-  case 1: // power-law
-    return (c2 - 3.) * (c2 - 2.) * (c2 - 1.) * c2 * pow(c1, 4. - c2) * pow(phi, c2 - 4.);
-  case 2: // cosine
-    return c1 * c2 * c2 * c2 * c2 * cos(phi * c2);
-  case 3: // hyperbolic
-    return 2. * c1 * c2 * c2 * c2 * c2 * (sinh(3. * c2 * phi) - 11. * sinh(c2 * phi)) / (cosh(c2 * phi) * cosh(c2 * phi) * cosh(c2 * phi) * cosh(c2 * phi) * cosh(c2 * phi));
-  case 4: // pNG
-    return pow(c1, 4.) / (c2 * c2 * c2 * c2) * cos(phi / c2);
-  case 5: // iPL
-    return c2 * (c2 + 1.) * (c2 + 2.) * (c2 + 3.) * pow(c1, 4. + c2) * pow(phi, -c2 - 4.);
-  case 6: // exponential
-    return c1 * c2 * c2 * c2 * c2 * exp(-c2 * phi);
-  case 7: // SqE
-    return pow(c1, c2 + 4.) * pow(phi, -c2 - 4.) * exp(c1 * phi * phi) * (16. * c1 * c1 * c1 * c1 * phi * phi * phi * phi * phi * phi * phi * phi + (16. * c1 * c1 * c1 * phi * phi * phi * phi * phi * phi * (3. - 2. * c2)) + (12. * c1 * c1 * phi * phi * phi * phi * (2. * (c2 - 1.) * c2 + 1.)) - 4 * c1 * phi * phi * c2 * (c2 + 1.) * (2. * c2 + 1.) + c2 * (c2 + 1.) * (c2 + 2.) * (c2 + 3.));
-  case 8: // Bean
-    return c1 * c3 * c3 * exp(-c3 * phi) * (c3 * (c3 * (c2 + (phi * phi)) - 8. * phi) + 12.);
-  case 9: // DoubleExp
-    return c1 * c2 * c2 * c2 * c2 * exp(-c2 * phi) + c1 * c3 * c4 * c4 * c4 * c4 * exp(-c4 * phi);
-  default:
-    return 0.;
-  }
-}
-
-// KBL: The anti–de Sitter Distance Conjecture
-double AdSDC2(
-    struct background *pba,
-    double phi)
-{
-  if (pba->model_cdm == 2) // Interacting DM model
-  {
-    return (1. - tanh(pba->cdm_c * phi)) / sqrt(fabs(V_scf(pba, phi)));
-  }
-  else
-    return 0.;
-}
-
-// KBL: The anti–de Sitter Distance Conjecture
-double AdSDC4(
-    struct background *pba,
-    double phi)
-{
-  if (pba->model_cdm == 2) // Interacting DM model
-  {
-    return (1. - tanh(pba->cdm_c * phi)) / sqrt(sqrt(fabs(V_scf(pba, phi))));
-  }
-  else
-    return 0.;
-}
+// /* Here, we implement all the different possible types of scalar field potentials*/
+// // # power-law:    V(phi) = c_1^(4-c_2) * phi^(-c_2) + c_3
+// // # cosine:       V(phi) = c_1 * cos(phi*c_2)
+// // # hyperbolic:   V(phi) = c_1 * [1-tanh(c_2*phi)]
+// // # pNG:          V(phi) = c_1^4 * [1 + cos(phi/c_2)]
+// // # iPL:          V(phi) = c_1^(4+c_2) * phi^(-c_2)
+// // # exponential:  V(phi) = c_1 * exp(-c_2*phi)
+// // # SqE:          V(phi) = c_1^(c_2+4) * phi^(-c_2) * exp(-c_1*phi^2)
+// // # Bean:         V(phi) = c_1 * [(c_4-phi)^2 + c_2] * exp(-c_3*phi)
+// // # DoubleExp:    V(phi) = c_1 * (exp(-c_2*phi) + c_3 * exp(-c_4*phi))
+//
+// double V_scf(
+//     struct background *pba,
+//     double phi)
+// {
+//   double c1 = pba->scf_parameters[0];
+//   double c2 = pba->scf_parameters[1];
+//   double c3 = pba->scf_parameters[2];
+//   double c4 = pba->scf_parameters[3];
+//
+//   switch (pba->scf_potential)
+//   {
+//   case 1: // power-law
+//     return pow(c1, 4. - c2) * pow(phi, c2) + c3;
+//   case 2: // cosine
+//     return c1 * cos(phi * c2);
+//   case 3: // hyperbolic
+//     return c1 * (1. - tanh(c2 * phi));
+//   case 4: // pNG
+//     return pow(c1, 4.) * (1. + cos(phi / c2));
+//   case 5: // iPL
+//     return pow(c1, 4. + c2) * pow(phi, -c2);
+//   case 6: // exponential
+//     return c1 * exp(-c2 * phi);
+//   case 7: // SqE
+//     return pow(c1, c2 + 4.) * pow(phi, -c2) * exp(c1 * phi * phi);
+//   case 8: // Bean
+//     return c1 * ((c4 - phi) * (c4 - phi) + c2) * exp(-c3 * phi);
+//   case 9: // DoubleExp
+//     return c1 * (exp(-c2 * phi) + c3 * exp(-c4 * phi));
+//   default:
+//     return 0.;
+//   }
+// }
+//
+// /* Pure scalar field derivative: We compute the first derivatives of the scalar field potential. In the end, we will return the effective potential that includes the generalised coupling to dark matter */
+// double dV_p_scf(
+//     struct background *pba,
+//     double phi)
+// {
+//   double c1 = pba->scf_parameters[0];
+//   double c2 = pba->scf_parameters[1];
+//   double c3 = pba->scf_parameters[2];
+//   double c4 = pba->scf_parameters[3];
+//
+//   switch (pba->scf_potential)
+//   {
+//   case 1: // power-law
+//     return c2 * pow(c1, 4. - c2) * pow(phi, c2 - 1.);
+//   case 2: // cosine
+//     return -c1 * c2 * sin(phi * c2);
+//   case 3: // hyperbolic
+//     return -c1 * c2 / (cosh(c2 * phi) * cosh(c2 * phi));
+//   case 4: // pNG
+//     return -pow(c1, 4.) / c2 * sin(phi / c2);
+//   case 5: // iPL
+//     return -c2 * pow(c1, 4. + c2) * pow(phi, -c2 - 1.);
+//   case 6: // exponential
+//     return -c1 * c2 * exp(-c2 * phi);
+//   case 7: // SqE
+//     return pow(c1, c2 + 4.) * pow(phi, -c2 - 1.) * exp(c1 * phi * phi) * (2. * c1 * phi * phi - c2);
+//   case 8: // Bean
+//     return -c1 * exp(-c3 * phi) * (2. * (c4 - phi) + c3 * ((phi - c4) * (phi - c4) + c2));
+//   case 9: // DoubleExp
+//     return -c1 * c2 * exp(-c2 * phi) - c1 * c3 * c4 * exp(-c4 * phi);
+//   default:
+//     return 0.;
+//   }
+// }
+//
+// // KBL: The generalised coupling X/phi' is added here to get V'_eff
+// double dV_scf(
+//     struct background *pba,
+//     double phi,
+//     double *pvecback)
+// {
+//   return dV_p_scf(pba, phi) + coupling_scf(pba, rho_cdm_prime(pba, phi, pvecback), pvecback);
+// }
+//
+// /* Lastly, we compute the second derivative of all these potentials*/
+// double ddV_scf(
+//     struct background *pba,
+//     double phi)
+// {
+//   double c1 = pba->scf_parameters[0];
+//   double c2 = pba->scf_parameters[1];
+//   double c3 = pba->scf_parameters[2];
+//   double c4 = pba->scf_parameters[3];
+//
+//   switch (pba->scf_potential)
+//   {
+//   case 1: // power-law
+//     return c2 * (c2 - 1.) * pow(c1, 4. - c2) * pow(phi, c2 - 2.);
+//   case 2: // cosine
+//     return -c1 * c2 * c2 * cos(phi * c2);
+//   case 3: // hyperbolic
+//     return 2. * c1 * c2 * c2 * tanh(c2 * phi) / (cosh(c2 * phi) * cosh(c2 * phi));
+//   case 4: // pNG
+//     return -pow(c1, 4.) / (c2 * c2) * cos(phi / c2);
+//   case 5: // iPL
+//     return c2 * (c2 + 1.) * pow(c1, 4. + c2) * pow(phi, -c2 - 2.);
+//   case 6: // exponential
+//     return c1 * c2 * c2 * exp(-c2 * phi);
+//   case 7: // SqE
+//     return pow(c1, c2 + 4.) * pow(phi, -c2 - 2.) * exp(c1 * phi * phi) * (4. * c1 * c1 * phi * phi * phi * phi + (-4. * c1 * c2 - 2. * c1) * phi * phi + c2 * (c2 + 1.));
+//   case 8: // Bean
+//     return c1 * exp(-c3 * phi) * (2. - 4. * (c4 - phi) * c3 + c3 * c3 * ((phi - c4) * (phi - c4) + c2));
+//   case 9: // DoubleExp
+//     return c1 * c2 * c2 * exp(-c2 * phi) + c1 * c3 * c4 * c4 * exp(-c4 * phi);
+//   default:
+//     return 0.;
+//   }
+// }
+//
+// // To assess the scalar weak gravity conjecture, we also need the third and fourth derivatives.
+// double d3V_scf(
+//     struct background *pba,
+//     double phi)
+// {
+//   double c1 = pba->scf_parameters[0];
+//   double c2 = pba->scf_parameters[1];
+//   double c3 = pba->scf_parameters[2];
+//   double c4 = pba->scf_parameters[3];
+//
+//   switch (pba->scf_potential)
+//   {
+//   case 1: // power-law
+//     return (c2 - 2.) * (c2 - 1.) * c2 * pow(c1, 4. - c2) * pow(phi, c2 - 3.);
+//   case 2: // cosine
+//     return c1 * c2 * c2 * c2 * sin(phi * c2);
+//   case 3: // hyperbolic
+//     return -2. * c1 * c2 * c2 * c2 * (cosh(2. * c2 * phi) - 2.) / (cosh(c2 * phi) * cosh(c2 * phi) * cosh(c2 * phi) * cosh(c2 * phi));
+//   case 4: // pNG
+//     return pow(c1, 4.) / (c2 * c2 * c2) * sin(phi / c2);
+//   case 5: // iPL
+//     return -c2 * (c2 + 1.) * (c2 + 2.) * pow(c1, 4. + c2) * pow(phi, -c2 - 3.);
+//   case 6: // exponential
+//     return -c1 * c2 * c2 * c2 * exp(-c2 * phi);
+//   case 7: // SqE
+//     return pow(c1, c2 + 4.) * pow(phi, -c2 - 3.) * exp(c1 * phi * phi) * (8. * c1 * c1 * c1 * phi * phi * phi * phi * phi * phi + (-12. * c1 * c1 * (c2 - 1) * phi * phi * phi * phi) + 6. * c1 * c2 * c2 * phi * phi - c2 * (c2 + 1.) * (c2 + 2.));
+//   case 8: // Bean
+//     return -c1 * c3 * exp(-c3 * phi) * (c3 * (c3 * (c2 + (phi * phi)) - 6. * phi) + 6.);
+//   case 9: // DoubleExp
+//     return -c1 * c2 * c2 * c2 * exp(-c2 * phi) - c1 * c3 * c4 * c4 * c4 * exp(-c4 * phi);
+//   default:
+//     return 0.;
+//   }
+// }
+//
+// double d4V_scf(
+//     struct background *pba,
+//     double phi)
+// {
+//   double c1 = pba->scf_parameters[0];
+//   double c2 = pba->scf_parameters[1];
+//   double c3 = pba->scf_parameters[2];
+//   double c4 = pba->scf_parameters[3];
+//
+//   switch (pba->scf_potential)
+//   {
+//   case 1: // power-law
+//     return (c2 - 3.) * (c2 - 2.) * (c2 - 1.) * c2 * pow(c1, 4. - c2) * pow(phi, c2 - 4.);
+//   case 2: // cosine
+//     return c1 * c2 * c2 * c2 * c2 * cos(phi * c2);
+//   case 3: // hyperbolic
+//     return 2. * c1 * c2 * c2 * c2 * c2 * (sinh(3. * c2 * phi) - 11. * sinh(c2 * phi)) / (cosh(c2 * phi) * cosh(c2 * phi) * cosh(c2 * phi) * cosh(c2 * phi) * cosh(c2 * phi));
+//   case 4: // pNG
+//     return pow(c1, 4.) / (c2 * c2 * c2 * c2) * cos(phi / c2);
+//   case 5: // iPL
+//     return c2 * (c2 + 1.) * (c2 + 2.) * (c2 + 3.) * pow(c1, 4. + c2) * pow(phi, -c2 - 4.);
+//   case 6: // exponential
+//     return c1 * c2 * c2 * c2 * c2 * exp(-c2 * phi);
+//   case 7: // SqE
+//     return pow(c1, c2 + 4.) * pow(phi, -c2 - 4.) * exp(c1 * phi * phi) * (16. * c1 * c1 * c1 * c1 * phi * phi * phi * phi * phi * phi * phi * phi + (16. * c1 * c1 * c1 * phi * phi * phi * phi * phi * phi * (3. - 2. * c2)) + (12. * c1 * c1 * phi * phi * phi * phi * (2. * (c2 - 1.) * c2 + 1.)) - 4 * c1 * phi * phi * c2 * (c2 + 1.) * (2. * c2 + 1.) + c2 * (c2 + 1.) * (c2 + 2.) * (c2 + 3.));
+//   case 8: // Bean
+//     return c1 * c3 * c3 * exp(-c3 * phi) * (c3 * (c3 * (c2 + (phi * phi)) - 8. * phi) + 12.);
+//   case 9: // DoubleExp
+//     return c1 * c2 * c2 * c2 * c2 * exp(-c2 * phi) + c1 * c3 * c4 * c4 * c4 * c4 * exp(-c4 * phi);
+//   default:
+//     return 0.;
+//   }
+// }
+//
+// // KBL: The anti–de Sitter Distance Conjecture
+// double AdSDC2(
+//     struct background *pba,
+//     double phi)
+// {
+//   if (pba->model_cdm == 2) // Interacting DM model
+//   {
+//     return (1. - tanh(pba->cdm_c * phi)) / sqrt(fabs(V_scf(pba, phi)));
+//   }
+//   else
+//     return 0.;
+// }
+//
+// // KBL: The anti–de Sitter Distance Conjecture
+// double AdSDC4(
+//     struct background *pba,
+//     double phi)
+// {
+//   if (pba->model_cdm == 2) // Interacting DM model
+//   {
+//     return (1. - tanh(pba->cdm_c * phi)) / sqrt(sqrt(fabs(V_scf(pba, phi))));
+//   }
+//   else
+//     return 0.;
+// }
