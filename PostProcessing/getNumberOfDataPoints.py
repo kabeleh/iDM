@@ -48,7 +48,7 @@ like_name: str = "planck_2018_lensing.native"
 
 try:
     model = get_model(info)
-    print(f"[Success] Model initialized successfully.")
+    print("[Success] Model initialized successfully.")
 except Exception as e:
     print(f"[Failure] Error initializing model: {e}")
     print("Likely causes: 1. Missing data download. 2. Incorrect component path.")
