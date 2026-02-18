@@ -226,7 +226,7 @@ params:
   scf_c2:
     prior:
       min: 0.0
-      max: 3.0
+      max: 1e12
     drop: true
     latex: c_2
     ref:

@@ -10,6 +10,7 @@ sampler:
     measure_speeds: true
     max_tries: .inf
     temperature: 2.0
+    learn_every: 500d
 likelihood:
   planck_2018_lowl.TT:
   planck_2018_lowl.EE:
@@ -166,7 +167,7 @@ params:
   scf_c2:
     prior:
       min: 0.0
-      max: 3.0
+      max: 1e12
     drop: true
     latex: c_2
     ref:
