@@ -38,7 +38,8 @@ EXPECTED_FAIL=(
 )
 # ------------------------------------------------------------------------------
 
-CLASSDIR="$(cd "$(dirname "$0")/.." && pwd)"
+# CLASSDIR="$(cd "$(dirname "$0")/.." && pwd)"
+CLASSDIR="/home/users/u103677/iDM"
 CLASS_BIN="${CLASSDIR}/class"
 
 if [[ $# -lt 1 ]]; then
