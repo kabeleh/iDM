@@ -19,21 +19,23 @@
 # module load Cython
 # module load OpenMPI/5.0.3-GCC-13.3.0
 # module load OpenBLAS
-module load Python foss
+module load Python foss AOCC
 #Activate Python virtual environment
 source my_foss-env/bin/activate
 
 #Check GCC version
 # gcc --version
 
+#Check AOCC version
+# clang --version
+
 #Navigate to CLASS source code directory
 cd $HOME/iDM/
 
 #Compile C program with GCC (in parallel)
-# make clean; make class -j
+make clean; make class -j
 
 ## Test task execution
-# srun ./class iDM.ini
 # ./class pgo_doubleexp_bao.ini
 # ./class pgo_doubleexp_cmb_shooting_fails.ini
 # ./class pgo_doubleexp_cmb.ini
@@ -42,8 +44,10 @@ cd $HOME/iDM/
 # ./class pgo_segfault.ini
 # ./class test_segfault.ini
 
+# llvm-profdata merge -output=pgo_profiles/merged.profdata pgo_profiles/*.profraw
+
 # #Change GPO compile flags first.
-make clean; make -j
+# make clean; make -j
 
 #Check energy consumption after job completion
 sacct -j $SLURM_JOB_ID -o jobid,jobname,partition,account,state,consumedenergyraw

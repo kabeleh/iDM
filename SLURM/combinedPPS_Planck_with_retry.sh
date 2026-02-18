@@ -6,7 +6,7 @@
 #SBATCH --nodes 1
 #SBATCH --ntasks 24
 #SBATCH --ntasks-per-node 24
-#SBATCH --cpus-per-task 6
+#SBATCH --cpus-per-task 8
 #SBATCH --time 48:00:00
 #SBATCH --output %j.combined.out
 #SBATCH --error %j.combined.err
@@ -26,7 +26,7 @@ run_with_retry() {
     local config_file="$1"
     local output_file="$2"
     local ntasks="$3"
-    local MAX_RETRIES=999
+    local MAX_RETRIES=99
     local RETRY_COUNT=0
     local EXIT_CODE=1  # Initialize with error code to enter loop
     
