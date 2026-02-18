@@ -690,7 +690,7 @@ def create_cobaya_yaml(
         elif potential in ("hyperbolic",):
             scf_c1 = {"value": 1e-7, "drop": True, "latex": "c_1"}
             scf_c2 = {
-                "prior": {"min": 0.0, "max": 3.0},
+                "prior": {"min": 0.0, "max": 1e12},
                 "drop": True,
                 "latex": "c_2",
                 "ref": {"dist": "norm", "loc": 0.98, "scale": 0.77},
