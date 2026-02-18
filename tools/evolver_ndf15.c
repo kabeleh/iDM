@@ -1531,19 +1531,20 @@ int numjac(
                error_message, error_message);
 
     *nfe += 1;
-    for (i = 1; i <= neq; i++)
     {
-      /* Guard against NaN from derivs: replace NaN with zero to prevent
-         uninitialized Rowmax and subsequent out-of-bounds access (segfault) */
-      if (isnan(nj_ws->ffdel[i]) || isinf(nj_ws->ffdel[i]))
+      double finite_check = 0.0;
+      for (i = 1; i <= neq; i++)
       {
-        sprintf(error_message,
-                "numjac: NaN or Inf detected in derivative vector (component %d of %d at t=%e). "
-                "This usually means the physical model produced unphysical values.",
-                i, neq, t);
-        return _FAILURE_;
+        nj_ws->ydel_Fdel[i][j] = nj_ws->ffdel[i];
+        finite_check += nj_ws->ffdel[i];
       }
-      nj_ws->ydel_Fdel[i][j] = nj_ws->ffdel[i];
+      /* A single isfinite() check on the accumulated sum catches any NaN or Inf
+         component, since NaN/Inf propagate through addition (IEEE 754). */
+      class_test(!isfinite(finite_check),
+                 error_message,
+                 "numjac: NaN or Inf detected in derivative vector at t=%e. "
+                 "This usually means the physical model produced unphysical values.",
+                 t);
     }
   }
 
