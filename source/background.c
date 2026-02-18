@@ -3909,19 +3909,19 @@ double rho_cdm_prime(
     return 0.;
 }
 
-// KBL: The strong scalar Weak Gravity Conjecture
-double sswgc(
-    struct background *pba,
-    double phi)
-{
-  if (pba->model_cdm == 2) // Interacting DM model
-  {
-    double c = pba->cdm_c;
-    return 2. * c * c * (4. * (1. + tanh(pba->cdm_c * phi)) - 1. / cosh(pba->cdm_c * phi) / cosh(pba->cdm_c * phi));
-  }
-  else
-    return 0.;
-}
+// // KBL: The strong scalar Weak Gravity Conjecture
+// double sswgc(
+//     struct background *pba,
+//     double phi)
+// {
+//   if (pba->model_cdm == 2) // Interacting DM model
+//   {
+//     double c = pba->cdm_c;
+//     return 2. * c * c * (4. * (1. + tanh(pba->cdm_c * phi)) - 1. / cosh(pba->cdm_c * phi) / cosh(pba->cdm_c * phi));
+//   }
+//   else
+//     return 0.;
+// }
 
 // KBL: General coupling function Xi/phi' that can be added to V' to get V'_eff including a general coupling between DE and DM
 double coupling_scf(
