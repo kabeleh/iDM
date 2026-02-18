@@ -19,13 +19,19 @@ vpath .base build
 ########################################################
 
 # your C compiler:
-CC       = gcc
+#--- GCC (original) ---
+#CC       = gcc
+#CPP      = g++ --std=c++11 -fpermissive -Wno-write-strings
+#AR       = gcc-ar rv
+#--- ICC (Intel, legacy — avoid on AMD) ---
 #CC       = icc
 #CC       = pgcc
-CPP      = g++ --std=c++11 -fpermissive -Wno-write-strings
-
-# your tool for creating static libraries:
-AR        = gcc-ar rv
+#--- Clang / AOCC ---
+CC       = clang
+CPP      = clang++ --std=c++11 -fpermissive -Wno-write-strings -Wno-deprecated
+# llvm-ar is required when LTO is enabled (it understands LLVM bitcode);
+# plain 'ar' works only without LTO.
+AR       = llvm-ar rv
 
 # Your python interpreter.
 # In order to use Python 3, you can manually
@@ -36,7 +42,15 @@ PYTHON ?= python3
 
 # your optimization flag
 OPTFLAG = -O3
-OPTFLAG += -funroll-loops -ftree-vectorize -ftree-slp-vectorize -flto=auto -fPIC
+#--- GCC flags ---
+#OPTFLAG += -funroll-loops -ftree-vectorize -ftree-slp-vectorize -flto=auto -fPIC
+#--- Clang / AOCC flags ---
+# -flto=full : whole-program LTO; slower link but best cross-TU optimisation.
+#              Use this for production (MCMC) builds — link time is irrelevant
+#              compared to 200 h of runtime.
+# -flto=thin : modular LTO; faster link, slightly less aggressive.  Good for
+#              development / iteration cycles.
+OPTFLAG += -funroll-loops -ftree-vectorize -ftree-slp-vectorize -flto=full -fPIC
 OPTFLAG += -march=native -mtune=native
 OPTFLAG += -fno-math-errno -fno-trapping-math # CLASS does not check for math errors, and these flags allow the compiler to vectorize more code, which can lead to significant speed-ups. See https://gcc.gnu.org/wiki/Vectorization#Floating_Point_Math_Errors for more details.
 
@@ -61,16 +75,35 @@ LDFLAG = -g -fPIC
 # CCFLAG += -fsanitize=address
 # LDFLAG += -fsanitize=address
 
-#PGO runs
-# First, compile with -fprofile-generate and run the code on a typical input to generate the profile data. Then, recompile with -fprofile-use to optimize the code based on the profile data.
-OPTFLAG += -fprofile-generate=$(MDIR)/pgo_profiles
-LDFLAG += -fprofile-generate=$(MDIR)/pgo_profiles
-
-#Second, run typical input to generate the profile data.
-
-#Third, recompile with -fprofile-use to optimize the code based on the profile data. Comment the flags from the first PGO run, and uncomment the flags below for the second PGO run.
-# OPTFLAG += -fprofile-use=$(MDIR)/pgo_profiles -fprofile-correction
-# LDFLAG += -fprofile-use=$(MDIR)/pgo_profiles -fprofile-correction
+########################################
+# PGO (Profile-Guided Optimisation)
+########################################
+#
+#--- GCC PGO workflow ---
+# Step 1: compile with -fprofile-generate, run typical inputs, then
+# Step 2: recompile with -fprofile-use.
+# # GCC Step 1 (instrument):
+# # OPTFLAG += -fprofile-generate=$(MDIR)/pgo_profiles
+# # LDFLAG  += -fprofile-generate=$(MDIR)/pgo_profiles
+# # GCC Step 2 (optimise):
+# # OPTFLAG += -fprofile-use=$(MDIR)/pgo_profiles -fprofile-correction
+# # LDFLAG  += -fprofile-use=$(MDIR)/pgo_profiles -fprofile-correction
+#
+#--- Clang / AOCC PGO workflow ---
+# Clang uses a 3-step process:
+#   Step 1: Compile with -fprofile-instr-generate  (instruments the binary)
+#   Step 2: Run typical inputs → produces *.profraw files in $LLVM_PROFILE_FILE
+#   Step 3: Merge raw profiles:
+#             llvm-profdata merge -output=pgo_profiles/merged.profdata pgo_profiles/*.profraw
+#   Step 4: Recompile with -fprofile-instr-use=<merged.profdata>
+#
+# Clang Step 1 (instrument):
+# OPTFLAG += -fprofile-instr-generate=$(MDIR)/pgo_profiles/default_%m_%p.profraw
+# LDFLAG  += -fprofile-instr-generate=$(MDIR)/pgo_profiles/default_%m_%p.profraw
+#
+# Clang Step 3+4 (optimise — run after merging profiles):
+OPTFLAG += -fprofile-instr-use=$(MDIR)/pgo_profiles/merged.profdata
+LDFLAG  += -fprofile-instr-use=$(MDIR)/pgo_profiles/merged.profdata
 
 # leave blank to compile without HyRec, or put path to HyRec directory
 # (with no slash at the end: e.g. "external/RecfastCLASS")
