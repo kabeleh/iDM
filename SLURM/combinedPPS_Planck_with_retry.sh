@@ -16,7 +16,7 @@
 ## Load software environment
 module load Python foss
 #Activate Python virtual environment
-source my_foss-env/bin/activate
+source my_2025-env/bin/activate
 
 #Number of OpenMP threads
 export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK

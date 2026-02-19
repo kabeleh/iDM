@@ -19,6 +19,9 @@ module load Python foss
 # module load OpenMPI/5.0.3-GCC-13.3.0
 # module load OpenBLAS
 
+#Check GCC version
+gcc --version
+
 #Check MPI compiler
 which mpicc
 
@@ -29,8 +32,8 @@ python -c  'import sys; print(sys.version)'
 mpicc --version
 
 #Create a virtual environment
-python3 -m venv my_foss-env
-source my_foss-env/bin/activate
+python3 -m venv my_2025-env
+source my_2025-env/bin/activate
 
 #Upgrade pip
 python -m pip install pip --upgrade
@@ -42,7 +45,7 @@ python -m pip install "mpi4py>=3" --upgrade --no-binary :all:
 srun -n 2 python -c "from mpi4py import MPI, __version__; print(__version__ if MPI.COMM_WORLD.Get_rank() else '')"
 
 # Check OpenBLAS installation
-python -c "from numpy import show_config; show_config()" | grep 'mkl\|openblas_info' -A 1
+python -c "from numpy import show_config; show_config()"
 
 #Reinstall numpy and scipy to ensure they are linked against OpenBLAS
 # python -m pip install --force-reinstall numpy --upgrade
@@ -60,16 +63,14 @@ cd candl_data
 pip install .
 
 cd $HOME
-python -m pip install numba iminuit Cython setuptools wheel cobaya candl-like "numpy>=1.22,<2.0" sacc llvmlite muse3glike spt_candl_data --upgrade
+python -m pip install numba iminuit Cython setuptools wheel cobaya candl-like numpy sacc llvmlite muse3glike spt_candl_data --upgrade
 
 #Check cobaya installation
 python -c "import cobaya"
 
 #Install likelihoods
 python -m cobaya install /home/users/u103677/iDM/Cobaya/MCMC/cobaya_mcmc_CV_CMB_SPA_PP_S_DESI_hyperbolic_InitCond_uncoupled.yml --p /home/users/u103677/cobaya_packages_2026 --upgrade
-
-#Check GCC version
-gcc --version
+python -m cobaya install /home/users/u103677/iDM/Cobaya/MCMC/cobaya_mcmc_CMB_LCDM.yml --p /home/users/u103677/cobaya_packages_2026 --upgrade
 
 #Navigate to CLASS source code directory
 cd $HOME/iDM/
@@ -80,7 +81,10 @@ make clean && make class -j
 ./class pgo_hyperbolic_cmb.ini
 ./class pgo_doubleexp_cmb.ini
 ./class pgo_doubleexp_cmb_shooting_fails.ini
+./class pgo_segfault.ini
+./class test_segfault.ini
 #then change makefile to use PGO results and recompile
+######################################################
 make clean; make -j
 ## Test task execution
 srun ./class iDM.ini
@@ -88,8 +92,7 @@ srun ./class iDM.ini
 #Now test cobaya with the new CLASS executable
 cd /home/users/u103677
 
-srun cobaya-run /home/users/u103677/iDM/Cobaya/MCMC/cobaya_mcmc_CV_PP_S_DESI_DoubleExp_InitCond_uncoupled.yml --test --debug --force
-srun cobaya-run /home/users/u103677/iDM/Cobaya/MCMC/cobaya_mcmc_CV_CMB_SPA_PP_S_DESI_hyperbolic_InitCond_uncoupled.yml --test --debug --force
+srun cobaya-run /home/users/u103677/iDM/Cobaya/MCMC/cobaya_mcmc_CV_CMB_SPA_PP_S_DESI_hyperbolic_InitCond_uncoupled.yml --test --debug --allow-changes
 
 
 
