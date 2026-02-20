@@ -88,8 +88,9 @@ def preload_all_chains(
 
 # Directory where MCMC chain files are stored
 # Try both paths and use the one that works
-_path1 = r"/Users/klmba/kDrive/Sci/PhD/Research/HDM/MCMC_archive/"
+# _path1 = r"/Users/klmba/kDrive/Sci/PhD/Research/HDM/MCMC_archive/"
 _path2 = r"/home/kl/kDrive/Sci/PhD/Research/HDM/MCMC_archive/"
+_path1 = r"/Users/klmba/kDrive/Sci/PhD/Research/HDM/MCMC_chains/"
 CHAIN_DIR: str = _path1 if os.path.exists(_path1) else _path2
 ANALYSIS_SETTINGS: dict[str, float] = {
     "ignore_rows": 0.33,
@@ -98,15 +99,31 @@ ANALYSIS_SETTINGS: dict[str, float] = {
 }
 
 # Define the root names of the MCMC chains (file prefixes without extensions)
+# Naming conventions supported:
+#   Legacy:  cobaya_<sampler>_<likelihood>_<potential>_<attractor>_<coupling>
+#   New:     <potential>_<likelihoods>_<attractor>_<coupling>_<sampler>
 ROOTS: list[str] = [
-    "cobaya_mcmc_fast_CMB_LCDM",
-    "cobaya_mcmc_fast_CMB_LCDM.post.PP",
-    "cobaya_mcmc_fast_CMB_LCDM.post.PPS",
-    "cobaya_polychord_CV_PP_DESI_LCDM.post.S8",
-    "cobaya_mcmc_CV_PP_S_DESI_LCDM.post.S8",
-    "cobaya_mcmc_CV_CMB_SPA_LCDM.post.S8",
-    "cobaya_mcmc_CV_CMB_SPA_PP_DESI_LCDM.post.S8",
-    "cobaya_mcmc_CV_CMB_SPA_PP_S_DESI_LCDM.post.S8",
+    # --- Legacy naming examples ---
+    # "cobaya_mcmc_fast_CMB_LCDM",
+    # "cobaya_mcmc_fast_CMB_LCDM.post.PP",
+    # "cobaya_mcmc_fast_CMB_LCDM.post.PPS",
+    # "cobaya_polychord_CV_PP_DESI_LCDM.post.S8",
+    # "cobaya_mcmc_CV_PP_S_DESI_LCDM.post.S8",
+    # "cobaya_mcmc_CV_CMB_SPA_LCDM.post.S8",
+    # "cobaya_mcmc_CV_CMB_SPA_PP_DESI_LCDM.post.S8",
+    # "cobaya_mcmc_CV_CMB_SPA_PP_S_DESI_LCDM.post.S8",
+    # "cobaya_mcmc_fast_CMB_DoubleExp_InitCond_uncoupled",
+    # "cobaya_mcmc_CV_PP_S_DESI_hyperbolic_InitCond_uncoupled",
+    # --- New naming examples ---
+    # "LCDM_Planck_MCMC",
+    # "LCDM_SPA_PP_S_D_MCMC",
+    # "DoubleExp_Planck_InitCond_MCMC",
+    # "DoubleExp_SPA_PP_S_D_InitCond_MCMC",
+    # "hyperbolic_PP_S_D_InitCond_Polychord",
+    # "DoubleExp_Planck_InitCond_MCMC.post.SN_BAO",
+    # "DoubleExp_SPA_PP_S_D_InitCond_MCMC.post.swampland",
+    "DoubleExp_SPA_PP_S_D_InitCond_MCMC",
+    "hyperbolic_PP_S_D_InitCond_MCMC",
 ]
 
 # Extract a list of colors from the categorical batlowKS colourmap
@@ -258,35 +275,87 @@ def get_samples_for_root(
 
 
 def build_legend_label(root: str) -> str:
-    """Build a legend label from the chain root name."""
+    """Build a legend label from the chain root name.
+
+    Supports both legacy naming (cobaya_<sampler>_<likelihood>_<potential>_...)
+    and new naming (<potential>_<likelihoods>_<attractor>_<coupling>_<sampler>).
+    """
     root_lower = root.lower()
 
-    if "lcdm" in root_lower:
+    # Separate base name from .post.* suffix
+    post_suffix = ""
+    post_match = re.search(r"\.post\.(\w+)$", root_lower)
+    if post_match:
+        post_suffix = post_match.group(1)
+    base_lower = re.sub(r"\.post\.\w+$", "", root_lower)
+
+    # --- Detect model/potential ---
+    if "lcdm" in base_lower:
         model_label = r"$\Lambda$CDM"
-    elif "hyperbolic" in root_lower:
+    elif "hyperbolic" in base_lower:
         model_label = "Hyperbolic"
-    elif "doubleexp" in root_lower or "doubleexponential" in root_lower:
+    elif "doubleexp" in base_lower or "doubleexponential" in base_lower:
         model_label = "Double Exponential"
+    elif "bean" in base_lower:
+        model_label = "Bean"
+    elif "exponential" in base_lower:
+        model_label = "Exponential"
+    elif "cosine" in base_lower:
+        model_label = "Cosine"
+    elif re.search(r"power.?law", base_lower):
+        model_label = "Power-law"
     else:
         model_label = "Model"
 
     likelihoods: list[str] = []
-    if "fast" in root_lower:
+    is_legacy = base_lower.startswith("cobaya_")
+
+    # --- CMB detection ---
+    # Legacy: "planck" or "_cmb_" in name; "fast" alone does NOT imply Planck
+    # New: "planck" as a data tag
+    if "planck" in base_lower or (
+        is_legacy and ("_cmb_" in base_lower or base_lower.endswith("_cmb"))
+    ):
         likelihoods.append("Planck 2018")
-    if "spa" in root_lower:
+    if "spa" in base_lower:
         likelihoods.append("SPA")
-    # Check for .post.PPS (PantheonPlus + SH0ES) and .post.PP (PantheonPlus only)
-    if ".post.pps" in root_lower or root_lower.endswith(".post.pps"):
-        likelihoods.append("Pantheon+")
-        likelihoods.append("SH0ES")
-    elif ".post.pp" in root_lower or root_lower.endswith(".post.pp"):
-        likelihoods.append("Pantheon+")
-    elif "pp" in root_lower:
-        likelihoods.append("Pantheon+")
-    if "_s_" in root_lower and "SH0ES" not in likelihoods:
-        likelihoods.append("SH0ES")
-    if "desi" in root_lower:
-        likelihoods.append("DESI DR2")
+
+    # --- SN / BAO / H0 detection ---
+    if is_legacy:
+        # Legacy convention: check for "pp", "_s_", "desi" substrings
+        if "pp" in base_lower and "Pantheon+" not in likelihoods:
+            likelihoods.append("Pantheon+")
+        if "_s_" in base_lower:
+            likelihoods.append("SH0ES")
+        if "desi" in base_lower:
+            likelihoods.append("DESI DR2")
+    else:
+        # New convention: check PP_S_D before PP_D (substring ordering matters)
+        if "pp_s_d" in base_lower:
+            likelihoods.append("Pantheon+")
+            likelihoods.append("SH0ES")
+            likelihoods.append("DESI DR2")
+        elif "pp_d" in base_lower:
+            likelihoods.append("Pantheon+")
+            likelihoods.append("DESI DR2")
+
+    # --- Handle .post.* suffixes that add likelihoods ---
+    if post_suffix in ("pps",):
+        if "Pantheon+" not in likelihoods:
+            likelihoods.append("Pantheon+")
+        if "SH0ES" not in likelihoods:
+            likelihoods.append("SH0ES")
+    elif post_suffix in ("pp",):
+        if "Pantheon+" not in likelihoods:
+            likelihoods.append("Pantheon+")
+    elif post_suffix in ("sn_bao",):
+        if "Pantheon+" not in likelihoods:
+            likelihoods.append("Pantheon+")
+        if "SH0ES" not in likelihoods:
+            likelihoods.append("SH0ES")
+        if "DESI DR2" not in likelihoods:
+            likelihoods.append("DESI DR2")
+    # .post.swampland, .post.s8 etc. don't add likelihood info
 
     if likelihoods:
         return f"{model_label}: " + " | ".join(likelihoods)

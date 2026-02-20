@@ -1,6 +1,10 @@
 # This routine creates the configuration files for the Cobaya runs to assess the iDM model and compare it to LCDM.
-# Output: cobaya_<sampler>_<likelihood>_<potential>_<attractor>_<coupling>.yml
-# For LCDM: cobaya_<sampler>_<likelihood>_LCDM.yml
+# Output filename convention: <potential>_<likelihoods>_<attractor>_<coupling>_<sampler>.yml
+# For LCDM: <potential>_<likelihoods>_<sampler>.yml (attractor and coupling omitted)
+# Coupling tag is omitted when 'uncoupled', present as 'coupled' when coupled.
+#
+# Likelihood tags:  Planck | SPA | PP_D | PP_S_D  (and combinations: Planck_PP_S_D, SPA_PP_D, etc.)
+# Sampler tags:     MCMC | Polychord | MCMC_minimizer | Polychord_minimizer | MCMC_swamp | Polychord_swamp
 
 from typing import Any, Union
 from ruamel.yaml import YAML
@@ -26,6 +30,94 @@ def flow_seq(lst: list[Any]) -> CommentedSeq:
     cs = CommentedSeq(lst)
     cs.fa.set_flow_style()  # type: ignore[attr-defined]
     return cs
+
+
+# ============================================================================
+# FILENAME NAMING CONVENTION
+# ============================================================================
+# New scheme: <potential>_<likelihoods>_<attractor>_<coupling>_<sampler>
+# For LCDM: <potential>_<likelihoods>_<sampler> (attractor and coupling omitted)
+# Coupling is omitted when 'uncoupled'.
+
+# Mapping from internal likelihood name to filename data tag
+LIKELIHOOD_FILE_TAG: dict[str, str] = {
+    "CMB": "Planck",
+    "Run1_Planck_2018": "Planck",
+    "Run2_PP_SH0ES_DESIDR2": "PP_S_D",
+    "Run3_Planck_PP_SH0ES_DESIDR2": "Planck_PP_S_D",
+    "CV_CMB_SPA": "SPA",
+    "CV_CMB_SPA_PP_DESI": "SPA_PP_D",
+    "CV_CMB_SPA_PP_S_DESI": "SPA_PP_S_D",
+    "CV_PP_DESI": "PP_D",
+    "CV_PP_S_DESI": "PP_S_D",
+}
+
+# Mapping from internal sampler name to filename sampler tag
+SAMPLER_FILE_TAG: dict[str, str] = {
+    "polychord": "Polychord",
+    "mcmc": "MCMC",
+    "mcmc_fast": "MCMC",
+    "minimize_polychord": "Polychord_minimizer",
+    "minimize_mcmc": "MCMC_minimizer",
+    "minimize_mcmc_fast": "MCMC_minimizer",
+    "post_mcmc": "MCMC_swamp",
+    "post_polychord": "Polychord_swamp",
+}
+
+
+def build_filename_stem(
+    potential: str,
+    likelihood: str,
+    attractor: str,
+    coupling: str,
+    sampler: str,
+) -> str:
+    """
+    Build the filename stem (without extension) using the naming convention:
+    <potential>_<likelihoods>_<attractor>_<coupling>_<sampler>
+
+    For LCDM, attractor and coupling are omitted.
+    Coupling is omitted when 'uncoupled'.
+    """
+    parts: list[str] = [potential, LIKELIHOOD_FILE_TAG[likelihood]]
+    if potential != "LCDM":
+        attractor_name = (
+            "tracking" if attractor in ("yes", "Yes", "YES") else "InitCond"
+        )
+        parts.append(attractor_name)
+        if coupling == "coupled":
+            parts.append("coupled")
+    parts.append(SAMPLER_FILE_TAG[sampler])
+    return "_".join(parts)
+
+
+def build_chain_output_stem(
+    potential: str,
+    likelihood: str,
+    attractor: str,
+    coupling: str,
+    sampler: str,
+) -> str:
+    """
+    Build the chain output stem (used for Cobaya's output path).
+    For minimize_ and post_ samplers, uses the base sampler tag.
+    """
+    base_sampler = sampler
+    if sampler.startswith("minimize_"):
+        base_sampler = sampler.replace("minimize_", "")
+    elif sampler.startswith("post_"):
+        base_sampler = sampler.replace("post_", "")
+
+    parts: list[str] = [potential, LIKELIHOOD_FILE_TAG[likelihood]]
+    if potential != "LCDM":
+        attractor_name = (
+            "tracking" if attractor in ("yes", "Yes", "YES") else "InitCond"
+        )
+        parts.append(attractor_name)
+        if coupling == "coupled":
+            parts.append("coupled")
+    parts.append(SAMPLER_FILE_TAG[base_sampler])
+    return "_".join(parts)
 
 
 def create_cobaya_yaml(
@@ -918,7 +1010,10 @@ def create_cobaya_yaml(
             "non linear": "halofit",
             # "hmcode_version": 2020,
             "model_cdm": "i",
-            "tol_initial_Omega_r": 1e-2,
+            # Allow for more DE in the early Universe. If CMB gets weird, MCMC will discard those solutions anyway.
+            "tol_initial_Omega_r": 1e-1,
+            # Push a_ini earlier so Omega_r ≈ 1 even for large c2 (tracking solution)
+            "a_ini_over_a_today_default": 1e-16,
             "scf_tuning_index": 0,
             "scf_potential": potential,
             "attractor_ic_scf": attractor,
@@ -1002,30 +1097,22 @@ def create_cobaya_yaml(
     if is_postprocessing:
         # Post-processing configuration
         if likelihood == "Run3_Planck_PP_SH0ES_DESIDR2":
-            # Run 3 is a special post-processing run
-            attractor_name = (
-                "tracking" if attractor in ("yes", "Yes", "YES") else "InitCond"
+            # Run 3 is a special post-processing run that adds SN+BAO to Run 1 chains
+            run1_chain_stem = build_chain_output_stem(
+                potential, "Run1_Planck_2018", attractor, coupling, sampler
             )
-            run1_output_path = f"/project/home/p201176/cobaya_{sampler}_Run1_Planck_2018_{potential}_{attractor_name}_{coupling}"
-            config["output"] = run1_output_path  # Points to Run 1 chains
+            config["output"] = f"/project/home/p201176/{run1_chain_stem}"
             config["post"] = {
                 "suffix": "SN_BAO",
                 "add": LIKELIHOODS[likelihood],  # Adds the new likelihoods
             }
         else:
-            # post_mcmc or post_polychord samplers
-            # Output points to the base sampler chain (without the "post_" prefix)
-            base_sampler = sampler.replace("post_", "")
-            attractor_name = (
-                "tracking" if attractor in ("yes", "Yes", "YES") else "InitCond"
+            # post_mcmc or post_polychord samplers (swampland post-processing)
+            # Output points to the base sampler chain
+            base_chain_stem = build_chain_output_stem(
+                potential, likelihood, attractor, coupling, sampler
             )
-            if is_lcdm:
-                base_output_path = (
-                    f"/project/home/p201176/cobaya_{base_sampler}_{likelihood}_LCDM"
-                )
-            else:
-                base_output_path = f"/project/home/p201176/cobaya_{base_sampler}_{likelihood}_{potential}_{attractor_name}_{coupling}"
-            config["output"] = base_output_path
+            config["output"] = f"/project/home/p201176/{base_chain_stem}"
             config["post"] = swampland_post_block
     else:
         # Standard sampling run
@@ -1047,33 +1134,22 @@ def create_cobaya_yaml(
 
 configuration = create_cobaya_yaml(sampler, likelihood, potential, attractor, coupling)
 
-# Compute attractor name once for filename generation
+# Compute flags for filename generation
 is_lcdm: bool = potential == "LCDM"  # type: ignore[comparison-overlap]
-attractor_name: str = "tracking" if attractor in ("yes", "Yes", "YES") else "InitCond"
 is_postprocessing_run: bool = sampler.startswith("post_")
 
-# Generate filename based on potential type
-filename: str
-if is_lcdm:
-    filename = f"cobaya_{sampler}_{likelihood}_LCDM.yml"
-else:
-    filename = (
-        f"cobaya_{sampler}_{likelihood}_{potential}_{attractor_name}_{coupling}.yml"
-    )
+# Generate filename using the new naming convention
+filename: str = (
+    build_filename_stem(potential, likelihood, attractor, coupling, sampler) + ".yml"
+)
 
 # Specify the output path in the YAML file
 # For post-processing runs (Run 3 or post_* samplers), output is already set in the config
 if likelihood != "Run3_Planck_PP_SH0ES_DESIDR2" and not is_postprocessing_run:  # type: ignore[comparison-overlap]
-    # For minimize_ samplers, output goes to the base sampler's chain directory
-    if sampler.startswith("minimize_"):
-        base_sampler = sampler.replace("minimize_", "")
-        if is_lcdm:
-            output_filename = f"cobaya_{base_sampler}_{likelihood}_LCDM"
-        else:
-            output_filename = f"cobaya_{base_sampler}_{likelihood}_{potential}_{attractor_name}_{coupling}"
-    else:
-        output_filename = filename.replace(".yml", "")
-    configuration["output"] = "/project/home/p201176/" + output_filename
+    output_stem = build_chain_output_stem(
+        potential, likelihood, attractor, coupling, sampler
+    )
+    configuration["output"] = "/project/home/p201176/" + output_stem
 
 # Writing nested data to a YAML file
 yaml_path = f"Cobaya/MCMC/{filename}"
@@ -1118,7 +1194,7 @@ def create_slurm_test_script(
     Create a SLURM bash script for running a Cobaya test job.
 
     Parameters:
-    - yaml_filename (str): The YAML configuration filename (e.g., 'cobaya_mcmc_fast_Run1_Planck_2018_Bean_tracking_uncoupled.yml').
+    - yaml_filename (str): The YAML configuration filename (e.g., 'Bean_Planck_tracking_MCMC.yml').
     - account (str): SLURM account.
     - partition (str): SLURM partition.
     - qos (str): SLURM quality of service.
@@ -1205,7 +1281,7 @@ def create_slurm_run_script(
     Create a SLURM bash script for running a full Cobaya production job.
 
     Parameters:
-    - yaml_filename (str): The YAML configuration filename (e.g., 'cobaya_mcmc_fast_Run1_Planck_2018_Bean_tracking_uncoupled.yml').
+    - yaml_filename (str): The YAML configuration filename (e.g., 'Bean_Planck_tracking_MCMC.yml').
     - account (str): SLURM account.
     - partition (str): SLURM partition.
     - qos (str): SLURM quality of service.
@@ -1304,7 +1380,7 @@ def create_slurm_minimize_script(
     Create a SLURM bash script for running a Cobaya minimize job.
 
     Parameters:
-    - yaml_filename (str): The YAML configuration filename (e.g., 'cobaya_minimize_Run1_Planck_2018_hyperbolic_tracking_uncoupled.yml').
+    - yaml_filename (str): The YAML configuration filename (e.g., 'hyperbolic_Planck_tracking_MCMC_minimizer.yml').
     - account (str): SLURM account.
     - partition (str): SLURM partition.
     - qos (str): SLURM quality of service.
