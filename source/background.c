@@ -459,7 +459,7 @@ int background_functions(
     }
     else if (pba->model_cdm == 2) // Interacting DM model
     {
-      pvecback[pba->index_bg_rho_cdm] = pba->Omega0_cdm * H0_sq / a3 * (1.0 - tanh(pba->cdm_c * pvecback_B[pba->index_bi_phi_scf]));
+      pvecback[pba->index_bg_rho_cdm] = pba->Omega0_cdm * H0_sq / a3 * (1.0 - tanh(pba->cdm_c * pvecback_B[pba->index_bi_phi_scf])) / 2.0;
     }
     else // Standard CDM model
     {
@@ -2301,9 +2301,9 @@ int background_solve(
     double sswgc_running_min = 1.e100;
 
     /* ---- Anti-de Sitter Distance Conjecture (AdSDC) accumulators ---- */
-    /** Running maximum of (1-tanh(c*phi))/|V|^{1/2}  (AdSDC with exponent 1/2) */
+    /** Running maximum of (1-tanh(c*phi))/|V|^{1/2}/2  (AdSDC with exponent 1/2) */
     double AdSDC2_running_max = 0.0;
-    /** Running maximum of (1-tanh(c*phi))/|V|^{1/4}  (AdSDC with exponent 1/4) */
+    /** Running maximum of (1-tanh(c*phi))/|V|^{1/4}/2  (AdSDC with exponent 1/4) */
     double AdSDC4_running_max = 0.0;
 
     if (has_scalar_field)
@@ -2354,8 +2354,8 @@ int background_solve(
         double abs_V_seed = fabs(V_seed);
         double sqrt_abs_V_seed = sqrt(abs_V_seed);
         double one_minus_tanh_seed = 1.0 - tanh_seed;
-        AdSDC2_running_max = one_minus_tanh_seed / sqrt_abs_V_seed;
-        AdSDC4_running_max = one_minus_tanh_seed / sqrt(sqrt_abs_V_seed);
+        AdSDC2_running_max = one_minus_tanh_seed / sqrt_abs_V_seed / 2.0;
+        AdSDC4_running_max = one_minus_tanh_seed / sqrt(sqrt_abs_V_seed) / 2.0;
       }
     }
 
@@ -2463,13 +2463,13 @@ int background_solve(
           /** 1 - tanh(c*phi): measure of distance from the AdS boundary */
           double one_minus_tanh = 1.0 - tanh_c_phi;
 
-          /** AdSDC boundary with exponent 1/2: (1-tanh(c*phi)) / |V|^{1/2} */
-          double AdSDC2_expr = one_minus_tanh / sqrt_abs_V;
+          /** AdSDC boundary with exponent 1/2: (1-tanh(c*phi)) / |V|^{1/2} / 2 */
+          double AdSDC2_expr = one_minus_tanh / sqrt_abs_V / 2.0;
           if (AdSDC2_expr > AdSDC2_running_max)
             AdSDC2_running_max = AdSDC2_expr;
 
-          /** AdSDC boundary with exponent 1/4: (1-tanh(c*phi)) / |V|^{1/4} */
-          double AdSDC4_expr = one_minus_tanh / sqrt(sqrt_abs_V);
+          /** AdSDC boundary with exponent 1/4: (1-tanh(c*phi)) / |V|^{1/4} / 2 */
+          double AdSDC4_expr = one_minus_tanh / sqrt(sqrt_abs_V) / 2.0;
           if (AdSDC4_expr > AdSDC4_running_max)
             AdSDC4_running_max = AdSDC4_expr;
         }
@@ -2803,25 +2803,24 @@ int background_initial_conditions(
         break;
       case 3: // hyperbolic
         scf_lambda = -c2;
-        if (1. <= 3. * scf_gamma / scf_lambda / scf_lambda)
+        if (1. <= 3. * scf_gamma / scf_lambda / scf_lambda) // KBL: No attractor solution exists, but we can assume Omega_scf is subdominant.
         {
-          if (pba->background_verbose > 0)
+          rho_tracking = 3. * rho_background * scf_gamma / (scf_lambda * scf_lambda);             // This assumes that Omega_scf will be subdominant.
+          pvecback_integration[pba->index_bi_phi_prime_scf] = a * sqrt(rho_tracking * scf_gamma); // This is the standard tracking solution
+          pvecback_integration[pba->index_bi_phi_scf] =
+              log(
+                  rho_tracking * (1. - omega_background) / (2. * c1)) /
+              scf_lambda;                // This is the small lambda approximation of the exponential function, which approximates the potential at small argument values.
+          pba->attractor_regime_scf = 0; // subdominant regime.
+          if (pba->background_verbose > 2)
           {
-            printf("scf_lambda is too small compared to scf_gamma. The root would be negative. Using phi_ini_scf and phi_prime_ini_scf instead of tracking solution.\n");
-            printf("The condition for the existence of the attractor solution is: scf_lambda^2 > 3*scf_gamma. Here, scf_lambda^2 = %e and 3*scf_gamma = %e.\n", scf_lambda * scf_lambda, 3. * scf_gamma);
-          }
-          /** - --> If no attractor initial conditions are assigned, gets the provided ones. */
-          pvecback_integration[pba->index_bi_phi_scf] = pba->phi_ini_scf;
-          pvecback_integration[pba->index_bi_phi_prime_scf] = pba->phi_prime_ini_scf;
-          if (pba->background_verbose > 0)
-          {
-            printf("scf_lambda is too small compared to scf_gamma. We assign phi_ini_scf=%e and phi_prime_ini_scf=%e instead of tracking solution.\n", pvecback_integration[pba->index_bi_phi_scf], pvecback_integration[pba->index_bi_phi_prime_scf]);
+            printf("The condition for the existence of the attractor solution is: scf_lambda^2 > 3*scf_gamma. Here, scf_lambda^2 = %e and 3*scf_gamma = %e. The root would be negative.\nWe assign phi_ini_scf=%e and phi_prime_ini_scf=%e instead of a tracking solution.\n", scf_lambda * scf_lambda, 3. * scf_gamma, pvecback_integration[pba->index_bi_phi_scf], pvecback_integration[pba->index_bi_phi_prime_scf]);
           }
         }
         else
         {
           rho_tracking = rho_background * 3. * scf_gamma / (scf_lambda * scf_lambda) / (1. - 3. * scf_gamma / scf_lambda / scf_lambda);
-          pvecback_integration[pba->index_bi_phi_prime_scf] = a * sqrt(rho_tracking * (1. + omega_background));
+          pvecback_integration[pba->index_bi_phi_prime_scf] = a * sqrt(rho_tracking * scf_gamma);
           // Under certain conditions, an attractor solution for large phi exists.
           if (c2 > 0.0 && (
                               /* c1 > 0 branches */
@@ -2923,25 +2922,24 @@ int background_initial_conditions(
         break;
       case 6: // exponential
         scf_lambda = -c2;
-        if (1. <= 3. * scf_gamma / scf_lambda / scf_lambda)
+        if (1. <= 3. * scf_gamma / scf_lambda / scf_lambda) // KBL: No attractor solution exists, but we can assume Omega_scf is subdominant.
         {
-          if (pba->background_verbose > 0)
+          rho_tracking = 3. * rho_background * scf_gamma / (scf_lambda * scf_lambda);             // This assumes that Omega_scf will be subdominant.
+          pvecback_integration[pba->index_bi_phi_prime_scf] = a * sqrt(rho_tracking * scf_gamma); // This is the standard tracking solution
+          pvecback_integration[pba->index_bi_phi_scf] =
+              log(
+                  rho_tracking * (1. - omega_background) / (2. * c1)) /
+              scf_lambda;                // This is the small lambda approximation of the exponential function, which we assume to hold by continuation.
+          pba->attractor_regime_scf = 0; // subdominant regime.
+          if (pba->background_verbose > 2)
           {
-            printf("scf_lambda is too small compared to scf_gamma. The root would be negative. Using phi_ini_scf and phi_prime_ini_scf instead of tracking solution.\n");
-            printf("The condition for the existence of the attractor solution is: scf_lambda^2 > 3*scf_gamma. Here, scf_lambda^2 = %e and 3*scf_gamma = %e.\n", scf_lambda * scf_lambda, 3. * scf_gamma);
-          }
-          /** - --> If no attractor initial conditions are assigned, gets the provided ones. */
-          pvecback_integration[pba->index_bi_phi_scf] = pba->phi_ini_scf;
-          pvecback_integration[pba->index_bi_phi_prime_scf] = pba->phi_prime_ini_scf;
-          if (pba->background_verbose > 0)
-          {
-            printf("scf_lambda is too small compared to scf_gamma. We use user-provided values phi_ini_scf=%e and phi_prime_ini_scf=%e instead of tracking solution.\n", pvecback_integration[pba->index_bi_phi_scf], pvecback_integration[pba->index_bi_phi_prime_scf]);
+            printf("The condition for the existence of the attractor solution is: scf_lambda^2 > 3*scf_gamma. Here, scf_lambda^2 = %e and 3*scf_gamma = %e. The root would be negative.\nWe assign phi_ini_scf=%e and phi_prime_ini_scf=%e instead of a tracking solution.\n", scf_lambda * scf_lambda, 3. * scf_gamma, pvecback_integration[pba->index_bi_phi_scf], pvecback_integration[pba->index_bi_phi_prime_scf]);
           }
         }
         else
         {
           rho_tracking = rho_background * 3. * scf_gamma / (scf_lambda * scf_lambda) / (1. - 3. * scf_gamma / scf_lambda / scf_lambda);
-          pvecback_integration[pba->index_bi_phi_prime_scf] = a * sqrt(rho_tracking * (1. + omega_background));
+          pvecback_integration[pba->index_bi_phi_prime_scf] = a * sqrt(rho_tracking * scf_gamma);
           if (
               /* c1 > 0 branches */
               (
@@ -2994,25 +2992,24 @@ int background_initial_conditions(
         break;
       case 8: // Bean
         scf_lambda = -c3;
-        if (1. <= 3. * scf_gamma / scf_lambda / scf_lambda)
+        if (1. <= 3. * scf_gamma / scf_lambda / scf_lambda) // KBL: No attractor solution exists, but we can assume Omega_scf is subdominant.
         {
-          if (pba->background_verbose > 0)
+          rho_tracking = 3. * rho_background * scf_gamma / (scf_lambda * scf_lambda);             // This assumes that Omega_scf will be subdominant.
+          pvecback_integration[pba->index_bi_phi_prime_scf] = a * sqrt(rho_tracking * scf_gamma); // This is the standard tracking solution
+          pvecback_integration[pba->index_bi_phi_scf] =
+              log(
+                  rho_tracking * (1. - omega_background) / (2. * c1)) /
+              scf_lambda;                // This is the small lambda approximation of the exponential function, which approximates the potential at small argument values.
+          pba->attractor_regime_scf = 0; // subdominant regime.
+          if (pba->background_verbose > 2)
           {
-            printf("scf_lambda is too small compared to scf_gamma. The root would be negative. Using phi_ini_scf and phi_prime_ini_scf instead of tracking solution.\n");
-            printf("The condition for the existence of the attractor solution is: scf_lambda^2 > 3*scf_gamma. Here, scf_lambda^2 = %e and 3*scf_gamma = %e.\n", scf_lambda * scf_lambda, 3. * scf_gamma);
-          }
-          /** - --> If no attractor initial conditions are assigned, gets the provided ones. */
-          pvecback_integration[pba->index_bi_phi_scf] = pba->phi_ini_scf;
-          pvecback_integration[pba->index_bi_phi_prime_scf] = pba->phi_prime_ini_scf;
-          if (pba->background_verbose > 0)
-          {
-            printf("scf_lambda is too small compared to scf_gamma. We use user-provided values phi_ini_scf=%e and phi_prime_ini_scf=%e instead of tracking solution.\n", pvecback_integration[pba->index_bi_phi_scf], pvecback_integration[pba->index_bi_phi_prime_scf]);
+            printf("The condition for the existence of the attractor solution is: scf_lambda^2 > 3*scf_gamma. Here, scf_lambda^2 = %e and 3*scf_gamma = %e. The root would be negative.\nWe assign phi_ini_scf=%e and phi_prime_ini_scf=%e instead of a tracking solution.\n", scf_lambda * scf_lambda, 3. * scf_gamma, pvecback_integration[pba->index_bi_phi_scf], pvecback_integration[pba->index_bi_phi_prime_scf]);
           }
         }
         else
         {
           rho_tracking = rho_background * 3. * scf_gamma / (scf_lambda * scf_lambda) / (1. - 3. * scf_gamma / scf_lambda / scf_lambda);
-          pvecback_integration[pba->index_bi_phi_prime_scf] = a * sqrt(rho_tracking * (1. + omega_background));
+          pvecback_integration[pba->index_bi_phi_prime_scf] = a * sqrt(rho_tracking * scf_gamma);
           // There is no analytic solution for the large-field attractor in this potential. It is approximated by the exponential potential attractor.
           if (
               /* c1 > 0 branches */
@@ -3067,25 +3064,24 @@ int background_initial_conditions(
           scf_lambda = -c4;
         else
           scf_lambda = -c2;
-        if (1. <= 3. * scf_gamma / scf_lambda / scf_lambda)
+        if (1. <= 3. * scf_gamma / scf_lambda / scf_lambda) // KBL: No attractor solution exists, but we can assume Omega_scf is subdominant.
         {
-          if (pba->background_verbose > 0)
+          rho_tracking = 3. * rho_background * scf_gamma / (scf_lambda * scf_lambda);             // This assumes that Omega_scf will be subdominant.
+          pvecback_integration[pba->index_bi_phi_prime_scf] = a * sqrt(rho_tracking * scf_gamma); // This is the standard tracking solution
+          pvecback_integration[pba->index_bi_phi_scf] =
+              log(
+                  rho_tracking * (1. - omega_background) / (2. * c1)) /
+              scf_lambda;                // This is the small lambda approximation of the exponential function, which approximates the potential at small argument values.
+          pba->attractor_regime_scf = 0; // subdominant regime.
+          if (pba->background_verbose > 2)
           {
-            printf("scf_lambda is too small compared to scf_gamma. The root would be negative. Using phi_ini_scf and phi_prime_ini_scf instead of tracking solution.\n");
-            printf("The condition for the existence of the attractor solution is: scf_lambda^2 > 3*scf_gamma. Here, scf_lambda^2 = %e and 3*scf_gamma = %e.\n", scf_lambda * scf_lambda, 3. * scf_gamma);
-          }
-          /** - --> If no attractor initial conditions are assigned, gets the provided ones. */
-          pvecback_integration[pba->index_bi_phi_scf] = pba->phi_ini_scf;
-          pvecback_integration[pba->index_bi_phi_prime_scf] = pba->phi_prime_ini_scf;
-          if (pba->background_verbose > 0)
-          {
-            printf("scf_lambda is too small compared to scf_gamma. We use user-provided values phi_ini_scf=%e and phi_prime_ini_scf=%e instead of tracking solution.\n", pvecback_integration[pba->index_bi_phi_scf], pvecback_integration[pba->index_bi_phi_prime_scf]);
+            printf("The condition for the existence of the attractor solution is: scf_lambda^2 > 3*scf_gamma. Here, scf_lambda^2 = %e and 3*scf_gamma = %e. The root would be negative.\nWe assign phi_ini_scf=%e and phi_prime_ini_scf=%e instead of a tracking solution.\n", scf_lambda * scf_lambda, 3. * scf_gamma, pvecback_integration[pba->index_bi_phi_scf], pvecback_integration[pba->index_bi_phi_prime_scf]);
           }
         }
         else
         {
           rho_tracking = rho_background * 3. * scf_gamma / (scf_lambda * scf_lambda) / (1. - 3. * scf_gamma / scf_lambda / scf_lambda);
-          pvecback_integration[pba->index_bi_phi_prime_scf] = a * sqrt(rho_tracking * (1. + omega_background));
+          pvecback_integration[pba->index_bi_phi_prime_scf] = a * sqrt(rho_tracking * scf_gamma);
           // There is no analytic solution for the large-field attractor in this potential. It is approximated by the single exponential potential attractor.
           if (
               /* c1 > 0 branches */
@@ -3184,24 +3180,24 @@ int background_initial_conditions(
         printf("No attractor is requested. We assign phi_ini_scf=%e and phi_prime_ini_scf=%e instead of tracking solution.\n", pvecback_integration[pba->index_bi_phi_scf], pvecback_integration[pba->index_bi_phi_prime_scf]);
       }
     }
-    // printf("initial phi = %e phi_prime = %e\n",
-    //        pvecback_integration[pba->index_bi_phi_scf],
-    //        pvecback_integration[pba->index_bi_phi_prime_scf]);
-    // Check if there was a solution or if NaN was returned. If yes, use the user provided initial conditions.
-    if (!isfinite(pvecback_integration[pba->index_bi_phi_scf]))
-    {
-      printf("There are no attractor initial conditions. Using provided initial scalar field values\n");
-      pvecback_integration[pba->index_bi_phi_scf] = pba->phi_ini_scf;
-      pba->attractor_regime_scf = 0; // NaN fallback
-    }
-    // Check if there was a solution or if NaN was returned. If yes, use the user provided initial conditions.
-    if (!isfinite(pvecback_integration[pba->index_bi_phi_prime_scf]))
-    {
-      printf("There are no attractor initial conditions. Using provided initial scalar field change values\n");
-      pvecback_integration[pba->index_bi_phi_prime_scf] = pba->phi_prime_ini_scf;
-      pba->attractor_regime_scf = 0; // NaN fallback
-    }
-    // This test should be obsolete now, but kept for safety.
+    // // printf("initial phi = %e phi_prime = %e\n",
+    // //        pvecback_integration[pba->index_bi_phi_scf],
+    // //        pvecback_integration[pba->index_bi_phi_prime_scf]);
+    // // Check if there was a solution or if NaN was returned. If yes, use the user provided initial conditions.
+    // if (!isfinite(pvecback_integration[pba->index_bi_phi_scf]))
+    // {
+    //   printf("There are no attractor initial conditions. Using provided initial scalar field values\n");
+    //   pvecback_integration[pba->index_bi_phi_scf] = pba->phi_ini_scf;
+    //   pba->attractor_regime_scf = 0; // NaN fallback
+    // }
+    // // Check if there was a solution or if NaN was returned. If yes, use the user provided initial conditions.
+    // if (!isfinite(pvecback_integration[pba->index_bi_phi_prime_scf]))
+    // {
+    //   printf("There are no attractor initial conditions. Using provided initial scalar field change values\n");
+    //   pvecback_integration[pba->index_bi_phi_prime_scf] = pba->phi_prime_ini_scf;
+    //   pba->attractor_regime_scf = 0; // NaN fallback
+    // }
+    // KBL: Keep this test. Instead of the above, commented out tests. Better To use the CLASS internal class_test for proper bug tracking.
     class_test(!isfinite(pvecback_integration[pba->index_bi_phi_scf]) ||
                    !isfinite(pvecback_integration[pba->index_bi_phi_prime_scf]),
                pba->error_message,
