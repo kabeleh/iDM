@@ -123,6 +123,7 @@ cdef extern from "class.h":
         double AdSDC4_max
         double combined_dSC_min
         int attractor_regime_scf
+        double cdm_f_phi0
 
     cdef struct thermodynamics:
         short is_allocated

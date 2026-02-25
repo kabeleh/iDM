@@ -991,6 +991,20 @@ int input_find_root(double *xzero,
   (*fevals)++;
   dx = 1.5 * f1 * dxdy;
 
+  /** KBL: Cap step size to prevent catastrophic overshoot.
+   *  When the initial guess is far from the root — particularly in
+   *  log-space shooting where f grows exponentially with distance —
+   *  the product f1*dxdy can be enormous, pushing the next trial
+   *  point to completely unphysical values and crashing CLASS.
+   *  Capping |dx| at O(|x1|) limits each bracket step to a
+   *  reasonable fraction of the current scale, while still allowing
+   *  the 15-iteration bracket loop to span many decades. */
+  {
+    double max_dx = MAX(fabs(x1), 1.0);
+    if (fabs(dx) > max_dx)
+      dx = copysign(max_dx, dx);
+  }
+
   if (fabs(dx) < x1 * _EPSILON_)
   {
     /* In this special case, we are very close to the correct location already
