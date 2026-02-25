@@ -278,6 +278,11 @@ struct fzerofun_workspace
   double *target_value;
   int target_size;
   enum computation_stage required_computation_stage;
+  int *shooting_log_space; /**< KBL: array of size target_size; _TRUE_ if the
+                                corresponding unknown parameter should be
+                                exponentiated (10^u) before CLASS evaluation.
+                                Used for log-space c1 shooting with the
+                                hyperbolic SCF potential. */
 };
 
 /**************************************************************/

@@ -84,6 +84,10 @@ struct background
     int model_cdm;     /**KBL< model for cold dark matter (0:standard,1:Hubbleian,2:interacting) */
     double Omega0_cdm; /**< \f$ \Omega_{0 cdm} \f$: cold dark matter */
     double cdm_c;      /**KBL< constant in the hyperbolic CDM model */
+    double cdm_f_phi0; /**KBL< f(phi_0) = [1-tanh(c*phi_0)]/2; renormalization factor so that
+                            rho_cdm(a=1) = Omega0_cdm * H0^2 exactly. Set to 1.0 when
+                            model_cdm != 2 or cdm_c == 0. Determined by convergence loop
+                            in background_solve(). */
 
     double Omega0_idm; /**< \f$ \Omega_{0 idm} \f$: interacting dark matter with photons, baryons, and idr */
 

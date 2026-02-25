@@ -459,7 +459,7 @@ int background_functions(
     }
     else if (pba->model_cdm == 2) // Interacting DM model
     {
-      pvecback[pba->index_bg_rho_cdm] = pba->Omega0_cdm * H0_sq / a3 * (1.0 - tanh(pba->cdm_c * pvecback_B[pba->index_bi_phi_scf])) / 2.0;
+      pvecback[pba->index_bg_rho_cdm] = pba->Omega0_cdm * H0_sq / a3 * (1.0 - tanh(pba->cdm_c * pvecback_B[pba->index_bi_phi_scf])) / 2.0 / pba->cdm_f_phi0; // KBL: this scaling is added such that the present-day density of CDM is still Omega0_cdm, even though the coupling to the scalar field changes the scaling with a. The factor of 1/2 is needed because tanh goes from -1 to +1, so the prefactor (1-tanh)/2 goes from 1 to 0 as phi increases.
     }
     else // Standard CDM model
     {
@@ -2180,25 +2180,101 @@ int background_solve(
     break;
   }
 
-  /** - perform the integration */
-  class_call(generic_evolver(background_derivs,
-                             loga_ini,
-                             loga_final,
-                             pvecback_integration,
-                             used_in_output,
-                             pba->bi_size,
-                             &bpaw,
-                             ppr->tol_background_integration,
-                             ppr->smallest_allowed_variation,
-                             background_timescale, //'evaluate_timescale', required by evolver_rk but not by ndf15
-                             ppr->background_integration_stepsize,
-                             pba->loga_table,
-                             pba->bt_size,
-                             background_sources,
-                             NULL, //'print_variables' in evolver_rk could be set, but, not required
-                             pba->error_message),
-             pba->error_message,
-             pba->error_message);
+  /** - Self-consistent CDM renormalization loop for model_cdm == 2 (KBL)
+   *
+   * The CDM density formula rho_cdm = Omega0_cdm * H0^2 / a^3 * f(phi) / f(phi_0)
+   * requires f(phi_0) = [1 - tanh(c * phi(a=1))] / 2, which is only known after
+   * integration. We iterate: integrate → read phi_0 → update f(phi_0) → re-integrate,
+   * until f(phi_0) converges. ICs are computed once (they don't depend on cdm_f_phi0)
+   * and reset via memcpy for each extra iteration.
+   *
+   * For model_cdm != 2, the loop executes exactly once (no renormalization needed).
+   */
+  {
+    int need_cdm_renorm = (pba->model_cdm == 2 && pba->cdm_c != 0.0);
+    double *pvecback_integration_saved = NULL;
+    int cdm_renorm_max_iter = 6;
+    double cdm_renorm_tol = 1.e-10;
+    double cdm_renorm_alpha = 0.5;
+
+    /* When cdm_c == 0, f(phi) = (1-tanh(0))/2 = 0.5 for all phi,
+       so f(phi_0) = 0.5 is known analytically — no iteration needed. */
+    if (pba->model_cdm == 2 && pba->cdm_c == 0.0)
+      pba->cdm_f_phi0 = 0.5;
+
+    /* Save ICs for reset across convergence iterations */
+    if (need_cdm_renorm)
+    {
+      class_alloc(pvecback_integration_saved, pba->bi_size * sizeof(double),
+                  pba->error_message);
+      memcpy(pvecback_integration_saved, pvecback_integration,
+             pba->bi_size * sizeof(double));
+    }
+
+    /** - perform the integration (possibly multiple times for CDM renorm) */
+    for (int cdm_iter = 0;; cdm_iter++)
+    {
+
+      /* Reset ICs for iterations > 0 */
+      if (cdm_iter > 0)
+        memcpy(pvecback_integration, pvecback_integration_saved,
+               pba->bi_size * sizeof(double));
+
+      class_call(generic_evolver(background_derivs,
+                                 loga_ini,
+                                 loga_final,
+                                 pvecback_integration,
+                                 used_in_output,
+                                 pba->bi_size,
+                                 &bpaw,
+                                 ppr->tol_background_integration,
+                                 ppr->smallest_allowed_variation,
+                                 background_timescale, //'evaluate_timescale', required by evolver_rk but not by ndf15
+                                 ppr->background_integration_stepsize,
+                                 pba->loga_table,
+                                 pba->bt_size,
+                                 background_sources,
+                                 NULL, //'print_variables' in evolver_rk could be set, but, not required
+                                 pba->error_message),
+                 pba->error_message,
+                 pba->error_message);
+
+      /* Convergence check for CDM renormalization */
+      if (!need_cdm_renorm)
+        break; /* no renormalization: single pass */
+
+      {
+        double phi_0 = pba->background_table[(pba->bt_size - 1) * pba->bg_size + pba->index_bg_phi_scf];
+        double f_new = (1.0 - tanh(pba->cdm_c * phi_0)) / 2.0;
+
+        class_test(f_new <= 0.0 || !isfinite(f_new), pba->error_message,
+                   "CDM renormalization: f(phi_0) = %e non-positive or non-finite (phi_0=%e, c=%e)",
+                   f_new, phi_0, pba->cdm_c);
+
+        double rel_change = fabs(f_new / pba->cdm_f_phi0 - 1.0);
+
+        if (rel_change < cdm_renorm_tol)
+        {
+          pba->cdm_f_phi0 = f_new;
+          if (pba->background_verbose > 1)
+            printf(" -> CDM renorm converged: %d iter, f=%.10e, phi_0=%.6e\n",
+                   cdm_iter + 1, f_new, phi_0);
+          break;
+        }
+
+        class_test(cdm_iter >= cdm_renorm_max_iter, pba->error_message,
+                   "CDM renormalization failed to converge after %d iterations (rel_change=%e, f_new=%e, f_old=%e)",
+                   cdm_renorm_max_iter, rel_change, f_new, pba->cdm_f_phi0);
+
+        /* Damped update: use full step on first iteration, then damp */
+        pba->cdm_f_phi0 = (cdm_iter == 0) ? f_new
+                                          : cdm_renorm_alpha * f_new + (1.0 - cdm_renorm_alpha) * pba->cdm_f_phi0;
+      }
+    }
+
+    if (pvecback_integration_saved != NULL)
+      free(pvecback_integration_saved);
+  }
 
   /** - recover some quantities today */
   /* -> age in Gyears */

@@ -642,10 +642,14 @@ int input_shooting(struct file_content *pfc,
     class_alloc(fzw.target_value,
                 fzw.target_size * sizeof(double),
                 errmsg);
+    class_alloc(fzw.shooting_log_space,
+                fzw.target_size * sizeof(int),
+                errmsg);
 
     /** Go through all cases with unknown parameters */
     for (counter = 0; counter < unknown_parameters_size; counter++)
     {
+      fzw.shooting_log_space[counter] = _FALSE_; // KBL: Initialize all to linear-space; the Omega_scf case in input_get_guess() will set _TRUE_ for log-space when appropriate
       index_target = target_indices[counter];
       class_call(parser_read_double(pfc,
                                     target_namestrings[index_target],
@@ -690,7 +694,13 @@ int input_shooting(struct file_content *pfc,
       /* Store xzero */
       // This needs to be done with enough accuracy. A standard double has a relative
       // precision of around 1e-16, so 1e-20 should be good enough for the shooting
-      class_sprintf(fzw.fc.value[fzw.unknown_parameters_index[0]], "%.20e", xzero);
+      {
+        double write_val = xzero;
+        /* KBL: convert log-space root back to physical value */
+        if (fzw.shooting_log_space[0] == _TRUE_)
+          write_val = pow(10.0, xzero);
+        class_sprintf(fzw.fc.value[fzw.unknown_parameters_index[0]], "%.20e", write_val);
+      }
       if (input_verbose > 0)
       {
         if (shooting_failed == _FALSE_)
@@ -747,8 +757,12 @@ int input_shooting(struct file_content *pfc,
       // precision of around 1e-16, so 1e-20 should be good enough for the shooting
       for (counter = 0; counter < unknown_parameters_size; counter++)
       {
+        double write_val = x_inout[counter];
+        /* KBL: convert log-space root back to physical value */
+        if (fzw.shooting_log_space[counter] == _TRUE_)
+          write_val = pow(10.0, x_inout[counter]);
         class_sprintf(fzw.fc.value[fzw.unknown_parameters_index[counter]],
-                      "%.20e", x_inout[counter]);
+                      "%.20e", write_val);
         if (input_verbose > 0)
         {
           if (shooting_failed == _FALSE_)
@@ -786,6 +800,7 @@ int input_shooting(struct file_content *pfc,
     free(fzw.unknown_parameters_index);
     free(fzw.target_name);
     free(fzw.target_value);
+    free(fzw.shooting_log_space);
   }
 
   /** After the 'normal' shooting is done, do special shooting just for sigma8 if needed*/
@@ -820,6 +835,7 @@ int input_shooting(struct file_content *pfc,
     class_alloc(fzw.target_value,
                 1 * sizeof(double),
                 errmsg);
+    fzw.shooting_log_space = NULL; /* KBL: sigma8/S8 shooting never uses log-space */
 
     /* store name of target parameter */
     if (flag1 == _TRUE_)
@@ -1302,12 +1318,81 @@ int input_get_guess(double *xguess,
       break;
     case Omega_scf:
       /* *
-       * KBL: Take user provided tuning parameter and use it as initial guess.
-       * For the derivative, assume linear relationship between tuning parameter
-       * and Omega_scf today to fill universe with scalar field.
+       * KBL: Log-space shooting for the scalar field amplitude c1.
+       *
+       * When shooting on scf_tuning_index == 0 (the amplitude parameter c1),
+       * we work in u = log10(c1) instead of c1 directly.  This handles the
+       * multi-decade dynamic range of c1 that arises because Omega_scf ∝ c1^p,
+       * where p depends on the potential:
+       *
+       *   potential   V(phi)                                        p
+       *   ─────────   ──────                                        ──
+       *   1 power-law c1^(4-c2)*phi^c2 + c3                        4-c2  (only if c3==0)
+       *   2 cosine    c1*cos(c2*phi)                                1
+       *   3 hyperbolic c1*[1-tanh(c2*phi)]                          1
+       *   4 pNG       c1^4*[1+cos(phi/c2)]                          4
+       *   5 iPL       c1^(4+c2)*phi^(-c2)                           4+c2
+       *   6 exponential c1*exp(-c2*phi)                              1
+       *   7 SqE       c1^(c2+4)*phi^(-c2)*exp(c1*phi^2)             —  (nonlinear, skip)
+       *   8 Bean      c1*[(c4-phi)^2+c2]*exp(-c3*phi)               1
+       *   9 DoubleExp c1*(exp(-c2*phi)+c3*exp(-c4*phi))              1
+       *
+       * The Jacobian du/dΩ = 1/(p * Ω_scf * ln10).
+       *
+       * Conditions for log-space: scf_tuning_index == 0, c1 > 0, p ≠ 0,
+       * and no additive constant breaking the proportionality V ∝ c1^p.
+       * Falls back to linear-space (legacy) whenever these are not met.
        */
-      xguess[index_guess] = ba.scf_parameters[ba.scf_tuning_index];
-      dxdy[index_guess] = ba.scf_parameters[ba.scf_tuning_index] / ba.Omega0_scf;
+      if (ba.scf_tuning_index == 0)
+      {
+        double c1_guess = ba.scf_parameters[0];
+        double c1_power = 0.0; /* exponent p in Omega_scf ∝ c1^p; 0 = cannot use log-space */
+
+        switch (ba.scf_potential)
+        {
+        case 1: /* power-law: V ∝ c1^(4-c2) only if c3 == 0 */
+          if (ba.scf_parameters[2] == 0.0)
+            c1_power = 4.0 - ba.scf_parameters[1];
+          break;
+        case 2: /* cosine */
+        case 3: /* hyperbolic */
+        case 6: /* exponential */
+        case 8: /* Bean */
+        case 9: /* DoubleExp */
+          c1_power = 1.0;
+          break;
+        case 4: /* pNG: V ∝ c1^4 */
+          c1_power = 4.0;
+          break;
+        case 5: /* iPL: V ∝ c1^(4+c2) */
+          c1_power = 4.0 + ba.scf_parameters[1];
+          break;
+        case 7: /* SqE: c1 appears nonlinearly in exp(c1*phi^2) — cannot use log-space */
+        default:
+          c1_power = 0.0;
+          break;
+        }
+
+        if (c1_power != 0.0 && c1_guess > 0.0)
+        {
+          /* Log-space shooting: u = log10(c1), du/dΩ = 1/(p * Ω * ln10) */
+          xguess[index_guess] = log10(c1_guess);
+          dxdy[index_guess] = 1.0 / (c1_power * ba.Omega0_scf * _M_LN10_);
+          pfzw->shooting_log_space[index_guess] = _TRUE_;
+        }
+        else
+        {
+          /* Fallback to linear-space (c1 ≤ 0, or p == 0, or unsupported potential) */
+          xguess[index_guess] = c1_guess;
+          dxdy[index_guess] = c1_guess / ba.Omega0_scf;
+        }
+      }
+      else
+      {
+        /* Non-c1 tuning parameter: always linear-space */
+        xguess[index_guess] = ba.scf_parameters[ba.scf_tuning_index];
+        dxdy[index_guess] = ba.scf_parameters[ba.scf_tuning_index] / ba.Omega0_scf;
+      }
       break;
     case omega_ini_dcdm:
       Omega0_dcdmdr = 1. / (ba.h * ba.h);
@@ -1407,7 +1492,15 @@ int input_try_unknown_parameters(double *unknown_parameter,
   // precision of around 1e-16, so 1e-20 should be good enough for the shooting
   for (i = 0; i < unknown_parameters_size; i++)
   {
-    class_sprintf(pfzw->fc.value[pfzw->unknown_parameters_index[i]], "%.20e", unknown_parameter[i]);
+    double val = unknown_parameter[i];
+    /* KBL: If this unknown parameter is in log-space (e.g. u = log10(c1)),
+       exponentiate to get the physical value before CLASS sees it */
+    if (pfzw->shooting_log_space != NULL &&
+        pfzw->shooting_log_space[i] == _TRUE_)
+    {
+      val = pow(10.0, val);
+    }
+    class_sprintf(pfzw->fc.value[pfzw->unknown_parameters_index[i]], "%.20e", val);
   }
 
   class_call(input_read_precisions(&(pfzw->fc), &pr, &ba, &th, &pt, &tr, &pm, &hr, &fo, &le, &sd, &op,
@@ -2691,10 +2784,7 @@ int input_read_parameters_species(struct file_content *pfc,
                  errmsg);
       class_test(flag2 == _FALSE_,
                  errmsg,
-                 "You must specify 'cdm_c' (the coupling constant in m(phi) = m0*(1-tanh(cdm_c*phi))) when using model_cdm = i (interacting).");
-      class_test(param2 == 0.0,
-                 errmsg,
-                 "cdm_c = 0 gives no DM-DE coupling (m(phi) = 0). Use standard CDM (model_cdm unset or = h) for non-interacting dark matter.");
+                 "You must specify 'cdm_c' (the coupling constant in m(phi) = m0/2*(1-tanh(cdm_c*phi))) when using model_cdm = i (interacting). cdm_c = 0 is allowed and recovers standard CDM.");
       pba->cdm_c = param2;
       class_test((ppt->gauge != newtonian) && (pba->model_cdm == 2), // KBL
                  errmsg,
@@ -6448,6 +6538,7 @@ int input_default_params(struct background *pba,
   pba->model_cdm = 0;
   pba->Omega0_cdm = 0.1201075 / pow(pba->h, 2);
   pba->cdm_c = 0.0;
+  pba->cdm_f_phi0 = 1.0;
 
   /** 5) ncdm sector */
   /** 5.a) Number of distinct species */
