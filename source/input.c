@@ -1347,11 +1347,16 @@ int input_get_guess(double *xguess,
        *   4 pNG       c1^4*[1+cos(phi/c2)]                          4
        *   5 iPL       c1^(4+c2)*phi^(-c2)                           4+c2
        *   6 exponential c1*exp(-c2*phi)                              1
-       *   7 SqE       c1^(c2+4)*phi^(-c2)*exp(c1*phi^2)             —  (nonlinear, skip)
+       *   7 SqE       c1^(c2+4)*phi^(-c2)*exp(c1*phi^2)             (c2+4)+c1*phi^2
        *   8 Bean      c1*[(c4-phi)^2+c2]*exp(-c3*phi)               1
        *   9 DoubleExp c1*(exp(-c2*phi)+c3*exp(-c4*phi))              1
        *
        * The Jacobian du/dΩ = 1/(p * Ω_scf * ln10).
+       *
+       * For SqE, p_eff = d(ln V)/d(ln c1) = (c2+4) + c1*phi^2 is not
+       * constant in c1, but evaluated at the initial guess it gives a
+       * good enough Jacobian for the bracket search.  Monotonicity of
+       * V(c1) guarantees a unique root.
        *
        * Conditions for log-space: scf_tuning_index == 0, c1 > 0, p ≠ 0,
        * and no additive constant breaking the proportionality V ∝ c1^p.
@@ -1381,7 +1386,18 @@ int input_get_guess(double *xguess,
         case 5: /* iPL: V ∝ c1^(4+c2) */
           c1_power = 4.0 + ba.scf_parameters[1];
           break;
-        case 7: /* SqE: c1 appears nonlinearly in exp(c1*phi^2) — cannot use log-space */
+        case 7: /* SqE: V = c1^(c2+4)*phi^(-c2)*exp(c1*phi^2)
+                 * p_eff = d(ln V)/d(ln c1) = (c2+4) + c1*phi_ini^2
+                 * Evaluated at the initial guess for c1. */
+        {
+          double phi_ini_sqe = ba.scf_parameters[ba.scf_parameters_size - 2];
+          c1_power = (4.0 + ba.scf_parameters[1]) + c1_guess * phi_ini_sqe * phi_ini_sqe;
+          /* Safety: if c2 ≈ -4 and c1*phi^2 ≈ 0, p_eff can be too small
+             for a useful Jacobian.  Fall back to linear-space in that case. */
+          if (c1_power < 0.01)
+            c1_power = 0.0;
+          break;
+        }
         default:
           c1_power = 0.0;
           break;
@@ -1581,6 +1597,14 @@ int input_try_unknown_parameters(double *unknown_parameter,
     class_call_except(background_init(&pr, &ba), ba.error_message, errmsg,
                       background_free_input(&ba);
                       thermodynamics_free_input(&th); perturbations_free_input(&pt););
+
+    /* KBL: Show CDM renorm result during shooting so user sees progress */
+    if (input_verbose > 2 && ba.model_cdm == 2 && ba.cdm_c != 0.0)
+    {
+      printf("  [shooting] CDM f(phi_0)=%.6e, phi_0=%.6e\n",
+             ba.cdm_f_phi0,
+             ba.background_table[(ba.bt_size - 1) * ba.bg_size + ba.index_bg_phi_scf]);
+    }
   }
 
   if (pfzw->required_computation_stage >= cs_thermodynamics)
@@ -3668,7 +3692,7 @@ int input_read_parameters_species(struct file_content *pfc,
   {
     /* Fill up with scalar field */
     pba->Omega0_scf = 1. - pba->Omega0_k - Omega_tot;
-    if (input_verbose > 0)
+    if (input_verbose > 1)
     {
       printf(" -> matched budget equations by adjusting Omega_scf = %g\n", pba->Omega0_scf);
     }
