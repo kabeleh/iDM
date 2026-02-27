@@ -459,7 +459,7 @@ int background_functions(
     }
     else if (pba->model_cdm == 2) // Interacting DM model
     {
-      pvecback[pba->index_bg_rho_cdm] = pba->Omega0_cdm * H0_sq / a3 * (1.0 - tanh(pba->cdm_c * pvecback_B[pba->index_bi_phi_scf])) / 2.0 / pba->cdm_f_phi0; // KBL: this scaling is added such that the present-day density of CDM is still Omega0_cdm, even though the coupling to the scalar field changes the scaling with a. The factor of 1/2 is needed because tanh goes from -1 to +1, so the prefactor (1-tanh)/2 goes from 1 to 0 as phi increases.
+      pvecback[pba->index_bg_rho_cdm] = pba->Omega0_cdm * H0_sq / a3 * (1.0 - tanh(pba->cdm_c * pvecback_B[pba->index_bi_phi_scf])) / 2.0 / pba->cdm_f_phi0; // KBL: f(phi)/f(phi_0) scaling so rho_cdm(a=1)=Omega0_cdm*H0^2. The prefactor (1-tanh(cx))/2 goes from 1 to 0 as phi increases.
     }
     else // Standard CDM model
     {
@@ -2188,26 +2188,33 @@ int background_solve(
    * until f(phi_0) converges. ICs are computed once (they don't depend on cdm_f_phi0)
    * and reset via memcpy for each extra iteration.
    *
+   * Convergence method: secant method applied to the residual
+   *   R(f) = G(f) - f,  where G(f) = [1 - tanh(c * phi_0(f))] / 2.
+   * After two full-step evaluations supply (f0, R0) and (f1, R1), the
+   * secant update  f_{n+1} = f_n - R_n (f_n - f_{n-1}) / (R_n - R_{n-1})
+   * converges superlinearly (order ~1.618) rather than linearly.
+   * A safeguard rejects unphysical secant steps and falls back to the
+   * mean of the last iterate and its image G(f).
+   *
+   * Tolerance discussion:
+   *   cdm_renorm_tol is relative precision in f(phi_0).  This feeds
+   *   multiplicatively into rho_cdm at all z.  Propagation to H(z) is
+   *   suppressed by Omega_cdm/2 ~ 0.15, and angular distances integrate
+   *   over z, further averaging.  Planck-level Cl precision (~0.1%)
+   *   requires delta_f/f < ~1e-3.  The background ODE integrator itself
+   *   has tol ~ 1e-7.  A setting of 1e-5 is therefore extremely
+   *   conservative and safe for any current or foreseeable data.
+   *
    * For model_cdm != 2, the loop executes exactly once (no renormalization needed).
    */
   {
     int need_cdm_renorm = (pba->model_cdm == 2 && pba->cdm_c != 0.0);
     double *pvecback_integration_saved = NULL;
-    int cdm_renorm_max_iter = 20;
-    double cdm_renorm_tol = 1.e-6;
-    double cdm_renorm_alpha = 0.5;
+    int cdm_renorm_max_iter = 50;
+    double cdm_renorm_tol = 1.e-5;
 
-    /* Aitken Δ² acceleration: accumulate 3 consecutive damped iterates,
-       then extrapolate to the fixed point.  For a linearly convergent
-       sequence x_n with contraction ratio ρ, the Aitken estimate
-         x_accel = x_0 - (x_1 - x_0)^2 / (x_2 - 2 x_1 + x_0)
-       converges quadratically (Steffensen's method).  After each
-       extrapolation the cycle resets.  Typical convergence: 6-8 iters
-       instead of 20-25 with plain damped iteration.
-       With normal, step-wise iteration, the error is epsilon.
-       This methods allows for slashing the error on every third step to epsilon^2. */
-    double aitken_f[3];
-    int aitken_n = 0;
+    /* Secant method state: store previous (f, R=G(f)-f) pair */
+    double secant_f_prev = 0.0, secant_R_prev = 0.0;
 
     /* When cdm_c == 0, f(phi) = (1-tanh(0))/2 = 0.5 for all phi,
        so f(phi_0) = 0.5 is known analytically — no iteration needed. */
@@ -2257,13 +2264,27 @@ int background_solve(
 
       {
         double phi_0 = pba->background_table[(pba->bt_size - 1) * pba->bg_size + pba->index_bg_phi_scf];
-        double f_new = (1.0 - tanh(pba->cdm_c * phi_0)) / 2.0;
+        double c_phi_0 = pba->cdm_c * phi_0;
+
+        class_test(c_phi_0 > 18.0, pba->error_message,
+                   "CDM renormalization: c*phi_0 = %.2f > 18 — CDM mass suppressed by >10^16, "
+                   "indistinguishable from zero. Reduce cdm_c or constrain phi range. "
+                   "(phi_0=%.6e, c=%.6e)",
+                   c_phi_0, phi_0, pba->cdm_c);
+
+        double f_new = (1.0 - tanh(c_phi_0)) / 2.0; /* = G(f_cur) */
+        double f_cur = pba->cdm_f_phi0;
+        double R_cur = f_new - f_cur; /* residual R(f_cur) = G(f_cur) - f_cur */
 
         class_test(f_new <= 0.0 || !isfinite(f_new), pba->error_message,
                    "CDM renormalization: f(phi_0) = %e non-positive or non-finite (phi_0=%e, c=%e)",
                    f_new, phi_0, pba->cdm_c);
 
-        double rel_change = fabs(f_new / pba->cdm_f_phi0 - 1.0);
+        double rel_change = fabs(R_cur / f_cur);
+
+        if (pba->background_verbose > 2)
+          printf("  CDM renorm iter %d: f_cur=%.10e, G(f)=%.10e, R=%.4e, rel=%.4e, phi_0=%.6e\n",
+                 cdm_iter + 1, f_cur, f_new, R_cur, rel_change, phi_0);
 
         if (rel_change < cdm_renorm_tol)
         {
@@ -2278,32 +2299,52 @@ int background_solve(
                    "CDM renormalization failed to converge after %d iterations (rel_change=%e, f_new=%e, f_old=%e)",
                    cdm_renorm_max_iter, rel_change, f_new, pba->cdm_f_phi0);
 
-        /* Damped update: use full step on first iteration, then damp */
-        pba->cdm_f_phi0 = (cdm_iter == 0) ? f_new
-                                          : cdm_renorm_alpha * f_new + (1.0 - cdm_renorm_alpha) * pba->cdm_f_phi0;
-
-        /* Aitken Δ² acceleration: every 3 damped iterates, extrapolate */
-        aitken_f[aitken_n] = pba->cdm_f_phi0;
-        aitken_n++;
-
-        if (aitken_n == 3)
+        /* Update strategy:
+         * iter 0: full step f1 = G(f0), to seed the secant method
+         * iter 1: full step f2 = G(f1), giving two (f, R) pairs
+         * iter >= 2: secant method on R(f) = G(f) - f = 0
+         *   f_{n+1} = f_n - R_n * (f_n - f_{n-1}) / (R_n - R_{n-1})
+         * Safeguard: reject if f_{n+1} <= 0, > 1, or non-finite;
+         * fall back to midpoint (f_cur + f_new) / 2 in that case. */
         {
-          double denom = aitken_f[2] - 2.0 * aitken_f[1] + aitken_f[0];
-          if (fabs(denom) > 1e-30)
+          double f_next;
+
+          if (cdm_iter >= 2)
           {
-            double dx = aitken_f[1] - aitken_f[0];
-            double f_accel = aitken_f[0] - dx * dx / denom;
-            /* Accept only if physical and closer to latest iterate than
-               the last step was (i.e. the extrapolation actually helped) */
-            if (f_accel > 0.0 && isfinite(f_accel) && fabs(f_accel - aitken_f[2]) < fabs(aitken_f[2] - aitken_f[1]))
+            /* Secant step */
+            double dR = R_cur - secant_R_prev;
+            double df = f_cur - secant_f_prev;
+            if (fabs(dR) > 1e-30 * fabs(R_cur))
             {
-              pba->cdm_f_phi0 = f_accel;
-              if (pba->background_verbose > 1)
-                printf("  Aitken accel iter %d: f=%.10e (from %.6e, %.6e, %.6e)\n",
-                       cdm_iter + 1, f_accel, aitken_f[0], aitken_f[1], aitken_f[2]);
+              f_next = f_cur - R_cur * df / dR;
+              /* Safeguard: must be physical */
+              if (f_next <= 0.0 || f_next > 1.0 || !isfinite(f_next))
+              {
+                f_next = 0.5 * (f_cur + f_new); /* fallback: midpoint */
+                if (pba->background_verbose > 2)
+                  printf("  Secant safeguard: f_next=%.10e (midpoint)\n", f_next);
+              }
+              else if (pba->background_verbose > 2)
+              {
+                printf("  Secant step: f_next=%.10e\n", f_next);
+              }
+            }
+            else
+            {
+              f_next = f_new; /* degenerate dR: full step */
             }
           }
-          aitken_n = 0; /* reset cycle for next group of 3 */
+          else
+          {
+            /* iter 0 or 1: full step to seed secant */
+            f_next = f_new;
+          }
+
+          /* Store current (f, R) as "previous" for next secant step */
+          secant_f_prev = f_cur;
+          secant_R_prev = R_cur;
+
+          pba->cdm_f_phi0 = f_next;
         }
       }
     }
@@ -3033,6 +3074,27 @@ int background_initial_conditions(
         class_stop(pba->error_message, "An attractor solution for the inverse power-law potential exists, however, it requires shooting to match the energy budget. Using MCMC, it's equally efficient to just brute-force it by finding phi_ini and setting phi_prime_ini=0.");
         break;
       case 6: // exponential
+        /* KBL: For V = c1*exp(-c2*phi), every attractor IC branch computes
+           phi = log(f(params)/c1)/(-c2), so V(phi_ini) = f(params) is
+           independent of c1.  Shooting on c1 therefore sees a flat target
+           function (dOmega_scf/dc1 = 0) and cannot converge.  If the user
+           is shooting on c1 with attractor ICs, fall back to the
+           user-provided phi_ini/phi_prime_ini so that c1 remains visible
+           in V(phi_ini) = c1*exp(-c2*phi_ini). */
+        if (pba->scf_tuning_index == 0)
+        {
+          if (pba->background_verbose > 0)
+          {
+            printf("Exponential potential: attractor ICs cancel c1 from V(phi_ini). "
+                   "Since scf_tuning_index=0 (shooting on c1), falling back to "
+                   "user-provided phi_ini=%e, phi_prime_ini=%e.\n",
+                   pba->phi_ini_scf, pba->phi_prime_ini_scf);
+          }
+          pvecback_integration[pba->index_bi_phi_scf] = pba->phi_ini_scf;
+          pvecback_integration[pba->index_bi_phi_prime_scf] = pba->phi_prime_ini_scf;
+          pba->attractor_regime_scf = 0;
+          break;
+        }
         scf_lambda = -c2;
         if (1. <= 3. * scf_gamma / scf_lambda / scf_lambda) // KBL: No attractor solution exists, but we can assume Omega_scf is subdominant.
         {
@@ -3279,7 +3341,7 @@ int background_initial_conditions(
     }
     else
     {
-      if (pba->background_verbose > 0)
+      if (pba->background_verbose > 3)
       {
         printf("Not using attractor initial conditions\n");
       }
