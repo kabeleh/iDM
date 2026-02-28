@@ -1,18 +1,19 @@
 sampler:
   mcmc:
-    covmat: /project/home/p201176/wrong_S8/pre-non_tracking/cobaya_mcmc_CV_PP_S_DESI_hyperbolic_tracking_uncoupled.covmat
-    drag: false
+    covmat: auto
+    drag: true
     oversample_power: 0.4
-    proposal_scale: 1.9
+    proposal_scale: 3.4
     Rminus1_stop: 0.02
     Rminus1_cl_stop: 0.2
     learn_proposal: true
     measure_speeds: true
     max_tries: .inf
-    learn_every: 100
 likelihood:
-  bao.desi_dr2:
-  sn.pantheonplusshoes:
+  planck_2018_lowl.TT:
+  planck_2018_lowl.EE:
+  planck_2018_highl_plik.TTTEEE_lite_native:
+  planck_2018_lensing.native:
 params:
   logA:
     drop: true
@@ -45,7 +46,14 @@ params:
       dist: norm
       loc: 67
       scale: 2
-  tau_reio: 0.06
+  tau_reio:
+    latex: \tau_\mathrm{reio}
+    prior:
+      dist: norm
+      loc: 0.051
+      scale: 0.006
+    ref: 0.051
+    proposal: 0.003
   omega_b:
     latex: \Omega_\mathrm{b} h^2
     prior:
@@ -141,15 +149,25 @@ params:
   rs_d_h:
     latex: r_\mathrm{drag}
     derived: true
-  cdm_c:
+  psi_ini:
     prior:
-      min: -3
-      max: 3
-    latex: c_\mathrm{DM}
+      min: -10.0
+      max: 10.0
     ref:
       dist: norm
-      loc: 0.0
-      scale: 0.28
+      loc: 0
+      scale: 2
+    drop: true
+    latex: \psi_\mathrm{ini}
+  cdm_c:
+    prior:
+      min: -18
+      max: 18
+    ref:
+      dist: norm
+      loc: 0
+      scale: 3
+    latex: c_\mathrm{DM}
   scf_c1:
     value: 1e-07
     drop: true
@@ -157,20 +175,21 @@ params:
   scf_c2:
     prior:
       dist: loguniform
-      a: 1e-12
-      b: 1e12
+      a: 1e-06
+      b: 1000.0
     drop: true
     latex: c_2
-    ref:
-      dist: norm
-      loc: 0.98
-      scale: 0.77
   scf_c3:
-    value: 0.0
+    prior:
+      dist: loguniform
+      a: 0.01
+      b: 10.0
     drop: true
     latex: c_3
   scf_c4:
-    value: 0.0
+    prior:
+      min: 0.0
+      max: 4.0
     drop: true
     latex: c_4
   scf_q1:
@@ -198,21 +217,16 @@ params:
     drop: true
     latex: \exp_2
   scf_phi_ini:
-    prior:
-      dist: loguniform
-      a: 1e-12
-      b: 1000.0
+    derived: 'lambda psi_ini, scf_c3: psi_ini / scf_c3'
     drop: true
     latex: \phi_\mathrm{ini}
   scf_phi_prime_ini:
-    prior:
-      min: -10.0
-      max: 10.0
+    value: 0.0
     drop: true
     latex: \phi\prime_\mathrm{ini}
   scf_parameters:
-    value: 'lambda scf_c1,scf_c2,scf_c3,scf_c4,scf_q1,scf_q2,scf_q3,scf_q4,scf_exp1,scf_exp2,scf_phi_ini,scf_phi_prime_ini:
-      ",".join([str(scf_c1),str(scf_c2),str(scf_c3),str(scf_c4),str(scf_q1),str(scf_q2),str(scf_q3),str(scf_q4),str(scf_exp1),str(scf_exp2),str(scf_phi_ini),str(scf_phi_prime_ini)])'
+    value: 'lambda scf_c1,scf_c2,scf_c3,scf_c4,scf_q1,scf_q2,scf_q3,scf_q4,scf_exp1,scf_exp2,psi_ini,scf_phi_prime_ini:
+      ",".join([str(scf_c1),str(scf_c2),str(scf_c3),str(scf_c4),str(scf_q1),str(scf_q2),str(scf_q3),str(scf_q4),str(scf_exp1),str(scf_exp2),str(psi_ini/scf_c3),str(scf_phi_prime_ini)])'
     derived: false
   Omega_fld: 0.0
   Omega_scf:
@@ -246,24 +260,23 @@ params:
   AdSDC4_max:
     latex: m_\mathrm{DM,min (scale separation)}
   combined_dSC_min:
-    latex: \mathrm{(FLB–SSWGC) combined dSC}_\mathrm{min}
+    latex: \mathrm{(FLB--SSWGC) combined dSC}_\mathrm{min}
   conformal_age:
     latex: \tau_0
 theory:
   classy:
     extra_args:
       gauge: newtonian
-      nonlinear_min_k_max: 25
       N_ncdm: 1
       N_ur: 2.046
       sBBN file: sBBN_2017.dat
       non linear: halofit
       model_cdm: i
-      tol_initial_Omega_r: 0.01
+      tol_initial_Omega_r: 0.1
+      a_ini_over_a_today_default: 1e-16
       scf_tuning_index: 0
-      scf_potential: hyperbolic
+      scf_potential: Bean
       attractor_ic_scf: no
     path: /home/users/u103677/iDM/
 packages_path: /home/users/u103677/cobaya_packages_2026
-output: 
-  /project/home/p201176/cobaya_mcmc_CV_PP_S_DESI_hyperbolic_InitCond_uncoupled
+output: /project/home/p201176/Bean_Planck_InitCond_MCMC

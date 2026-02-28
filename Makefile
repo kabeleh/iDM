@@ -27,7 +27,7 @@ AR       = gcc-ar rv
 #--- Clang / AOCC ---
 # CC       = clang
 # CPP      = clang++ --std=c++11 -fpermissive -Wno-write-strings -Wno-deprecated
-# llvm-ar is required when LTO is enabled (it understands LLVM bitcode);
+# # llvm-ar is required when LTO is enabled (it understands LLVM bitcode);
 # AR       = llvm-ar rv
 
 # Your python interpreter.
@@ -39,6 +39,8 @@ PYTHON ?= python3
 
 # your optimization flag
 OPTFLAG = -O3
+OPTFLAG += -march=native -mtune=native
+OPTFLAG += -fno-math-errno -fno-trapping-math # CLASS does not check for math errors, and these flags allow the compiler to vectorize more code, which can lead to significant speed-ups. See https://gcc.gnu.org/wiki/Vectorization#Floating_Point_Math_Errors for more details.
 #--- GCC flags ---
 OPTFLAG += -funroll-loops -ftree-vectorize -ftree-slp-vectorize -flto=auto -fPIC
 #--- Clang / AOCC flags ---
@@ -48,8 +50,6 @@ OPTFLAG += -funroll-loops -ftree-vectorize -ftree-slp-vectorize -flto=auto -fPIC
 # -flto=thin : modular LTO; faster link, slightly less aggressive.  Good for
 #              development / iteration cycles.
 # OPTFLAG += -funroll-loops -ftree-vectorize -ftree-slp-vectorize -flto=full -fPIC
-OPTFLAG += -march=native -mtune=native
-OPTFLAG += -fno-math-errno -fno-trapping-math # CLASS does not check for math errors, and these flags allow the compiler to vectorize more code, which can lead to significant speed-ups. See https://gcc.gnu.org/wiki/Vectorization#Floating_Point_Math_Errors for more details.
 
 # your openmp flag (comment for compiling without openmp)
 OMPFLAG   = -pthread #-fopenmp
@@ -83,8 +83,8 @@ LDFLAG = -g -fPIC
 # OPTFLAG += -fprofile-generate=$(MDIR)/pgo_profiles
 # LDFLAG  += -fprofile-generate=$(MDIR)/pgo_profiles
 # GCC Step 2 (optimise):
-OPTFLAG += -fprofile-use=$(MDIR)/pgo_profiles -fprofile-correction
-LDFLAG  += -fprofile-use=$(MDIR)/pgo_profiles -fprofile-correction
+# OPTFLAG += -fprofile-use=$(MDIR)/pgo_profiles -fprofile-correction
+# LDFLAG  += -fprofile-use=$(MDIR)/pgo_profiles -fprofile-correction
 #
 #--- Clang / AOCC PGO workflow ---
 # Clang uses a 3-step process:
