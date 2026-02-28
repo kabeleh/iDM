@@ -1,0 +1,385 @@
+# ==========================================================================
+# Feasibility scan: map the viable SCF parameter space with Cobaya
+# ==========================================================================
+#
+# Purpose:
+#   Explore the prior volume and identify regions where CLASS computes
+#   successfully (background + thermodynamics). Points where CLASS fails
+#   are automatically rejected (loglike = -inf). The resulting chain
+#   represents the viable parameter space.
+#
+# How it works:
+#   - "one: null" likelihood → returns loglike = 0 for every point
+#   - Derived parameters from CLASS trigger the theory computation
+#   - If CLASS fails, Cobaya catches the error and assigns loglike = -inf
+#   - The sampler thus only explores the viable region
+#
+# Run:
+#   cobaya-run hyperbolic_feasibility.yml
+#   cobaya-run hyperbolic_feasibility.yml -r          # resume
+#   cobaya-run hyperbolic_feasibility.yml -f          # force overwrite
+#
+# Analyze the chain with GetDist:
+#   import getdist
+#   samples = getdist.loadMCSamples('output/path')
+#   g = getdist.plots.get_subplot_plotter()
+#   g.triangle_plot(samples, ['scf_c1_log', 'scf_c2_log',
+#                              'scf_phi_signedlog', 'scf_phi_prime_signedlog', 'cdm_c_signedlog'])
+#
+# Performance notes:
+#   - Removed "non linear: halofit" and perturbation-derived params
+#     (sigma8, S8, etc.) so CLASS only computes background + thermodynamics.
+#   - Each evaluation takes ~0.5–2s instead of 10–30s for the full pipeline.
+#   - max_tries is set high to tolerate many CLASS failures per MCMC step.
+#
+# ==========================================================================
+
+likelihood:
+  one: null  # constant loglike = 0; CLASS failures give -inf automatically
+
+# --------------------------------------------------------------------------
+# SAMPLER: choose ONE of the options below
+# --------------------------------------------------------------------------
+
+# OPTION 1: MCMC (recommended for first pass)
+#   Fast startup, explores the connected viable region around the ref point.
+#   With flat likelihood, every viable proposed point is accepted.
+#   The chain is a random walk through the viable region.
+# sampler:
+#   mcmc:
+#     max_tries: 10000         # allow many CLASS failures per step
+#     burn_in: 0               # no burn-in (flat likelihood, no equilibration)
+#     max_samples: 50000       # hard stop after this many accepted samples
+#     Rminus1_stop: 100        # disable convergence (we want samples, not convergence)
+#     Rminus1_cl_stop: 100
+#     learn_proposal: true
+#     learn_proposal_Rminus1_max: 1000
+#     # drag: true               # drag sampling helps in high dimensions
+#     oversample_power: 0.4
+#     proposal_scale: 2.4
+
+# OPTION 2: PolyChord (uncomment below, comment out MCMC above)
+#   Nested sampling — fills the prior volume uniformly, can detect
+#   disconnected viable regions via clustering.
+#   With a flat likelihood, PolyChord effectively does rejection sampling
+#   from the prior (keeps viable points, kills non-viable). It's not the
+#   most efficient for this task, but produces well-weighted posterior
+#   samples and can find disconnected modes.
+#
+#   IMPORTANT: nlive must be large enough that initial random draws from
+#   the prior contain some viable points. If the viable fraction is f,
+#   you need nlive >> 1/f.  E.g., if f ~ 1%, use nlive >= 500.
+#
+sampler:
+  polychord:
+    nlive: 1000              # increase if viable fraction is very small
+    num_repeats: 30         # ~3× nDims for slice sampling
+    do_clustering: true     # detect disconnected viable regions
+    precision_criterion: 0.5  # loose (flat likelihood won't converge normally)
+    max_ndead: 100000        # hard stop after this many dead points
+    boost_posterior: 5      # get more posterior samples
+    feedback: 1
+    synchronous: false
+#     path: /home/kl/kDrive/Sci/PhD/Research/HDM/cobaya_klarch/code/PolyChordLite/
+
+# --------------------------------------------------------------------------
+# PARAMETERS
+# --------------------------------------------------------------------------
+params:
+  # === Standard cosmological parameters (sampled) ===
+  logA:
+    drop: true
+    latex: \log(10^{10} A_\mathrm{s})
+    prior:
+      min: 1.61
+      max: 3.91
+    proposal: 0.001
+    ref:
+      dist: norm
+      loc: 3.05
+      scale: 0.001
+  n_s:
+    latex: n_\mathrm{s}
+    prior:
+      min: 0.8
+      max: 1.2
+    proposal: 0.002
+    ref:
+      dist: norm
+      loc: 0.965
+      scale: 0.004
+  H0:
+    latex: H_0
+    prior:
+      min: 40
+      max: 100
+    proposal: 2
+    ref:
+      dist: norm
+      loc: 67
+      scale: 2
+  tau_reio:
+    latex: \tau_\mathrm{reio}
+    prior:
+      dist: norm
+      loc: 0.051
+      scale: 0.006
+    ref: 0.051
+    proposal: 0.003
+  omega_b:
+    latex: \Omega_\mathrm{b} h^2
+    prior:
+      min: 0.0075
+      max: 0.03
+    proposal: 0.0001
+    ref:
+      dist: norm
+      loc: 0.0224
+      scale: 0.0001
+  omega_cdm:
+    latex: \Omega_\mathrm{c} h^2
+    prior:
+      min: 0.001
+      max: 0.99
+    proposal: 0.0005
+    ref:
+      dist: norm
+      loc: 0.12
+      scale: 0.001
+  m_ncdm:
+    value: 0.06
+
+  # === Fixed cosmological parameters ===
+  Omega_Lambda:
+    value: 0.0
+    latex: \Omega_\Lambda
+  Omega_fld: 0.0
+  Omega_scf:
+    value: -0.7
+    latex: \Omega_\phi
+
+  # === Derived parameters from input transforms ===
+  A_s:
+    value: 'lambda logA: 1e-10*np.exp(logA)'
+    derived: true
+    latex: A_\mathrm{s}
+
+  # === SCF parameters (the main parameters of interest) ===
+  cdm_c_signedlog:
+    prior:
+      min: -80
+      max: 80
+    ref:
+      dist: norm
+      loc: -0.0244
+      scale: 2.0
+    proposal: 1.0
+    drop: true
+    latex: \widetilde{\log}_{10}(c_\mathrm{DM})
+  cdm_c:
+    # Shifted signed-log: sign(s)*(10^|s| - 1).  Smooth through 0, spans orders of magnitude.
+    value: 'lambda cdm_c_signedlog: np.sign(cdm_c_signedlog) * (10**abs(cdm_c_signedlog) - 1)'
+    derived: false
+    latex: c_\mathrm{DM}
+  scf_c1_log:
+    prior:
+      min: -9
+      max: -1
+    ref:
+      dist: norm
+      loc: -6.8
+      scale: 3.0
+    proposal: 1.0
+    drop: true
+  scf_c2_log:
+    prior:
+      min: -80
+      max: 80
+    ref:
+      dist: norm
+      loc: -10.06
+      scale: 2.0
+    proposal: 1.0
+    drop: true
+  scf_c3:
+    value: 0.0
+    drop: true
+    latex: c_3
+  scf_c4:
+    value: 0.0
+    drop: true
+    latex: c_4
+  scf_q1:
+    value: 0
+    drop: true
+    latex: q_1
+  scf_q2:
+    value: 0
+    drop: true
+    latex: q_2
+  scf_q3:
+    value: 0
+    drop: true
+    latex: q_3
+  scf_q4:
+    value: 0
+    drop: true
+    latex: q_4
+  scf_exp1:
+    value: 0
+    drop: true
+    latex: \exp_1
+  scf_exp2:
+    value: 0
+    drop: true
+    latex: \exp_2
+  scf_phi_signedlog:
+    prior: {min: -80, max: 80}
+    ref:
+      dist: norm
+      loc: -25.808
+      scale: 5.0
+    proposal: 2.0
+    drop: true
+    latex: \mathrm{slog}_{10}(\phi_\mathrm{ini})
+  scf_phi_prime_signedlog:
+    prior: {min: -10, max: 10}
+    ref:
+      dist: norm
+      loc: -2.13
+      scale: 3.0
+    proposal: 1.0
+    drop: true
+    latex: \mathrm{slog}_{10}(\phi_\mathrm{ini}^\prime)
+  scf_parameters:
+    value: 'lambda scf_c1_log,scf_c2_log,scf_c3,scf_c4,scf_q1,scf_q2,scf_q3,scf_q4,scf_exp1,scf_exp2,scf_phi_signedlog,scf_phi_prime_signedlog: ",".join([str(10**scf_c1_log),str(10**scf_c2_log),str(scf_c3),str(scf_c4),str(scf_q1),str(scf_q2),str(scf_q3),str(scf_q4),str(scf_exp1),str(scf_exp2),str(np.sign(scf_phi_signedlog)*10**abs(scf_phi_signedlog)),str(np.sign(scf_phi_prime_signedlog)*10**abs(scf_phi_prime_signedlog))])'
+    derived: false
+
+  # === Derived parameters: BACKGROUND-ONLY (lightweight) ===
+  # These trigger only background + thermodynamics computation in CLASS,
+  # skipping the expensive perturbation/transfer/harmonic/lensing pipeline.
+  Omega_m:
+    latex: \Omega_\mathrm{m}
+    derived: true
+  omegamh2:
+    derived: 'lambda Omega_m, H0: Omega_m*(H0/100)**2'
+    latex: \Omega_\mathrm{m} h^2
+  age:
+    latex: '{\rm{Age}}/\mathrm{Gyr}'
+    derived: true
+  z_eq:
+    latex: z_\mathrm{eq}
+    derived: true
+  k_eq:
+    latex: k_\mathrm{eq}
+    derived: true
+  omegamh3:
+    derived: 'lambda Omega_m, H0: Omega_m*(H0/100)**3'
+    latex: \Omega_\mathrm{m} h^3
+  conformal_age:
+    latex: \tau_0
+    derived: true
+
+  # Thermodynamics-derived (still fast, catches thermo failures too)
+  YHe:
+    latex: Y_\mathrm{P}
+    derived: true
+  z_reio:
+    latex: z_\mathrm{re}
+    derived: true
+
+  # SCF-specific derived parameters (come from background)
+  phi_ini_scf_ic:
+    latex: \phi_{\mathrm{ini}}
+  phi_prime_scf_ic:
+    latex: \phi^{\prime}_{\mathrm{ini}}
+  phi_scf_min:
+    latex: \phi_{\mathrm{min}}
+  phi_scf_max:
+    latex: \phi_{\mathrm{max}}
+  phi_scf_range:
+    latex: \Delta \phi
+  dV_V_scf_min:
+    latex: \mathfrak{s}_{1,\mathrm{min}}
+  ddV_V_scf_max:
+    latex: -\mathfrak{s}_{2,\mathrm{max}}
+  ddV_V_at_dV_V_min:
+    latex: -\mathfrak{s}_{2@\mathfrak{s}_{1,\mathrm{min}}}
+  dV_V_at_ddV_V_max:
+    latex: \mathfrak{s}_{1@\mathfrak{s}_{2,\mathrm{max}}}
+  swgc_expr_min:
+    latex: \mathrm{SWGC}_\phi
+  sswgc_min:
+    latex: \mathrm{SSWGC}_\mathrm{DM}
+  attractor_regime_scf:
+  AdSDC2_max:
+    latex: m_\mathrm{DM,min (no scale separation)}
+  AdSDC4_max:
+    latex: m_\mathrm{DM,min (scale separation)}
+  combined_dSC_min:
+    latex: \mathrm{(FLB–SSWGC) combined dSC}_\mathrm{min}
+
+  # === REMOVED for speed (uncomment if you want full-pipeline check) ===
+  # sigma8:
+  #   latex: \sigma_8
+  #   derived: true
+  # S8:
+  #   derived: 'lambda sigma8, Omega_m: (Omega_m/0.3)**0.5*sigma8'
+  #   latex: S_8
+  # s8h5:
+  #   derived: 'lambda sigma8, H0: sigma8*(H0*1e-2)**(-0.5)'
+  #   latex: \sigma_8/h^{0.5}
+  # s8omegamp5:
+  #   derived: 'lambda sigma8, Omega_m: sigma8*Omega_m**0.5'
+  #   latex: \sigma_8 \Omega_\mathrm{m}^{0.5}
+  # s8omegamp25:
+  #   derived: 'lambda sigma8, Omega_m: sigma8*Omega_m**0.25'
+  #   latex: \sigma_8 \Omega_\mathrm{m}^{0.25}
+  # A:
+  #   derived: 'lambda A_s: 1e9*A_s'
+  #   latex: 10^9 A_\mathrm{s}
+  # clamp:
+  #   derived: 'lambda A_s, tau_reio: 1e9*A_s*np.exp(-2*tau_reio)'
+  #   latex: 10^9 A_\mathrm{s} e^{-2\tau}
+  # rs_drag:
+  #   latex: r_\mathrm{drag}
+  #   derived: true
+  # theta_star_100:
+  #   latex: 100\theta_\star
+  #   derived: true
+  # z_star:
+  #   latex: z_\star
+  #   derived: true
+  # rs_star:
+  #   latex: r_\star
+  #   derived: true
+  # da_star:
+  #   latex: D_A(z_\star)
+  #   derived: true
+  # z_d:
+  #   latex: z_\mathrm{d}
+  #   derived: true
+  # rs_d_h:
+  #   latex: r_\mathrm{drag}
+  #   derived: true
+
+# --------------------------------------------------------------------------
+# THEORY CODE
+# --------------------------------------------------------------------------
+theory:
+  classy:
+    extra_args:
+      gauge: newtonian
+      N_ncdm: 1
+      N_ur: 2.046
+      sBBN file: sBBN_2017.dat
+      # REMOVED: "non linear: halofit" — not needed, saves time
+      model_cdm: i
+      tol_initial_Omega_r: 0.1
+      scf_tuning_index: 0
+      scf_potential: hyperbolic
+      attractor_ic_scf: no
+    path: /home/users/u103677/iDM/
+
+packages_path: /home/users/u103677/cobaya_packages_2026
+output: /project/home/p201176/hyperbolic_feasibility

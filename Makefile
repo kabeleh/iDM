@@ -83,8 +83,8 @@ LDFLAG = -g -fPIC
 # OPTFLAG += -fprofile-generate=$(MDIR)/pgo_profiles
 # LDFLAG  += -fprofile-generate=$(MDIR)/pgo_profiles
 # GCC Step 2 (optimise):
-# OPTFLAG += -fprofile-use=$(MDIR)/pgo_profiles -fprofile-correction
-# LDFLAG  += -fprofile-use=$(MDIR)/pgo_profiles -fprofile-correction
+OPTFLAG += -fprofile-use=$(MDIR)/pgo_profiles -fprofile-correction
+LDFLAG  += -fprofile-use=$(MDIR)/pgo_profiles -fprofile-correction
 #
 #--- Clang / AOCC PGO workflow ---
 # Clang uses a 3-step process:

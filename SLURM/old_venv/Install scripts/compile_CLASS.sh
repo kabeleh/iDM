@@ -21,7 +21,8 @@
 # module load OpenBLAS
 module load Python foss
 #Activate Python virtual environment
-source my_foss-env/bin/activate
+# source my_foss-env/bin/activate
+source my_2025-env/bin/activate
 
 #Check GCC version
 # gcc --version

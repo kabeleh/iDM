@@ -2,12 +2,12 @@
 #SBATCH --job-name=test_all_potentials
 #SBATCH --account p201176
 #SBATCH --partition cpu
-#SBATCH --qos test
+#SBATCH --qos short
 #SBATCH --nodes 1
 #SBATCH --ntasks 11
 #SBATCH --ntasks-per-node 11
 #SBATCH --cpus-per-task 8
-#SBATCH --time 00:30:00
+#SBATCH --time 06:00:00
 #SBATCH --output %j.test_all_potentials.out
 #SBATCH --error %j.test_all_potentials.err
 #SBATCH --mail-user kay.lehnert.2023@mumail.ie
