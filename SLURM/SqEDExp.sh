@@ -4,10 +4,10 @@
 #SBATCH --partition cpu
 #SBATCH --qos default
 #SBATCH --nodes 1
-#SBATCH --ntasks 64
-#SBATCH --ntasks-per-node 64
-#SBATCH --cpus-per-task 4
-#SBATCH --time 14:00:00
+#SBATCH --ntasks 85
+#SBATCH --ntasks-per-node 85
+#SBATCH --cpus-per-task 3
+#SBATCH --time 48:00:00
 #SBATCH --output %j.SqEDExp.out
 #SBATCH --error %j.SqEDExp.err
 #SBATCH --mail-user kay.lehnert.2023@mumail.ie
@@ -80,12 +80,17 @@ run_with_retry "/home/users/u103677/iDM/Cobaya/MCMC/SqE_Planck_InitCond_MCMC.yml
     "${SLURM_JOB_ID}_SqEIC.txt" 30 &
 PID2=$!
 
+run_with_retry "/home/users/u103677/iDM/Cobaya/MCMC/DoubleExp_Planck_tracking_MCMC.yml" \
+    "${SLURM_JOB_ID}_DoubleExpTracking.txt" 20 &
+PID3=$!
 
 # Wait for all background tasks to complete
 wait $PID1
 EXIT1=$?
 wait $PID2
 EXIT2=$?
+wait $PID3
+EXIT3=$?
 
 
 
@@ -93,6 +98,7 @@ echo "============================================"
 echo "All tasks completed"
 echo "DoubleExpIC exit code: $EXIT1"
 echo "SqEIC exit code: $EXIT2"
+echo "DoubleExpTracking exit code: $EXIT3"
 echo "============================================"
 
 #Check energy consumption after job completion

@@ -7,7 +7,7 @@
 #SBATCH --ntasks 64
 #SBATCH --ntasks-per-node 64
 #SBATCH --cpus-per-task 4
-#SBATCH --time 14:00:00
+#SBATCH --time 48:00:00
 #SBATCH --output %j.hyper.out
 #SBATCH --error %j.hyper.err
 #SBATCH --mail-user kay.lehnert.2023@mumail.ie

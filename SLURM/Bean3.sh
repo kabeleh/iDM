@@ -7,7 +7,7 @@
 #SBATCH --ntasks 64
 #SBATCH --ntasks-per-node 64
 #SBATCH --cpus-per-task 4
-#SBATCH --time 11:00:00
+#SBATCH --time 48:00:00
 #SBATCH --output %j.Bean.out
 #SBATCH --error %j.Bean.err
 #SBATCH --mail-user kay.lehnert.2023@mumail.ie

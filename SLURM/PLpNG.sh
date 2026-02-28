@@ -1,15 +1,15 @@
 #!/bin/bash -l
-#SBATCH --job-name=PLpNG
+#SBATCH --job-name=PLpNGBean
 #SBATCH --account p201176
 #SBATCH --partition cpu
 #SBATCH --qos default
 #SBATCH --nodes 1
-#SBATCH --ntasks 64
-#SBATCH --ntasks-per-node 64
-#SBATCH --cpus-per-task 4
-#SBATCH --time 14:00:00
-#SBATCH --output %j.PLpNG.out
-#SBATCH --error %j.PLpNG.err
+#SBATCH --ntasks 85
+#SBATCH --ntasks-per-node 85
+#SBATCH --cpus-per-task 3
+#SBATCH --time 48:00:00
+#SBATCH --output %j.PLpNGBean.out
+#SBATCH --error %j.PLpNGBean.err
 #SBATCH --mail-user kay.lehnert.2023@mumail.ie
 #SBATCH --mail-type END,FAIL
 
@@ -80,12 +80,17 @@ run_with_retry "/home/users/u103677/iDM/Cobaya/MCMC/pNG_Planck_InitCond_MCMC.yml
     "${SLURM_JOB_ID}_pNGIC.txt" 30 &
 PID2=$!
 
+run_with_retry "/home/users/u103677/iDM/Cobaya/MCMC/BeanSingleWell_Planck_tracking_MCMC.yml" \
+    "${SLURM_JOB_ID}_BeanSingleWellTracking.txt" 20 &
+PID3=$!
 
 # Wait for all background tasks to complete
 wait $PID1
 EXIT1=$?
 wait $PID2
 EXIT2=$?
+wait $PID3
+EXIT3=$?
 
 
 
@@ -93,6 +98,7 @@ echo "============================================"
 echo "All tasks completed"
 echo "PLIC exit code: $EXIT1"
 echo "pNGIC exit code: $EXIT2"
+echo "BeanSingleWellTracking exit code: $EXIT3"
 echo "============================================"
 
 #Check energy consumption after job completion
