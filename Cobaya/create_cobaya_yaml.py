@@ -880,12 +880,7 @@ def create_cobaya_yaml(
                 # Bean single-well: psi_ini = c3 * phi_ini normalizes to
                 # the exponential decay length, matching exploration of
                 # both the quadratic well and exponential tail for all c3.
-                psi_ini: dict[str, Any] = {
-                    "prior": {"min": -10.0, "max": 10.0},
-                    "ref": {"dist": "norm", "loc": 0, "scale": 2},
-                    "drop": True,
-                    "latex": "\\psi_\\mathrm{ini}",
-                }
+                # psi_ini dict is built in the "Build iDM parameter block" below.
                 scf_phi_ini = {
                     "derived": "lambda psi_ini, scf_c3: psi_ini / scf_c3",
                     "drop": True,
@@ -923,6 +918,12 @@ def create_cobaya_yaml(
         parameters_iDM_ordered: dict[str, Any] = {}
         if not is_attractor:
             if potential in ("Bean", "BeanSingleWell"):
+                psi_ini: dict[str, Any] = {
+                    "prior": {"min": -10.0, "max": 10.0},
+                    "ref": {"dist": "norm", "loc": 0, "scale": 2},
+                    "drop": True,
+                    "latex": "\\psi_\\mathrm{ini}",
+                }
                 parameters_iDM_ordered["psi_ini"] = psi_ini
         parameters_iDM_ordered["cdm_c"] = cdm_c
         parameters_iDM_ordered["scf_c1"] = scf_c1
