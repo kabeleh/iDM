@@ -6,17 +6,21 @@
 # Likelihood tags:  Planck | SPA | PP_D | PP_S_D  (and combinations: Planck_PP_S_D, SPA_PP_D, etc.)
 # Sampler tags:     MCMC | Polychord | MCMC_minimizer | Polychord_minimizer | MCMC_swamp | Polychord_swamp
 
-from typing import Any, Union
+from typing import Any
 from ruamel.yaml import YAML
 from ruamel.yaml.comments import CommentedSeq
 import re
 
 # Specify the parameters
-sampler: str = "mcmc"  # MCMC or Polychord
-likelihood: str = "CV_CMB_SPA_PP_S_DESI"  # likelihood combination
-potential: str = "DoubleExp"  # LCDM or iDM potential for scalar field models
-attractor: str = "no"  # Scaling Solution; Ignored for LCDM
-coupling: str = "uncoupled"  # Coupling; Ignored for LCDM
+sampler: str = "mcmc_fast"  # MCMC(_fast), minimizer_*, or Polychord
+likelihood: str = "CMB"  # likelihood combination
+potential: str = (
+    "DoubleExp"  # Options: 'LCDM', 'power-law', 'cosine', 'hyperbolic', 'pNG', 'SqE', 'exponential', 'Bean', 'BeanSingleWell', 'BeanAdS', 'DoubleExp'.
+)
+attractor: str = (
+    "yes"  # Scaling / Tracking / Attractor Solution to be used?; Ignored for LCDM
+)
+coupling: str = "uncoupled"  # Generalised Coupling to be used?; Ignored for LCDM
 
 yaml: YAML = YAML()
 # Configure YAML formatting: standard 2-space indentation for mappings and sequences
@@ -81,10 +85,7 @@ def build_filename_stem(
     """
     parts: list[str] = [potential, LIKELIHOOD_FILE_TAG[likelihood]]
     if potential != "LCDM":
-        attractor_name = (
-            "tracking" if attractor in ("yes", "Yes", "YES") else "InitCond"
-        )
-        parts.append(attractor_name)
+        parts.append("tracking" if attractor.lower() == "yes" else "InitCond")
         if coupling == "coupled":
             parts.append("coupled")
     parts.append(SAMPLER_FILE_TAG[sampler])
@@ -107,17 +108,7 @@ def build_chain_output_stem(
         base_sampler = sampler.replace("minimize_", "")
     elif sampler.startswith("post_"):
         base_sampler = sampler.replace("post_", "")
-
-    parts: list[str] = [potential, LIKELIHOOD_FILE_TAG[likelihood]]
-    if potential != "LCDM":
-        attractor_name = (
-            "tracking" if attractor in ("yes", "Yes", "YES") else "InitCond"
-        )
-        parts.append(attractor_name)
-        if coupling == "coupled":
-            parts.append("coupled")
-    parts.append(SAMPLER_FILE_TAG[base_sampler])
-    return "_".join(parts)
+    return build_filename_stem(potential, likelihood, attractor, coupling, base_sampler)
 
 
 def create_cobaya_yaml(
@@ -141,9 +132,13 @@ def create_cobaya_yaml(
             'CV_CMB_SPA', 'CV_CMB_SPA_PP_DESI', 'CV_CMB_SPA_PP_S_DESI', 'CV_PP_DESI', 'CV_PP_S_DESI'.
             Note: 'CMB' is Planck low-l TT/EE + plik high-l TTTEEE lite native + native lensing.
             Note: 'Run3_Planck_PP_SH0ES_DESIDR2' is a post-processing run that adds likelihoods to Run 1 chains.
-    - potential (str): Model. Options: 'LCDM', 'power-law', 'cosine', 'hyperbolic', 'pNG', 'iPL', 'SqE', 'exponential', 'Bean', 'DoubleExp'.
+    - potential (str): Model. Options: 'LCDM', 'power-law', 'cosine', 'hyperbolic', 'pNG', 'SqE', 'exponential', 'Bean', 'BeanSingleWell', 'BeanAdS', 'DoubleExp'.
       Note: 'LCDM' uses standard CLASS - attractor and coupling settings are ignored.
-      Note: 'power-law', 'cosine', 'pNG', 'iPL', 'SqE' do not support attractor initial conditions.
+      Note: 'power-law', 'cosine', 'pNG', 'exponential', 'SqE' do not support attractor initial conditions.
+      Note: iPL (inverse power-law) is subsumed by 'power-law' with c2 in [-6, 6].
+      Note: 'Bean' generates both single-well (c2>0) and double-well/AdS (c2<0) YAMLs. Use 'BeanSingleWell' or 'BeanAdS' to generate only one.
+      Note: Attractor runs restrict priors to the tracking-attractor domain (|lambda_eff|>2):
+            hyperbolic: |c2|>2, Bean/BeanAdS: c3 in [2,10], DoubleExp: |min(c2,c4)|>2.
     - attractor (str): Initial condition type. Options: 'yes'/'Yes'/'YES' (tracking), 'no'/'No'/'NO' (phi_ini).
       Ignored for 'LCDM' potential.
     - coupling (str): Coupling type. Options: 'uncoupled', 'coupled'.
@@ -193,10 +188,11 @@ def create_cobaya_yaml(
         "cosine",
         "hyperbolic",
         "pNG",
-        "iPL",
         "SqE",
         "exponential",
         "Bean",
+        "BeanSingleWell",
+        "BeanAdS",
         "DoubleExp",
     ]
     if potential not in valid_potentials:
@@ -205,20 +201,21 @@ def create_cobaya_yaml(
         )
 
     # Validate attractor and coupling only for non-LCDM potentials
+    is_attractor = attractor.lower() == "yes"
     if not is_lcdm:
-        if attractor not in ["yes", "Yes", "YES", "no", "No", "NO"]:
+        if attractor.lower() not in ("yes", "no"):
             raise ValueError(
-                f"attractor must be 'yes', 'Yes', 'YES', 'no', 'No', or 'NO', got '{attractor}'"
+                f"attractor must be 'yes' or 'no' (case-insensitive), got '{attractor}'"
             )
         if coupling not in ["uncoupled", "coupled"]:
             raise ValueError(
                 f"coupling must be 'uncoupled' or 'coupled', got '{coupling}'"
             )
-        if attractor in ("yes", "Yes", "YES") and potential in (
+        if is_attractor and potential in (
             "power-law",
             "cosine",
             "pNG",
-            "iPL",
+            "exponential",
             "SqE",
         ):
             raise ValueError(
@@ -265,7 +262,7 @@ def create_cobaya_yaml(
                 "learn_proposal": True,
                 "measure_speeds": True,
                 "max_tries": float("inf"),
-                "temperature": 2.0,
+                # "temperature": 2.0,
             }
         },
     }
@@ -327,230 +324,89 @@ def create_cobaya_yaml(
     Run3_Planck_PP_SH0ES_DESIDR2_add: dict[str, Any] = Run2_PP_SH0ES_DESIDR2
 
     # CosmoVerse Likelihoods
-    # CMB-only: Planck low-l TT + ACT DR6 + ACT lensing + SPT lensing (MUSE)
-    CV_CMB_SPA: dict[str, Any] = {
-        "likelihood": {
-            "planck_2018_lowl.TT": None,
-            "act_dr6_cmbonly.PlanckActCut": {
-                "package_install": {
-                    "github_repository": "ACTCollaboration/DR6-ACT-lite"
+    # Shared core: Planck low-l TT + ACT DR6 + ACT lensing + SPT candl + SPT lensing (MUSE)
+    _cmb_spa_core: dict[str, Any] = {
+        "planck_2018_lowl.TT": None,
+        "act_dr6_cmbonly.PlanckActCut": {
+            "package_install": {"github_repository": "ACTCollaboration/DR6-ACT-lite"},
+            "dataset_params": {
+                "use_cl": "tt te ee",
+                "lmin_cuts": "0 0 0",
+                "lmax_cuts": "1000 600 600",
+            },
+            "params": {
+                "A_planck": {
+                    "prior": {"min": 0.5, "max": 1.5},
+                    "ref": {"dist": "norm", "loc": 1.0, "scale": 0.1},
+                    "latex": "A_{\\rm planck}",
+                    "proposal": 0.003,
+                }
+            },
+        },
+        "act_dr6_cmbonly.ACTDR6CMBonly": {
+            "input_file": "dr6_data_cmbonly.fits",
+            "lmax_theory": 9000,
+            "ell_cuts": {
+                "TT": flow_seq([600, 8500]),
+                "TE": flow_seq([600, 8500]),
+                "EE": flow_seq([600, 8500]),
+            },
+            "stop_at_error": True,
+            "params": {
+                "A_act": {
+                    "value": "lambda A_planck: A_planck",
+                    "latex": "A_{\\rm ACT}",
                 },
-                "dataset_params": {
-                    "use_cl": "tt te ee",
-                    "lmin_cuts": "0 0 0",
-                    "lmax_cuts": "1000 600 600",
-                },
-                "params": {
-                    "A_planck": {
-                        "prior": {"min": 0.5, "max": 1.5},
-                        "ref": {"dist": "norm", "loc": 1.0, "scale": 0.1},
-                        "latex": "A_{\\rm planck}",
-                        "proposal": 0.003,
-                    }
+                "P_act": {
+                    "prior": {"min": 0.9, "max": 1.1},
+                    "ref": {"dist": "norm", "loc": 1.0, "scale": 0.01},
+                    "proposal": 0.01,
+                    "latex": "p_{\\rm ACT}",
                 },
             },
-            "act_dr6_cmbonly.ACTDR6CMBonly": {
-                "input_file": "dr6_data_cmbonly.fits",
-                "lmax_theory": 9000,
-                "ell_cuts": {
-                    "TT": flow_seq([600, 8500]),
-                    "TE": flow_seq([600, 8500]),
-                    "EE": flow_seq([600, 8500]),
-                },
-                "stop_at_error": True,
-                "params": {
-                    "A_act": {
-                        "value": "lambda A_planck: A_planck",
-                        "latex": "A_{\\rm ACT}",
-                    },
-                    "P_act": {
-                        "prior": {"min": 0.9, "max": 1.1},
-                        "ref": {"dist": "norm", "loc": 1.0, "scale": 0.01},
-                        "proposal": 0.01,
-                        "latex": "p_{\\rm ACT}",
-                    },
-                },
+        },
+        "act_dr6_lenslike.ACTDR6LensLike": {
+            "package_install": {
+                "github_repository": "ACTCollaboration/act_dr6_lenslike"
             },
-            "act_dr6_lenslike.ACTDR6LensLike": {
-                "package_install": {
-                    "github_repository": "ACTCollaboration/act_dr6_lenslike"
-                },
-                "lens_only": False,
-                "stop_at_error": True,
-                "lmax": 4000,
-                "variant": "actplanck_baseline",
+            "lens_only": False,
+            "stop_at_error": True,
+            "lmax": 4000,
+            "variant": "actplanck_baseline",
+        },
+        "spt3g_d1_tne": {
+            "package_install": {
+                "github_repository": "SouthPoleTelescope/spt_candl_data"
             },
-            "spt3g_d1_tne": {
-                "package_install": {
-                    "github_repository": "SouthPoleTelescope/spt_candl_data"
-                },
-                "class": "candl.interface.CandlCobayaLikelihood",
-                "additional_args": {},
-                "clear_internal_priors": True,
-                "data_set_file": "spt_candl_data.SPT3G_D1_TnE",
-                "variant": "lite",
-                "feedback": True,
-                "wrapper": None,
+            "class": "candl.interface.CandlCobayaLikelihood",
+            "additional_args": {},
+            "clear_internal_priors": True,
+            "data_set_file": "spt_candl_data.SPT3G_D1_TnE",
+            "variant": "lite",
+            "feedback": True,
+            "wrapper": None,
+        },
+        "muse3glike.cobaya.spt3g_2yr_delensed_ee_optimal_pp_muse": {
+            "package_install": {
+                "download_url": "https://pole.uchicago.edu/public/data/ge25/muse_3g_like_march_2025.zip"
             },
-            "muse3glike.cobaya.spt3g_2yr_delensed_ee_optimal_pp_muse": {
-                "package_install": {
-                    "download_url": "https://pole.uchicago.edu/public/data/ge25/muse_3g_like_march_2025.zip"
-                },
-                "components": flow_seq(["\u03d5\u03d5"]),
-            },
+            "components": flow_seq(["\u03d5\u03d5"]),
         },
     }
 
+    # CMB-only
+    CV_CMB_SPA: dict[str, Any] = {"likelihood": {**_cmb_spa_core}}
     # CMB + Pantheon+ + DESI DR2
     CV_CMB_SPA_PP_DESI: dict[str, Any] = {
-        "likelihood": {
-            "bao.desi_dr2": None,
-            "sn.pantheonplus": None,
-            "planck_2018_lowl.TT": None,
-            "act_dr6_cmbonly.PlanckActCut": {
-                "package_install": {
-                    "github_repository": "ACTCollaboration/DR6-ACT-lite"
-                },
-                "dataset_params": {
-                    "use_cl": "tt te ee",
-                    "lmin_cuts": "0 0 0",
-                    "lmax_cuts": "1000 600 600",
-                },
-                "params": {
-                    "A_planck": {
-                        "prior": {"min": 0.5, "max": 1.5},
-                        "ref": {"dist": "norm", "loc": 1.0, "scale": 0.1},
-                        "latex": "A_{\\rm planck}",
-                        "proposal": 0.003,
-                    }
-                },
-            },
-            "act_dr6_cmbonly.ACTDR6CMBonly": {
-                "input_file": "dr6_data_cmbonly.fits",
-                "lmax_theory": 9000,
-                "ell_cuts": {
-                    "TT": flow_seq([600, 8500]),
-                    "TE": flow_seq([600, 8500]),
-                    "EE": flow_seq([600, 8500]),
-                },
-                "stop_at_error": True,
-                "params": {
-                    "A_act": {
-                        "value": "lambda A_planck: A_planck",
-                        "latex": "A_{\\rm ACT}",
-                    },
-                    "P_act": {
-                        "prior": {"min": 0.9, "max": 1.1},
-                        "ref": {"dist": "norm", "loc": 1.0, "scale": 0.01},
-                        "proposal": 0.01,
-                        "latex": "p_{\\rm ACT}",
-                    },
-                },
-            },
-            "act_dr6_lenslike.ACTDR6LensLike": {
-                "package_install": {
-                    "github_repository": "ACTCollaboration/act_dr6_lenslike"
-                },
-                "lens_only": False,
-                "stop_at_error": True,
-                "lmax": 4000,
-                "variant": "actplanck_baseline",
-            },
-            "spt3g_d1_tne": {
-                "package_install": {
-                    "github_repository": "SouthPoleTelescope/spt_candl_data"
-                },
-                "class": "candl.interface.CandlCobayaLikelihood",
-                "additional_args": {},
-                "clear_internal_priors": True,
-                "data_set_file": "spt_candl_data.SPT3G_D1_TnE",
-                "variant": "lite",
-                "feedback": True,
-                "wrapper": None,
-            },
-            "muse3glike.cobaya.spt3g_2yr_delensed_ee_optimal_pp_muse": {
-                "package_install": {
-                    "download_url": "https://pole.uchicago.edu/public/data/ge25/muse_3g_like_march_2025.zip"
-                },
-                "components": flow_seq(["\u03d5\u03d5"]),
-            },
-        },
+        "likelihood": {"bao.desi_dr2": None, "sn.pantheonplus": None, **_cmb_spa_core}
     }
-
     # CMB + PantheonPlusSHoES + DESI DR2
     CV_CMB_SPA_PP_S_DESI: dict[str, Any] = {
         "likelihood": {
             "bao.desi_dr2": None,
             "sn.pantheonplusshoes": None,
-            "planck_2018_lowl.TT": None,
-            "act_dr6_cmbonly.PlanckActCut": {
-                "package_install": {
-                    "github_repository": "ACTCollaboration/DR6-ACT-lite"
-                },
-                "dataset_params": {
-                    "use_cl": "tt te ee",
-                    "lmin_cuts": "0 0 0",
-                    "lmax_cuts": "1000 600 600",
-                },
-                "params": {
-                    "A_planck": {
-                        "prior": {"min": 0.5, "max": 1.5},
-                        "ref": {"dist": "norm", "loc": 1.0, "scale": 0.1},
-                        "latex": "A_{\\rm planck}",
-                        "proposal": 0.003,
-                    }
-                },
-            },
-            "act_dr6_cmbonly.ACTDR6CMBonly": {
-                "input_file": "dr6_data_cmbonly.fits",
-                "lmax_theory": 9000,
-                "ell_cuts": {
-                    "TT": flow_seq([600, 8500]),
-                    "TE": flow_seq([600, 8500]),
-                    "EE": flow_seq([600, 8500]),
-                },
-                "stop_at_error": True,
-                "params": {
-                    "A_act": {
-                        "value": "lambda A_planck: A_planck",
-                        "latex": "A_{\\rm ACT}",
-                    },
-                    "P_act": {
-                        "prior": {"min": 0.9, "max": 1.1},
-                        "ref": {"dist": "norm", "loc": 1.0, "scale": 0.01},
-                        "proposal": 0.01,
-                        "latex": "p_{\\rm ACT}",
-                    },
-                },
-            },
-            "act_dr6_lenslike.ACTDR6LensLike": {
-                "package_install": {
-                    "github_repository": "ACTCollaboration/act_dr6_lenslike"
-                },
-                "lens_only": False,
-                "stop_at_error": True,
-                "lmax": 4000,
-                "variant": "actplanck_baseline",
-            },
-            "spt3g_d1_tne": {
-                "package_install": {
-                    "github_repository": "SouthPoleTelescope/spt_candl_data"
-                },
-                "class": "candl.interface.CandlCobayaLikelihood",
-                "additional_args": {},
-                "clear_internal_priors": True,
-                "data_set_file": "spt_candl_data.SPT3G_D1_TnE",
-                "variant": "lite",
-                "feedback": True,
-                "wrapper": None,
-            },
-            "muse3glike.cobaya.spt3g_2yr_delensed_ee_optimal_pp_muse": {
-                "package_install": {
-                    "download_url": "https://pole.uchicago.edu/public/data/ge25/muse_3g_like_march_2025.zip"
-                },
-                "components": flow_seq(["\u03d5\u03d5"]),
-            },
-        },
+            **_cmb_spa_core,
+        }
     }
 
     # Pantheon+ + DESI DR2 only (no CMB)
@@ -603,7 +459,7 @@ def create_cobaya_yaml(
 
     # Base parameters (updated to match CosmoVerse LCDM conventions)
     # tau_reio handling: Gaussian prior for CMB runs, fixed for non-CMB runs
-    tau_reio_param: Union[dict[str, Any], float]
+    tau_reio_param: dict[str, Any] | float
     if has_cmb:
         tau_reio_param = {
             "latex": "\\tau_\\mathrm{reio}",
@@ -729,6 +585,33 @@ def create_cobaya_yaml(
     # Scalar Field Parameters for iDM model (only for non-LCDM potentials)
     parameters_iDM: dict[str, Any] = {}
     scf_exp_f: dict[str, Any] = {}  # default: no extra prior
+    attractor_prior: dict[str, Any] = {}  # default: no attractor constraint
+
+    # Swampland derived parameters (shared between standard runs and post-processing)
+    swampland_params: dict[str, Any] = {
+        "phi_ini_scf_ic": {"latex": "\\phi_{\\mathrm{ini}}"},
+        "phi_prime_scf_ic": {"latex": "\\phi^{\\prime}_{\\mathrm{ini}}"},
+        "phi_scf_min": {"latex": "\\phi_{\\mathrm{min}}"},
+        "phi_scf_max": {"latex": "\\phi_{\\mathrm{max}}"},
+        "phi_scf_range": {"latex": "\\Delta \\phi"},
+        "dV_V_scf_min": {"latex": "\\mathfrak{s}_{1,\\mathrm{min}}"},
+        "ddV_V_scf_max": {"latex": "-\\mathfrak{s}_{2,\\mathrm{max}}"},
+        "ddV_V_at_dV_V_min": {
+            "latex": "-\\mathfrak{s}_{2@\\mathfrak{s}_{1,\\mathrm{min}}}"
+        },
+        "dV_V_at_ddV_V_max": {
+            "latex": "\\mathfrak{s}_{1@\\mathfrak{s}_{2,\\mathrm{max}}}"
+        },
+        "swgc_expr_min": {"latex": "\\mathrm{SWGC}_\\phi"},
+        "sswgc_min": {"latex": "\\mathrm{SSWGC}_\\mathrm{DM}"},
+        "attractor_regime_scf": None,
+        "AdSDC2_max": {"latex": "m_\\mathrm{DM,min (no scale separation)}"},
+        "AdSDC4_max": {"latex": "m_\\mathrm{DM,min (scale separation)}"},
+        "combined_dSC_min": {
+            "latex": "\\mathrm{(FLB--SSWGC) combined dSC}_\\mathrm{min}"
+        },
+        "conformal_age": {"latex": "\\tau_0"},
+    }
 
     if not is_lcdm:
         cdm_c: dict[str, Any] = {
@@ -741,18 +624,13 @@ def create_cobaya_yaml(
                 "loc": 0.0,
                 "scale": 0.28,
             }
-        if potential == "DoubleExp":
-            cdm_c["ref"] = {
-                "dist": "norm",
-                "loc": -0.071,
-                "scale": 0.38,
-            }
+        # (DoubleExp: cdm_c is overridden in the lean group below with [-18, 18])
 
         # power-law:    V(phi) = c_1^(4-c_2) * phi^(c_2) + c_3
         # cosine:       V(phi) = c_1 * cos(phi*c_2)
         # hyperbolic:   V(phi) = c_1 * [1-tanh(c_2*phi)]
         # pNG:          V(phi) = c_1^4 * [1 + cos(phi/c_2)]
-        # iPL:          V(phi) = c_1^(4+c_2) * phi^(-c_2)
+        # iPL subsumed by power-law with c_2 in [-6, 6]
         # exponential:  V(phi) = c_1 * exp(-c_2*phi)
         # SqE:          V(phi) = c_1^(c_2+4) * phi^(-c_2) * exp(c_1*phi^2)
         # Bean:         V(phi) = c_1 * [(c_4-phi)^2 + c_2] * exp(-c_3*phi)
@@ -761,16 +639,21 @@ def create_cobaya_yaml(
         scf_c2: dict[str, Any]
         scf_c3: dict[str, Any]
         scf_c4: dict[str, Any]
-        if potential in ("power-law",):
+        if potential == "power-law":
             scf_c1 = {"value": 1e-2, "drop": True, "latex": "c_1"}
-            scf_c2 = {"prior": {"min": 0.5, "max": 3.5}, "drop": True, "latex": "c_2"}
+            scf_c2 = {
+                "prior": {"min": -6.0, "max": 6.0},
+                "ref": {"dist": "norm", "loc": 0, "scale": 2},
+                "drop": True,
+                "latex": "c_2",
+            }
             scf_c3 = {
-                "prior": {"dist": "loguniform", "a": 1e-6, "b": 1e4},
+                "value": 0.0,
                 "drop": True,
                 "latex": "c_3",
             }
             scf_c4 = {"value": 0.0, "drop": True, "latex": "c_4"}
-        elif potential in ("cosine",):
+        elif potential == "cosine":
             scf_c1 = {"value": 1e-7, "drop": True, "latex": "c_1"}
             scf_c2 = {
                 "prior": {"min": 0.0, "max": 6.2832},
@@ -779,52 +662,53 @@ def create_cobaya_yaml(
             }
             scf_c3 = {"value": 0.0, "drop": True, "latex": "c_3"}
             scf_c4 = {"value": 0.0, "drop": True, "latex": "c_4"}
-        elif potential in ("hyperbolic",):
-            scf_c1 = {"value": 1e-7, "drop": True, "latex": "c_1"}
+        elif potential == "hyperbolic":
+            scf_c1 = {"value": 1e-8, "drop": True, "latex": "c_1"}
             scf_c2 = {
-                "prior": {"min": 0.0, "max": 1e12},
+                "prior": {"min": -18, "max": 18},
+                "ref": {"dist": "norm", "loc": 0, "scale": 3},
                 "drop": True,
                 "latex": "c_2",
-                "ref": {"dist": "norm", "loc": 0.98, "scale": 0.77},
             }
             scf_c3 = {"value": 0.0, "drop": True, "latex": "c_3"}
             scf_c4 = {"value": 0.0, "drop": True, "latex": "c_4"}
-        elif potential in ("pNG",):
+        elif potential == "pNG":
             scf_c1 = {"value": 1e-1, "drop": True, "latex": "c_1"}
             scf_c2 = {
-                "prior": {"dist": "loguniform", "a": 1e-6, "b": 1e1},
+                "prior": {"min": 0.05, "max": 10.0},
+                "ref": {"dist": "norm", "loc": 1, "scale": 2},
                 "drop": True,
                 "latex": "c_2",
             }
             scf_c3 = {"value": 0.0, "drop": True, "latex": "c_3"}
             scf_c4 = {"value": 0.0, "drop": True, "latex": "c_4"}
-        elif potential in ("iPL",):
+        elif potential == "exponential":
+            scf_c1 = {"value": 1e-7, "drop": True, "latex": "c_1"}
+            scf_c2 = {
+                "prior": {"dist": "loguniform", "a": 1e-3, "b": 1e1},
+                "ref": {"dist": "norm", "loc": 1, "scale": 0.5},
+                "drop": True,
+                "latex": "c_2",
+            }
+            scf_c3 = {"value": 0.0, "drop": True, "latex": "c_3"}
+            scf_c4 = {"value": 0.0, "drop": True, "latex": "c_4"}
+        elif potential == "SqE":
+            # SqE: c1 is determined by shooting (log-space, now enabled in input.c).
+            # No need to sample scf_c1_exp — fix c1 as initial guess for the shooter.
             scf_c1 = {"value": 1e-2, "drop": True, "latex": "c_1"}
-            scf_c2 = {"prior": {"min": 0.0, "max": 4.0}, "drop": True, "latex": "c_2"}
-            scf_c3 = {"value": 0.0, "drop": True, "latex": "c_3"}
-            scf_c4 = {"value": 0.0, "drop": True, "latex": "c_4"}
-        elif potential in ("exponential",):
-            scf_c1 = {"value": 1e-7, "drop": True, "latex": "c_1"}
             scf_c2 = {
-                "prior": {"dist": "loguniform", "a": 1e-2, "b": 1e1},
+                "prior": {"min": -4.0, "max": 4.0},
+                "ref": {"dist": "norm", "loc": 1, "scale": 1},
                 "drop": True,
                 "latex": "c_2",
             }
             scf_c3 = {"value": 0.0, "drop": True, "latex": "c_3"}
             scf_c4 = {"value": 0.0, "drop": True, "latex": "c_4"}
-        elif potential in ("SqE",):
-            scf_c1 = {
-                "prior": {"dist": "loguniform", "a": 1e-10, "b": 1e1},
-                "drop": True,
-                "latex": "c_1",
-            }
-            scf_c2 = {"prior": {"min": -4.0, "max": 4.0}, "drop": True, "latex": "c_2"}
-            scf_c3 = {"value": 0.0, "drop": True, "latex": "c_3"}
-            scf_c4 = {"value": 0.0, "drop": True, "latex": "c_4"}
-        elif potential in ("Bean",):
+        elif potential in ("Bean", "BeanSingleWell"):
+            # Bean single-well (c2 > 0): smooth positive-definite potential
             scf_c1 = {"value": 1e-7, "drop": True, "latex": "c_1"}
             scf_c2 = {
-                "prior": {"dist": "loguniform", "a": 1e-24, "b": 1e6},
+                "prior": {"dist": "loguniform", "a": 1e-6, "b": 1e3},
                 "drop": True,
                 "latex": "c_2",
             }
@@ -834,29 +718,75 @@ def create_cobaya_yaml(
                 "latex": "c_3",
             }
             scf_c4 = {"prior": {"min": 0.0, "max": 4.0}, "drop": True, "latex": "c_4"}
-        elif potential in ("DoubleExp",):
+        elif potential == "BeanAdS":
+            # Bean double-well (c2 < 0): AdS-like vacuum, barrier crossing
             scf_c1 = {"value": 1e-7, "drop": True, "latex": "c_1"}
             scf_c2 = {
-                "prior": {"min": 0.0, "max": 500},
+                "prior": {"min": -100.0, "max": 0.0},
+                "ref": {"dist": "norm", "loc": -1, "scale": 5},
                 "drop": True,
                 "latex": "c_2",
-                "ref": {"dist": "uniform", "min": 198.0, "max": 500.0},
             }
             scf_c3 = {
-                "prior": {"min": 0.0, "max": 10.0},
+                "prior": {"dist": "loguniform", "a": 1e-2, "b": 1e1},
                 "drop": True,
                 "latex": "c_3",
-                "ref": {"dist": "uniform", "min": 0.0, "max": 4.96},
             }
+            scf_c4 = {"prior": {"min": -4.0, "max": 4.0}, "drop": True, "latex": "c_4"}
+        elif potential == "DoubleExp":
+            # DoubleExp: V = c1*(exp(-c2*phi) + c3*exp(-c4*phi))
+            # c3 fixed to 1: shift phi -> phi+delta absorbs c3 into c1 (shooter handles).
+            # Coupling m(c_DM*phi) breaks the shift for non-zero c_DM, but the
+            # remaining parameters (c2, c4, c_DM, phi_ini) are over-complete
+            # for the ~2-3 observable modes — no distinguishable physics is lost.
+            # c2 >= 0 breaks the sign-flip symmetry (c2,c4) <-> (-c2,-c4).
+            # Exchange symmetry (c2,c4) <-> (c4,c2) broken by prior constraint
+            # c4 >= c2 (when c4 >= 0); c4 < 0 is freely allowed (mixed regime).
+            scf_c1 = {"value": 1e-7, "drop": True, "latex": "c_1"}
+            scf_c2 = {
+                "prior": {"min": 0.0, "max": 30.0},
+                "ref": {"dist": "norm", "loc": 5, "scale": 3},
+                "drop": True,
+                "latex": "c_2",
+            }
+            scf_c3 = {"value": 1.0, "drop": True, "latex": "c_3"}
             scf_c4 = {
-                "prior": {"min": 0.0, "max": 2.0},
+                "prior": {"min": -5.0, "max": 30.0},
+                "ref": {"dist": "norm", "loc": 1, "scale": 2},
                 "drop": True,
                 "latex": "c_4",
-                "ref": {"dist": "norm", "loc": 0.71, "scale": 0.26},
             }
         else:
             # Should not reach here due to validation, but provide defaults for type checker
             raise ValueError(f"Unknown potential: {potential}")
+
+        # Attractor-specific prior overrides: restrict parameter space to
+        # where a genuine tracking attractor exists (|lambda_eff| > 2).
+        if is_attractor:
+            if potential == "hyperbolic":
+                # lambda_eff = -c2, need |c2| > 2 for tracking attractor
+                attractor_prior = {
+                    "prior": {
+                        "hyperbolic_attractor": "lambda scf_c2: 0.0 if abs(scf_c2) > 2.0 else -np.inf"
+                    }
+                }
+            elif potential in ("Bean", "BeanSingleWell", "BeanAdS"):
+                # lambda_eff = -c3, need c3 > 2 for tracking attractor
+                # Override c3 lower bound from 0.01 to 2
+                scf_c3 = {
+                    "prior": {"dist": "loguniform", "a": 2, "b": 1e1},
+                    "drop": True,
+                    "latex": "c_3",
+                }
+            elif potential == "DoubleExp":
+                # lambda_eff = -min(c2, c4), need |min(c2, c4)| > 2
+                # With c2 >= 0: if c4 >= 0, min = c2, need c2 > 2.
+                # If c4 < 0, min = c4, need c4 < -2.
+                attractor_prior = {
+                    "prior": {
+                        "doubleexp_attractor": "lambda scf_c2, scf_c4: 0.0 if abs(min(scf_c2, scf_c4)) > 2.0 else -np.inf"
+                    }
+                }
 
         scf_q1: dict[str, Any]
         scf_q2: dict[str, Any]
@@ -903,69 +833,132 @@ def create_cobaya_yaml(
 
         scf_phi_ini: dict[str, Any]
         scf_phi_prime_ini: dict[str, Any]
-        if attractor in ("yes", "Yes", "YES"):
+        if is_attractor:
             scf_phi_ini = {"value": 0.001, "drop": True, "latex": "\\phi_\\mathrm{ini}"}
             scf_phi_prime_ini = {
                 "value": 0.1,
                 "drop": True,
                 "latex": "\\phi\\prime_\\mathrm{ini}",
             }
-        else:  # attractor in ("no", "No", "NO")
-            scf_phi_ini = {
-                "prior": {"dist": "loguniform", "a": 1e-12, "b": 1e3},
-                "drop": True,
-                "latex": "\\phi_\\mathrm{ini}",
+            cdm_c = {
+                "prior": {"min": -18, "max": 18},
+                "ref": {"dist": "norm", "loc": 0, "scale": 3},
+                "latex": "c_\\mathrm{DM}",
+            }
+        else:  # non-attractor initial conditions
+            # phi'_ini is irrelevant: Hubble friction damps it by a^{-2}
+            # from a_ini ~ 1e-16, so any initial velocity is erased long
+            # before dark energy matters. Fix phi'_ini = 0.
+            cdm_c = {
+                "prior": {"min": -18, "max": 18},
+                "ref": {"dist": "norm", "loc": 0, "scale": 3},
+                "latex": "c_\\mathrm{DM}",
             }
             scf_phi_prime_ini = {
-                "prior": {"min": -10.0, "max": 10.0},
+                "value": 0.0,
                 "drop": True,
                 "latex": "\\phi\\prime_\\mathrm{ini}",
             }
+            if potential == "exponential":
+                scf_phi_ini = {
+                    "value": 0.0,  # fixing it to 0 allows shooting to determine the energy scale directly. From there, it exponentially decays.
+                    "drop": True,
+                    "latex": "\\phi_\\mathrm{ini}",
+                }
+            elif potential in ("power-law", "SqE"):
+                # Power-law / SqE: no shift symmetry.
+                # phi_ini matters because slow-roll parameters depend on
+                # c2 and phi independently. phi must be > 0
+                # (phi^c2 / phi^(-c2) undefined for phi<0 with non-integer c2).
+                scf_phi_ini = {
+                    "prior": {"dist": "loguniform", "a": 0.1, "b": 100.0},
+                    "ref": {"dist": "norm", "loc": 1, "scale": 0.5},
+                    "drop": True,
+                    "latex": "\\phi_\\mathrm{ini}",
+                }
+            elif potential in ("Bean", "BeanSingleWell"):
+                # Bean single-well: psi_ini = c3 * phi_ini normalizes to
+                # the exponential decay length, matching exploration of
+                # both the quadratic well and exponential tail for all c3.
+                psi_ini: dict[str, Any] = {
+                    "prior": {"min": -10.0, "max": 10.0},
+                    "ref": {"dist": "norm", "loc": 0, "scale": 2},
+                    "drop": True,
+                    "latex": "\\psi_\\mathrm{ini}",
+                }
+                scf_phi_ini = {
+                    "derived": "lambda psi_ini, scf_c3: psi_ini / scf_c3",
+                    "drop": True,
+                    "latex": "\\phi_\\mathrm{ini}",
+                }
+            elif potential == "BeanAdS":
+                # Bean double-well (AdS): sample phi_ini directly.
+                # The well feature at phi ~ c4 must be resolved, so
+                # the range is matched to the well width sqrt(|c2|) <= 10.
+                scf_phi_ini = {
+                    "prior": {"min": -10.0, "max": 10.0},
+                    "ref": {"dist": "norm", "loc": 0, "scale": 2},
+                    "drop": True,
+                    "latex": "\\phi_\\mathrm{ini}",
+                }
+            elif potential == "DoubleExp":
+                # DoubleExp: phi_ini sampled directly.
+                # Field rolls O(10) in Planck units during DE era;
+                # attractor-mode phi ~ 1e63 is irrelevant here.
+                scf_phi_ini = {
+                    "prior": {"min": -10.0, "max": 10.0},
+                    "ref": {"dist": "norm", "loc": 0, "scale": 2},
+                    "drop": True,
+                    "latex": "\\phi_\\mathrm{ini}",
+                }
+            else:
+                # Cosine, hyperbolic, pNG: shift symmetry absorbs phi_ini
+                scf_phi_ini = {
+                    "value": 1.0,
+                    "drop": True,
+                    "latex": "\\phi_\\mathrm{ini}",
+                }
 
-        parameters_iDM = {
-            "cdm_c": cdm_c,
-            "scf_c1": scf_c1,
-            "scf_c2": scf_c2,
-            "scf_c3": scf_c3,
-            "scf_c4": scf_c4,
-            "scf_q1": scf_q1,
-            "scf_q2": scf_q2,
-            "scf_q3": scf_q3,
-            "scf_q4": scf_q4,
-            "scf_exp1": scf_exp1,
-            "scf_exp2": scf_exp2,
-            "scf_phi_ini": scf_phi_ini,
-            "scf_phi_prime_ini": scf_phi_prime_ini,
-            "scf_parameters": {
+        # Build iDM parameter block
+        parameters_iDM_ordered: dict[str, Any] = {}
+        if not is_attractor:
+            if potential in ("Bean", "BeanSingleWell"):
+                parameters_iDM_ordered["psi_ini"] = psi_ini
+        parameters_iDM_ordered["cdm_c"] = cdm_c
+        parameters_iDM_ordered["scf_c1"] = scf_c1
+        parameters_iDM_ordered["scf_c2"] = scf_c2
+        parameters_iDM_ordered["scf_c3"] = scf_c3
+        parameters_iDM_ordered["scf_c4"] = scf_c4
+        parameters_iDM_ordered["scf_q1"] = scf_q1
+        parameters_iDM_ordered["scf_q2"] = scf_q2
+        parameters_iDM_ordered["scf_q3"] = scf_q3
+        parameters_iDM_ordered["scf_q4"] = scf_q4
+        parameters_iDM_ordered["scf_exp1"] = scf_exp1
+        parameters_iDM_ordered["scf_exp2"] = scf_exp2
+        parameters_iDM_ordered["scf_phi_ini"] = scf_phi_ini
+        parameters_iDM_ordered["scf_phi_prime_ini"] = scf_phi_prime_ini
+
+        # scf_parameters lambda: assembles the comma-separated string for CLASS.
+        # Default: uses scf_phi_ini directly. Override for Bean/BeanSingleWell IC
+        # where phi_ini = psi_ini / scf_c3 (reparametrized sampling).
+        if not is_attractor and potential in ("Bean", "BeanSingleWell"):
+            scf_parameters_entry: dict[str, Any] = {
+                "value": 'lambda scf_c1,scf_c2,scf_c3,scf_c4,scf_q1,scf_q2,scf_q3,scf_q4,scf_exp1,scf_exp2,psi_ini,scf_phi_prime_ini: ",".join([str(scf_c1),str(scf_c2),str(scf_c3),str(scf_c4),str(scf_q1),str(scf_q2),str(scf_q3),str(scf_q4),str(scf_exp1),str(scf_exp2),str(psi_ini/scf_c3),str(scf_phi_prime_ini)])',
+                "derived": False,
+            }
+        else:
+            scf_parameters_entry = {
                 "value": 'lambda scf_c1,scf_c2,scf_c3,scf_c4,scf_q1,scf_q2,scf_q3,scf_q4,scf_exp1,scf_exp2,scf_phi_ini,scf_phi_prime_ini: ",".join([str(scf_c1),str(scf_c2),str(scf_c3),str(scf_c4),str(scf_q1),str(scf_q2),str(scf_q3),str(scf_q4),str(scf_exp1),str(scf_exp2),str(scf_phi_ini),str(scf_phi_prime_ini)])',
                 "derived": False,
-            },
+            }
+        parameters_iDM_ordered["scf_parameters"] = scf_parameters_entry
+
+        parameters_iDM = {
+            **parameters_iDM_ordered,
             "Omega_fld": 0.00,
             "Omega_scf": {"value": -0.7, "latex": "\\Omega_\\phi"},
             "Omega_Lambda": {"value": 0.0, "latex": "\\Omega_\\Lambda"},
-            # Swampland parameters (derived from CLASS output)
-            "phi_ini_scf_ic": {"latex": "\\phi_{\\mathrm{ini}}"},
-            "phi_prime_scf_ic": {"latex": "\\phi^{\\prime}_{\\mathrm{ini}}"},
-            "phi_scf_min": {"latex": "\\phi_{\\mathrm{min}}"},
-            "phi_scf_max": {"latex": "\\phi_{\\mathrm{max}}"},
-            "phi_scf_range": {"latex": "\\Delta \\phi"},
-            "dV_V_scf_min": {"latex": "\\mathfrak{s}_{1,\\mathrm{min}}"},
-            "ddV_V_scf_max": {"latex": "-\\mathfrak{s}_{2,\\mathrm{max}}"},
-            "ddV_V_at_dV_V_min": {
-                "latex": "-\\mathfrak{s}_{2@\\mathfrak{s}_{1,\\mathrm{min}}}"
-            },
-            "dV_V_at_ddV_V_max": {
-                "latex": "\\mathfrak{s}_{1@\\mathfrak{s}_{2,\\mathrm{max}}}"
-            },
-            "swgc_expr_min": {"latex": "\\mathrm{SWGC}_\\phi"},
-            "sswgc_min": {"latex": "\\mathrm{SSWGC}_\\mathrm{DM}"},
-            "attractor_regime_scf": None,
-            "AdSDC2_max": {"latex": "m_\\mathrm{DM,min (no scale separation)}"},
-            "AdSDC4_max": {"latex": "m_\\mathrm{DM,min (scale separation)}"},
-            "combined_dSC_min": {
-                "latex": "\\mathrm{(FLB–SSWGC) combined dSC}_\\mathrm{min}"
-            },
-            "conformal_age": {"latex": "\\tau_0"},
+            **swampland_params,
         }
 
     # Combine all parameters
@@ -1015,8 +1008,10 @@ def create_cobaya_yaml(
             # Push a_ini earlier so Omega_r ≈ 1 even for large c2 (tracking solution)
             "a_ini_over_a_today_default": 1e-16,
             "scf_tuning_index": 0,
-            "scf_potential": potential,
-            "attractor_ic_scf": attractor,
+            "scf_potential": (
+                "Bean" if potential in ("BeanSingleWell", "BeanAdS") else potential
+            ),
+            "attractor_ic_scf": attractor.lower(),
         }
 
     if not skip_nonlinear_min_k_max:
@@ -1047,50 +1042,10 @@ def create_cobaya_yaml(
             "theory": {
                 "classy": {
                     "path": "/home/kl/kDrive/Sci/PhD/Research/HDM/class_public",
-                    "output_params": [
-                        "phi_ini_scf_ic",
-                        "phi_prime_scf_ic",
-                        "phi_scf_min",
-                        "phi_scf_max",
-                        "phi_scf_range",
-                        "dV_V_scf_min",
-                        "ddV_V_scf_max",
-                        "ddV_V_at_dV_V_min",
-                        "dV_V_at_ddV_V_max",
-                        "swgc_expr_min",
-                        "sswgc_min",
-                        "attractor_regime_scf",
-                        "AdSDC2_max",
-                        "AdSDC4_max",
-                        "combined_dSC_min",
-                        "conformal_age",
-                    ],
+                    "output_params": list(swampland_params.keys()),
                 },
             },
-            "params": {
-                "phi_ini_scf_ic": {"latex": "\\phi_{\\mathrm{ini}}"},
-                "phi_prime_scf_ic": {"latex": "\\phi^{\\prime}_{\\mathrm{ini}}"},
-                "phi_scf_min": {"latex": "\\phi_{\\mathrm{min}}"},
-                "phi_scf_max": {"latex": "\\phi_{\\mathrm{max}}"},
-                "phi_scf_range": {"latex": "\\Delta \\phi"},
-                "dV_V_scf_min": {"latex": "\\mathfrak{s}_{1,\\mathrm{min}}"},
-                "ddV_V_scf_max": {"latex": "-\\mathfrak{s}_{2,\\mathrm{max}}"},
-                "ddV_V_at_dV_V_min": {
-                    "latex": "-\\mathfrak{s}_{2@\\mathfrak{s}_{1,\\mathrm{min}}}"
-                },
-                "dV_V_at_ddV_V_max": {
-                    "latex": "\\mathfrak{s}_{1@\\mathfrak{s}_{2,\\mathrm{max}}}"
-                },
-                "swgc_expr_min": {"latex": "\\mathrm{SWGC}_\\phi"},
-                "sswgc_min": {"latex": "\\mathrm{SSWGC}_\\mathrm{DM}"},
-                "attractor_regime_scf": None,
-                "AdSDC2_max": {"latex": "m_\\mathrm{DM,min (no scale separation)}"},
-                "AdSDC4_max": {"latex": "m_\\mathrm{DM,min (scale separation)}"},
-                "combined_dSC_min": {
-                    "latex": "\\mathrm{(FLB--SSWGC) combined dSC}_\\mathrm{min}"
-                },
-                "conformal_age": {"latex": "\\tau_0"},
-            },
+            "params": swampland_params,
         },
     }
 
@@ -1124,6 +1079,23 @@ def create_cobaya_yaml(
         config.update(parameters)  # Add "params"
         if not is_lcdm and coupling == "coupled":
             config.update(scf_exp_f)  # Add constraint on scf_exp2 < scf_exp1 / 2
+        if not is_lcdm and attractor_prior:
+            # Merge attractor prior into existing prior block or create new one
+            if "prior" in config:
+                config["prior"].update(attractor_prior["prior"])
+            else:
+                config.update(attractor_prior)
+        if not is_lcdm and potential == "DoubleExp":
+            # Exchange symmetry constraint: (c2,c4) <-> (c4,c2) is exact.
+            # Break by requiring c4 >= c2 when both are non-negative.
+            # c4 < 0 (mixed-sign regime) is freely allowed.
+            doubleexp_exchange = {
+                "doubleexp_exchange": "lambda scf_c2, scf_c4: 0.0 if (scf_c4 < 0 or scf_c4 >= scf_c2) else -np.inf"
+            }
+            if "prior" in config:
+                config["prior"].update(doubleexp_exchange)
+            else:
+                config["prior"] = doubleexp_exchange
         config.update(theorycode)  # Add "theory"
 
     # Add packages_path at top level
@@ -1132,47 +1104,51 @@ def create_cobaya_yaml(
     return config
 
 
-configuration = create_cobaya_yaml(sampler, likelihood, potential, attractor, coupling)
+# Determine which variants to generate
+# 'Bean' generates both single-well (Bean) and double-well (BeanAdS) configs
+_variants: list[str] = ["Bean", "BeanAdS"] if potential == "Bean" else [potential]
+_filenames: list[str] = []
 
-# Compute flags for filename generation
-is_lcdm: bool = potential == "LCDM"  # type: ignore[comparison-overlap]
-is_postprocessing_run: bool = sampler.startswith("post_")
+for _variant in _variants:
+    _config = create_cobaya_yaml(sampler, likelihood, _variant, attractor, coupling)
 
-# Generate filename using the new naming convention
-filename: str = (
-    build_filename_stem(potential, likelihood, attractor, coupling, sampler) + ".yml"
-)
+    _is_postprocessing_run: bool = sampler.startswith("post_")
 
-# Specify the output path in the YAML file
-# For post-processing runs (Run 3 or post_* samplers), output is already set in the config
-if likelihood != "Run3_Planck_PP_SH0ES_DESIDR2" and not is_postprocessing_run:  # type: ignore[comparison-overlap]
-    output_stem = build_chain_output_stem(
-        potential, likelihood, attractor, coupling, sampler
+    _filename: str = (
+        build_filename_stem(_variant, likelihood, attractor, coupling, sampler) + ".yml"
     )
-    configuration["output"] = "/project/home/p201176/" + output_stem
+    _filenames.append(_filename)
 
-# Writing nested data to a YAML file
-yaml_path = f"Cobaya/MCMC/{filename}"
-try:
-    with open(yaml_path, "w") as file:
-        yaml.dump(configuration, file)  # type: ignore[misc]
+    # Specify the output path in the YAML file
+    # For post-processing runs (Run 3 or post_* samplers), output is already set in the config
+    if likelihood != "Run3_Planck_PP_SH0ES_DESIDR2" and not _is_postprocessing_run:
+        _output_stem = build_chain_output_stem(
+            _variant, likelihood, attractor, coupling, sampler
+        )
+        _config["output"] = "/project/home/p201176/" + _output_stem
 
-    # Post-process to use bracket notation for z and R lists (used by sigma_R())
-    # Standard YAML serializes lists with dashes, but these need inline bracket notation
-    with open(yaml_path, "r") as file:
-        content = file.read()
-    content = re.sub(r"(\s+)z:\s*\n\s*-\s*([0-9.]+)", r"\1z: [\2]", content)
-    content = re.sub(r"(\s+)R:\s*\n\s*-\s*([0-9.]+)", r"\1R: [\2]", content)
-    with open(yaml_path, "w") as file:
-        file.write(content)
-except IOError as e:
-    print(f"Error handling YAML file: {e}")
-    raise
-except Exception as e:
-    print(f"Unexpected error during YAML processing: {e}")
-    raise
+    # Writing nested data to a YAML file
+    _yaml_path = f"Cobaya/MCMC/{_filename}"
+    try:
+        with open(_yaml_path, "w") as file:
+            yaml.dump(_config, file)  # type: ignore[misc]
 
-print(f"cobaya configuration has been written to '{yaml_path}'")
+        # Post-process to use bracket notation for z and R lists (used by sigma_R())
+        # Standard YAML serializes lists with dashes, but these need inline bracket notation
+        with open(_yaml_path, "r") as file:
+            content = file.read()
+        content = re.sub(r"(\s+)z:\s*\n\s*-\s*([0-9.]+)", r"\1z: [\2]", content)
+        content = re.sub(r"(\s+)R:\s*\n\s*-\s*([0-9.]+)", r"\1R: [\2]", content)
+        with open(_yaml_path, "w") as file:
+            file.write(content)
+    except IOError as e:
+        print(f"Error handling YAML file: {e}")
+        raise
+    except Exception as e:
+        print(f"Unexpected error during YAML processing: {e}")
+        raise
+
+    print(f"cobaya configuration has been written to '{_yaml_path}'")
 
 # Now, we create the bash script to run the cobaya test job on the cluster and save it as test_<filename>.sh
 
@@ -1236,9 +1212,9 @@ def create_slurm_test_script(
 ## Load software environment
 module load Python foss
 #Activate Python virtual environment
-source my_foss-env/bin/activate
+source my_2025-env/bin/activate
 
-#iNumber of OpenMP threads
+# Number of OpenMP threads
 export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
 srun --cpus-per-task=$SLURM_CPUS_PER_TASK cobaya-run {yaml_full_path} --test --debug
 
@@ -1256,9 +1232,10 @@ sacct -j $SLURM_JOB_ID -o jobid,jobname,partition,account,state,consumedenergyra
     return script_filename
 
 
-# Create the SLURM test script
-slurm_script_filename: str = create_slurm_test_script(yaml_filename=filename)
-print(f"SLURM test script has been written to '{slurm_script_filename}'")
+# Create the SLURM test scripts
+for _filename in _filenames:
+    slurm_script_filename: str = create_slurm_test_script(yaml_filename=_filename)
+    print(f"SLURM test script has been written to '{slurm_script_filename}'")
 
 # Next, we create the SLURM production script to run the full Cobaya job on the cluster and save it as run_<filename>.sh
 
@@ -1324,9 +1301,9 @@ def create_slurm_run_script(
 ## Load software environment
 module load Python foss
 #Activate Python virtual environment
-source my_foss-env/bin/activate
+source my_2025-env/bin/activate
 
-#iNumber of OpenMP threads
+# Number of OpenMP threads
 export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
 
 # Retry logic for exit code 143 (SIGTERM)
@@ -1422,7 +1399,7 @@ def create_slurm_minimize_script(
 ## Load software environment
 module load Python foss
 #Activate Python virtual environment
-source my_foss-env/bin/activate
+source my_2025-env/bin/activate
 
 #Number of OpenMP threads
 export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
@@ -1444,10 +1421,13 @@ sacct -j $SLURM_JOB_ID -o jobid,jobname,partition,account,state,consumedenergyra
     return script_filename
 
 
-# Create the SLURM production run script (use minimize script for minimize sampler variants)
-slurm_run_script_filename: str
-if sampler.startswith("minimize_"):
-    slurm_run_script_filename = create_slurm_minimize_script(yaml_filename=filename)
-else:
-    slurm_run_script_filename = create_slurm_run_script(yaml_filename=filename)
-print(f"SLURM run script has been written to '{slurm_run_script_filename}'")
+# Create the SLURM production run scripts (use minimize script for minimize sampler variants)
+for _filename in _filenames:
+    slurm_run_script_filename: str
+    if sampler.startswith("minimize_"):
+        slurm_run_script_filename = create_slurm_minimize_script(
+            yaml_filename=_filename
+        )
+    else:
+        slurm_run_script_filename = create_slurm_run_script(yaml_filename=_filename)
+    print(f"SLURM run script has been written to '{slurm_run_script_filename}'")
