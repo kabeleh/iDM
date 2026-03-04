@@ -57,8 +57,8 @@ params:
   omega_b:
     latex: \Omega_\mathrm{b} h^2
     prior:
-      max: 0.03
-      min: 0.0075
+      max: 0.1
+      min: 0.005
     proposal: 0.0001
     ref:
       dist: norm
@@ -149,6 +149,16 @@ params:
   rs_d_h:
     latex: r_\mathrm{drag}
     derived: true
+  xi_ini:
+    prior:
+      min: 0.0
+      max: 1.5
+    ref:
+      dist: norm
+      loc: 0.5
+      scale: 0.3
+    drop: true
+    latex: \xi_\mathrm{ini}
   cdm_c:
     prior:
       min: -18
@@ -205,7 +215,7 @@ params:
     drop: true
     latex: \exp_2
   scf_phi_ini:
-    value: 1.0
+    derived: 'lambda xi_ini, scf_c2: xi_ini * scf_c2'
     drop: true
     latex: \phi_\mathrm{ini}
   scf_phi_prime_ini:
@@ -213,8 +223,8 @@ params:
     drop: true
     latex: \phi\prime_\mathrm{ini}
   scf_parameters:
-    value: 'lambda scf_c1,scf_c2,scf_c3,scf_c4,scf_q1,scf_q2,scf_q3,scf_q4,scf_exp1,scf_exp2,scf_phi_ini,scf_phi_prime_ini:
-      ",".join([str(scf_c1),str(scf_c2),str(scf_c3),str(scf_c4),str(scf_q1),str(scf_q2),str(scf_q3),str(scf_q4),str(scf_exp1),str(scf_exp2),str(scf_phi_ini),str(scf_phi_prime_ini)])'
+    value: 'lambda scf_c1,scf_c2,scf_c3,scf_c4,scf_q1,scf_q2,scf_q3,scf_q4,scf_exp1,scf_exp2,xi_ini,scf_phi_prime_ini:
+      ",".join([str(scf_c1),str(scf_c2),str(scf_c3),str(scf_c4),str(scf_q1),str(scf_q2),str(scf_q3),str(scf_q4),str(scf_exp1),str(scf_exp2),str(xi_ini*scf_c2),str(scf_phi_prime_ini)])'
     derived: false
   Omega_fld: 0.0
   Omega_scf:
@@ -260,8 +270,6 @@ theory:
       sBBN file: sBBN_2017.dat
       non linear: halofit
       model_cdm: i
-      tol_initial_Omega_r: 0.1
-      a_ini_over_a_today_default: 1e-16
       scf_tuning_index: 0
       scf_potential: pNG
       attractor_ic_scf: no

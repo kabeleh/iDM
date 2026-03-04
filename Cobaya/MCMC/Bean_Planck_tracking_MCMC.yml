@@ -3,78 +3,17 @@ sampler:
     covmat: auto
     drag: true
     oversample_power: 0.4
-    proposal_scale: 1.9
+    proposal_scale: 3.4
     Rminus1_stop: 0.02
     Rminus1_cl_stop: 0.2
     learn_proposal: true
     measure_speeds: true
     max_tries: .inf
 likelihood:
-  bao.desi_dr2:
-  sn.pantheonplusshoes:
   planck_2018_lowl.TT:
-  act_dr6_cmbonly.PlanckActCut:
-    package_install:
-      github_repository: ACTCollaboration/DR6-ACT-lite
-    dataset_params:
-      use_cl: tt te ee
-      lmin_cuts: 0 0 0
-      lmax_cuts: 1000 600 600
-    params:
-      A_planck:
-        prior:
-          min: 0.5
-          max: 1.5
-        ref:
-          dist: norm
-          loc: 1.0
-          scale: 0.1
-        latex: A_{\rm planck}
-        proposal: 0.003
-  act_dr6_cmbonly.ACTDR6CMBonly:
-    input_file: dr6_data_cmbonly.fits
-    lmax_theory: 9000
-    ell_cuts:
-      TT: [600, 8500]
-      TE: [600, 8500]
-      EE: [600, 8500]
-    stop_at_error: true
-    params:
-      A_act:
-        value: 'lambda A_planck: A_planck'
-        latex: A_{\rm ACT}
-      P_act:
-        prior:
-          min: 0.9
-          max: 1.1
-        ref:
-          dist: norm
-          loc: 1.0
-          scale: 0.01
-        proposal: 0.01
-        latex: p_{\rm ACT}
-  act_dr6_lenslike.ACTDR6LensLike:
-    package_install:
-      github_repository: ACTCollaboration/act_dr6_lenslike
-    lens_only: false
-    stop_at_error: true
-    lmax: 4000
-    variant: actplanck_baseline
-  spt3g_d1_tne:
-    package_install:
-      github_repository: SouthPoleTelescope/spt_candl_data
-    class: candl.interface.CandlCobayaLikelihood
-    additional_args: {}
-    clear_internal_priors: true
-    data_set_file: spt_candl_data.SPT3G_D1_TnE
-    variant: lite
-    feedback: true
-    wrapper:
-  muse3glike.cobaya.spt3g_2yr_delensed_ee_optimal_pp_muse:
-    package_install:
-      download_url: 
-        https://pole.uchicago.edu/public/data/ge25/muse_3g_like_march_2025.zip
-    components: [ϕϕ]
+  planck_2018_lowl.EE:
+  planck_2018_highl_plik.TTTEEE_lite_native:
+  planck_2018_lensing.native:
 params:
   logA:
     drop: true
@@ -118,8 +57,8 @@ params:
   omega_b:
     latex: \Omega_\mathrm{b} h^2
     prior:
-      max: 0.03
-      min: 0.0075
+      max: 0.1
+      min: 0.005
     proposal: 0.0001
     ref:
       dist: norm
@@ -212,8 +151,12 @@ params:
     derived: true
   cdm_c:
     prior:
-      min: -3
-      max: 3
+      min: -18
+      max: 18
+    ref:
+      dist: norm
+      loc: 0
+      scale: 3
     latex: c_\mathrm{DM}
   scf_c1:
     value: 1e-07
@@ -222,16 +165,21 @@ params:
   scf_c2:
     prior:
       dist: loguniform
-      a: 0.01
-      b: 10.0
+      a: 1e-06
+      b: 1000.0
     drop: true
     latex: c_2
   scf_c3:
-    value: 0.0
+    prior:
+      dist: loguniform
+      a: 2
+      b: 10.0
     drop: true
     latex: c_3
   scf_c4:
-    value: 0.0
+    prior:
+      min: 0.0
+      max: 4.0
     drop: true
     latex: c_4
   scf_q1:
@@ -302,22 +250,9 @@ params:
   AdSDC4_max:
     latex: m_\mathrm{DM,min (scale separation)}
   combined_dSC_min:
-    latex: \mathrm{(FLB–SSWGC) combined dSC}_\mathrm{min}
+    latex: \mathrm{(FLB--SSWGC) combined dSC}_\mathrm{min}
   conformal_age:
     latex: \tau_0
-  Tcal:
-    latex: T_{\rm cal}
-    prior:
-      dist: norm
-      loc: 1.0
-      scale: 0.0036
-    ref: 1.0
-  Ecal:
-    latex: E_{\rm cal}
-    prior:
-      max: 1.2
-      min: 0.8
-    ref: 1.0
 theory:
   classy:
     extra_args:
@@ -327,11 +262,9 @@ theory:
       sBBN file: sBBN_2017.dat
       non linear: halofit
       model_cdm: i
-      tol_initial_Omega_r: 0.1
-      a_ini_over_a_today_default: 1e-16
       scf_tuning_index: 0
-      scf_potential: exponential
+      scf_potential: Bean
       attractor_ic_scf: yes
-      nonlinear_min_k_max: 25
+    path: /home/users/u103677/iDM/
 packages_path: /home/users/u103677/cobaya_packages_2026
-output: /project/home/p201176/exponential_SPA_PP_S_D_tracking_MCMC
+output: /project/home/p201176/Bean_Planck_tracking_MCMC
