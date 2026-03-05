@@ -6577,6 +6577,7 @@ int input_default_params(struct background *pba,
   pba->Omega0_cdm = 0.1201075 / pow(pba->h, 2);
   pba->cdm_c = 0.0;
   pba->cdm_f_phi0 = 1.0;
+  pba->cdm_f_phi0_inv = 1.0;
 
   /** 5) ncdm sector */
   /** 5.a) Number of distinct species */

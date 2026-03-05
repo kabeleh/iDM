@@ -459,7 +459,12 @@ int background_functions(
     }
     else if (pba->model_cdm == 2) // Interacting DM model
     {
-      pvecback[pba->index_bg_rho_cdm] = pba->Omega0_cdm * H0_sq / a3 * (1.0 - tanh(pba->cdm_c * pvecback_B[pba->index_bi_phi_scf])) / 2.0 / pba->cdm_f_phi0; // KBL: f(phi)/f(phi_0) scaling so rho_cdm(a=1)=Omega0_cdm*H0^2. The prefactor (1-tanh(cx))/2 goes from 1 to 0 as phi increases.
+      /* rho_cdm = Omega0_CDM * H0^2 / a^3 * f(phi) / f(phi_0),
+       * where f(x) = 1/(1+exp(2*c*x)) == (1-tanh(c*x))/2
+       * (identity verified in Mathematica). Reason: 1-tanh(x) underflows for x > 19, while 1/(1+exp(2x)) does not. The renormalization by f(phi_0) ensures that rho_cdm(a=1) = Omega0_cdm * H0^2 exactly, which is important for the accuracy of the code and for the interpretation of Omega0_cdm as the CDM density today. The value of phi_0 is determined by convergence loop in background_solve() and stored in pba->cdm_f_phi0 (which is f(phi_0)).
+       * Using cdm_f_phi0_inv = 1/f(phi_0) = 1+exp(2*c*phi_0), precomputed once after renormalization, to avoid separate underflowing quantities.
+       * The ratio f(x)/f(x0)->1 for x,x0 both large */
+      pvecback[pba->index_bg_rho_cdm] = pba->Omega0_cdm * H0_sq / a3 * pba->cdm_f_phi0_inv / (1.0 + exp(2.0 * pba->cdm_c * pvecback_B[pba->index_bi_phi_scf]));
     }
     else // Standard CDM model
     {
@@ -551,13 +556,65 @@ int background_functions(
     rho_tot += pvecback[pba->index_bg_rho_scf];
     p_tot += pvecback[pba->index_bg_p_scf];
     dp_dloga += 0.0; /** <-- This depends on a_prime_over_a, so we cannot add it now! */
-    // KBL: Do NOT add scalar field to rho_m when it acts as dark energy (quintessence).
-    // The original CLASS code below splits scf into relativistic and non-relativistic parts,
-    // but this is incorrect for tracking quintessence models where the scf IS dark energy.
-    // Otherwise, Omega_scf is added 4 times to Omega_m, which yields roughly Omega_m=0.7*4=2.8 in MCMC as mean value. This is probably because DE is then dominating the entire energy budget.
-    // rho_r += 3. * pvecback[pba->index_bg_p_scf];                                   // field pressure contributes radiation
-    // rho_m += pvecback[pba->index_bg_rho_scf] - 3. * pvecback[pba->index_bg_p_scf]; // the rest contributes matter
-    // printf(" a= %e, Omega_scf = %f, \n ",a, pvecback[pba->index_bg_rho_scf]/rho_tot );
+
+    /** Decompose SCF energy into radiation-like and matter-like parts,
+     *  conditioned on the instantaneous equation of state w = p/rho.
+     *
+     *  Any species with 0 <= w <= 1/3 can be written as a non-negative
+     *  mixture of pure radiation (w = 1/3) and pure dust (w = 0):
+     *
+     *    rho = f_r * rho + f_m * rho,  with  f_r = 3w,  f_m = 1 - 3w,
+     *
+     *  i.e.  rho_r += 3p  and  rho_m += rho - 3p.
+     *
+     *  This is the same decomposition used for ncdm, which transitions
+     *  from ultra-relativistic (w ~ 1/3 => all radiation) to
+     *  non-relativistic (w ~ 0 => all matter) with f_r, f_m >= 0
+     *  throughout.
+     *
+     *  For a tracking quintessence SCF, the field evolves through four
+     *  regimes:
+     *    - Kinetic domination: w > 1/3 => ultra-stiff fluid, dilutes
+     *      faster than radiation (as a^{-3(1+w)}). Fully relativistic;
+     *      count all of rho_scf as radiation. The mixture basis cannot
+     *      represent w > 1/3 without f_m < 0.
+     *    - Tracking during RD: w ~ 1/3 => genuinely extra radiation,
+     *      correctly counted in Omega_r (affects Neff, a_eq, BBN).
+     *    - Tracking during MD: w ~ 0 => genuinely extra matter,
+     *      correctly counted in Omega_m.
+     *    - Dark energy phase:  w < 0 => potential-dominated. No ensemble
+     *      of physical particles can produce negative pressure; the
+     *      radiation-matter basis cannot represent this state with
+     *      non-negative mixing weights (f_r < 0). The field is dark
+     *      energy, like Lambda or fld, which also do not contribute to
+     *      rho_r or rho_m. Its density is captured by the residual
+     *      Omega_de = 1 - Omega_m - Omega_r - Omega_K.
+     *
+     *  All transitions are continuous at the boundaries:
+     *    - At w = 1/3: both branches give rho_r += rho_scf, rho_m += 0.
+     *    - At w = 0:   both branches give rho_r += 0, rho_m += rho_scf.
+     *
+     *  Without these conditionals, w ~ -1 gives rho_m += 4*rho_scf and
+     *  rho_r += -rho_scf, leading to Omega_m ~ 2.8 at z=0 (observed in
+     *  MCMC runs, commit ccd2f80f). Similarly, w > 1/3 gives rho_m < 0
+     *  and Omega_r > 1, breaking the tol_initial_Omega_r check.
+     * KBL
+     */
+    if (pvecback[pba->index_bg_p_scf] >= 0.)
+    {
+      if (3. * pvecback[pba->index_bg_p_scf] <= pvecback[pba->index_bg_rho_scf])
+      {
+        /* 0 <= w <= 1/3: smooth radiation-matter mixture */
+        rho_r += 3. * pvecback[pba->index_bg_p_scf];
+        rho_m += pvecback[pba->index_bg_rho_scf] - 3. * pvecback[pba->index_bg_p_scf];
+      }
+      else
+      {
+        /* w > 1/3: ultra-relativistic (stiff fluid), count as radiation */
+        rho_r += pvecback[pba->index_bg_rho_scf];
+      }
+    }
+    /* w < 0: dark energy — excluded from rho_r and rho_m */
   }
 
   /* ncdm */
@@ -950,6 +1007,17 @@ int background_init(
   class_call(background_solve(ppr, pba),
              pba->error_message,
              pba->error_message);
+
+  /** - defensive check: if attractor ICs were requested, the attractor
+   *  code must have selected a non-trivial regime (1,2,3,4).
+   *  regime=0 would mean no attractor was actually used, which
+   *  contradicts the user's intent and should never happen with
+   *  the current guards. */
+  // class_test(pba->attractor_ic_scf == _TRUE_ && pba->attractor_regime_scf == 0,
+  //            pba->error_message,
+  //            "attractor_ic_scf = yes but attractor_regime_scf = 0 "
+  //            "(no attractor was used). This should not happen — "
+  //            "please report this as a bug.");
 
   /** - find and store a few derived parameters at radiation-matter equality */
   class_call(background_find_equality(ppr, pba),
@@ -2181,6 +2249,8 @@ int background_solve(
   }
 
   /** - Self-consistent CDM renormalization loop for model_cdm == 2 (KBL)
+   * The relative energy density is given by rho/H0^2 (in CLASS units with 8piG=1 and the factor of 1/3 dropped for the density).
+   * To guarantee that Omega_m (a=1) has it's standard meaning, we need to make sure that rho_cdm(a=1) = Omega0_cdm * H0^2, which requires the renormalization factor f(phi_0) to be consistent with the integrated phi_0.
    *
    * The CDM density formula rho_cdm = Omega0_cdm * H0^2 / a^3 * f(phi) / f(phi_0)
    * requires f(phi_0) = [1 - tanh(c * phi(a=1))] / 2, which is only known after
@@ -2219,7 +2289,10 @@ int background_solve(
     /* When cdm_c == 0, f(phi) = (1-tanh(0))/2 = 0.5 for all phi,
        so f(phi_0) = 0.5 is known analytically — no iteration needed. */
     if (pba->model_cdm == 2 && pba->cdm_c == 0.0)
+    {
       pba->cdm_f_phi0 = 0.5;
+      pba->cdm_f_phi0_inv = 2.0;
+    }
 
     /* Save ICs for reset across convergence iterations */
     if (need_cdm_renorm)
@@ -2264,15 +2337,13 @@ int background_solve(
 
       {
         double phi_0 = pba->background_table[(pba->bt_size - 1) * pba->bg_size + pba->index_bg_phi_scf];
-        double c_phi_0 = pba->cdm_c * phi_0;
 
-        class_test(c_phi_0 > 18.0, pba->error_message,
-                   "CDM renormalization: c*phi_0 = %.2f > 18 — CDM mass suppressed by >10^16, "
-                   "indistinguishable from zero. Reduce cdm_c or constrain phi range. "
-                   "(phi_0=%.6e, c=%.6e)",
-                   c_phi_0, phi_0, pba->cdm_c);
-
-        double f_new = (1.0 - tanh(c_phi_0)) / 2.0; /* = G(f_cur) */
+        /* f(phi_0) = 1/(1+exp(2*c*phi_0)) == (1-tanh(c*phi_0))/2
+         * (identity verified in Mathematica).
+         * Using the exp form because (1-tanh)/2 underflows to 0 for c*phi_0 > 19
+         * in double precision, while 1/(1+exp) is accurate for c*phi_0 up to ~354. */
+        double exp_2c_phi0 = exp(2.0 * pba->cdm_c * phi_0);
+        double f_new = 1.0 / (1.0 + exp_2c_phi0); /* = G(f_cur) */
         double f_cur = pba->cdm_f_phi0;
         double R_cur = f_new - f_cur; /* residual R(f_cur) = G(f_cur) - f_cur */
 
@@ -2289,6 +2360,7 @@ int background_solve(
         if (rel_change < cdm_renorm_tol)
         {
           pba->cdm_f_phi0 = f_new;
+          pba->cdm_f_phi0_inv = 1.0 + exp_2c_phi0; /* = 1/f(phi_0), for the hot path */
           if (pba->background_verbose > 1)
             printf(" -> CDM renorm converged: %d iter, f=%.10e, phi_0=%.6e\n",
                    cdm_iter + 1, f_new, phi_0);
@@ -2345,6 +2417,7 @@ int background_solve(
           secant_R_prev = R_cur;
 
           pba->cdm_f_phi0 = f_next;
+          pba->cdm_f_phi0_inv = 1.0 / f_next;
         }
       }
     }
@@ -2500,15 +2573,18 @@ int background_solve(
       if (is_interacting_dm)
       {
         double c_times_phi_seed = dm_coupling_c * phi_seed;
-        double tanh_seed = tanh(c_times_phi_seed);
-        double cosh_seed = cosh(c_times_phi_seed);
+        double tanh_c_phi_seed = tanh(c_times_phi_seed);
+        double cosh_c_phi_seed = cosh(c_times_phi_seed);
         /** SSWGC expression: 2*c^2 * [4*(1+tanh(c*phi)) - sech^2(c*phi)] */
-        sswgc_running_min = 2.0 * dm_coupling_c * dm_coupling_c * (4.0 * (1.0 + tanh_seed) - 1.0 / (cosh_seed * cosh_seed));
+        sswgc_running_min = 2.0 * dm_coupling_c * dm_coupling_c * (4.0 * (1.0 + tanh_c_phi_seed) - 1.0 / (cosh_c_phi_seed * cosh_c_phi_seed));
         double abs_V_seed = fabs(V_seed);
         double sqrt_abs_V_seed = sqrt(abs_V_seed);
-        double one_minus_tanh_seed = 1.0 - tanh_seed;
-        AdSDC2_running_max = one_minus_tanh_seed / sqrt_abs_V_seed / 2.0;
-        AdSDC4_running_max = one_minus_tanh_seed / sqrt(sqrt_abs_V_seed) / 2.0;
+        /* f_cdm(phi) = 1/(1+exp(2*c*phi)) == (1-tanh(c*phi))/2
+         * (identity verified in Mathematica).
+         * Using the exp form to avoid catastrophic cancellation for large c*phi. */
+        double f_cdm_seed = 1.0 / (1.0 + exp(2.0 * c_times_phi_seed));
+        AdSDC2_running_max = f_cdm_seed / sqrt_abs_V_seed;
+        AdSDC4_running_max = f_cdm_seed / sqrt(sqrt_abs_V_seed);
       }
     }
 
@@ -2613,16 +2689,18 @@ int background_solve(
 
           double abs_V = fabs(V);
           double sqrt_abs_V = sqrt(abs_V);
-          /** 1 - tanh(c*phi): measure of distance from the AdS boundary */
-          double one_minus_tanh = 1.0 - tanh_c_phi;
+          /* f_cdm(phi) = 1/(1+exp(2*c*phi)) == (1-tanh(c*phi))/2
+           * (identity verified in Mathematica).
+           * Using the exp form to avoid catastrophic cancellation for large c*phi. */
+          double f_cdm = 1.0 / (1.0 + exp(2.0 * c_times_phi));
 
-          /** AdSDC boundary with exponent 1/2: (1-tanh(c*phi)) / |V|^{1/2} / 2 */
-          double AdSDC2_expr = one_minus_tanh / sqrt_abs_V / 2.0;
+          /** AdSDC boundary with exponent 1/2: f_cdm(phi) / |V|^{1/2} */
+          double AdSDC2_expr = f_cdm / sqrt_abs_V;
           if (AdSDC2_expr > AdSDC2_running_max)
             AdSDC2_running_max = AdSDC2_expr;
 
-          /** AdSDC boundary with exponent 1/4: (1-tanh(c*phi)) / |V|^{1/4} / 2 */
-          double AdSDC4_expr = one_minus_tanh / sqrt(sqrt_abs_V) / 2.0;
+          /** AdSDC boundary with exponent 1/4: f_cdm(phi) / |V|^{1/4} */
+          double AdSDC4_expr = f_cdm / sqrt(sqrt_abs_V);
           if (AdSDC4_expr > AdSDC4_running_max)
             AdSDC4_running_max = AdSDC4_expr;
         }
@@ -2956,23 +3034,23 @@ int background_initial_conditions(
         break;
       case 3: // hyperbolic
         scf_lambda = -c2;
-        if (1. <= 3. * scf_gamma / scf_lambda / scf_lambda) // KBL: No attractor solution exists, but we can assume Omega_scf is subdominant.
-        {
-          rho_tracking = 3. * rho_background * scf_gamma / (scf_lambda * scf_lambda);             // This assumes that Omega_scf will be subdominant.
-          pvecback_integration[pba->index_bi_phi_prime_scf] = a * sqrt(rho_tracking * scf_gamma); // This is the standard tracking solution
-          pvecback_integration[pba->index_bi_phi_scf] =
-              log(
-                  rho_tracking * (1. - omega_background) / (2. * c1)) /
-              scf_lambda;                // This is the small lambda approximation of the exponential function, which approximates the potential at small argument values.
-          pba->attractor_regime_scf = 0; // subdominant regime.
-          if (pba->background_verbose > 2)
-          {
-            printf("The condition for the existence of the attractor solution is: scf_lambda^2 > 3*scf_gamma. Here, scf_lambda^2 = %e and 3*scf_gamma = %e. The root would be negative.\nWe assign phi_ini_scf=%e and phi_prime_ini_scf=%e instead of a tracking solution.\n", scf_lambda * scf_lambda, 3. * scf_gamma, pvecback_integration[pba->index_bi_phi_scf], pvecback_integration[pba->index_bi_phi_prime_scf]);
-          }
-        }
-        else
+        /** Reject if no tracking attractor exists (lambda^2 <= 3*gamma implies Omega_scf >= 0.5. CLASS would reject it because radiation is not domiant enough.). */
+        class_test(1. <= 3. * scf_gamma / scf_lambda / scf_lambda,
+                   pba->error_message,
+                   "No tracking attractor exists for potential %d: "
+                   "|lambda| = %e < sqrt(3*gamma) = %.4f. "
+                   "Use non-tracking ICs (attractor_ic_scf = no) or increase |lambda|.",
+                   pba->scf_potential, fabs(scf_lambda), sqrt(3. * scf_gamma));
         {
           rho_tracking = rho_background * 3. * scf_gamma / (scf_lambda * scf_lambda) / (1. - 3. * scf_gamma / scf_lambda / scf_lambda);
+          /** The tracking fraction Omega_phi = 3*gamma/lambda^2 is an exact
+           *  (non-perturbative) solution of the full Friedmann + Klein-Gordon
+           *  system. It does not require subdominance. During RD the tracking
+           *  field has w = 1/3 and is correctly counted as radiation in
+           *  background_functions (conditional rho_r/rho_m decomposition),
+           *  so Omega_r ~ 1 at a_ini regardless of the tracking fraction.
+           *  The only physical constraint is lambda^2 > 3*gamma (attractor
+           *  existence), already checked above. */
           pvecback_integration[pba->index_bi_phi_prime_scf] = a * sqrt(rho_tracking * scf_gamma);
           // Under certain conditions, an attractor solution for large phi exists.
           if (c2 > 0.0 && (
@@ -3077,42 +3155,25 @@ int background_initial_conditions(
         /* KBL: For V = c1*exp(-c2*phi), every attractor IC branch computes
            phi = log(f(params)/c1)/(-c2), so V(phi_ini) = f(params) is
            independent of c1.  Shooting on c1 therefore sees a flat target
-           function (dOmega_scf/dc1 = 0) and cannot converge.  If the user
-           is shooting on c1 with attractor ICs, fall back to the
-           user-provided phi_ini/phi_prime_ini so that c1 remains visible
-           in V(phi_ini) = c1*exp(-c2*phi_ini). */
-        if (pba->scf_tuning_index == 0)
-        {
-          if (pba->background_verbose > 0)
-          {
-            printf("Exponential potential: attractor ICs cancel c1 from V(phi_ini). "
-                   "Since scf_tuning_index=0 (shooting on c1), falling back to "
-                   "user-provided phi_ini=%e, phi_prime_ini=%e.\n",
-                   pba->phi_ini_scf, pba->phi_prime_ini_scf);
-          }
-          pvecback_integration[pba->index_bi_phi_scf] = pba->phi_ini_scf;
-          pvecback_integration[pba->index_bi_phi_prime_scf] = pba->phi_prime_ini_scf;
-          pba->attractor_regime_scf = 0;
-          break;
-        }
+           function (dOmega_scf/dc1 = 0) and cannot converge. */
+        class_test(pba->scf_tuning_index == 0,
+                   pba->error_message,
+                   "Exponential potential (case 6) with attractor_ic_scf = yes: "
+                   "attractor ICs cancel c1 from V(phi_ini), so shooting on c1 "
+                   "(scf_tuning_index = 0) cannot converge. "
+                   "Either set attractor_ic_scf = no, or shoot on a different "
+                   "parameter (scf_tuning_index != 0).");
         scf_lambda = -c2;
-        if (1. <= 3. * scf_gamma / scf_lambda / scf_lambda) // KBL: No attractor solution exists, but we can assume Omega_scf is subdominant.
-        {
-          rho_tracking = 3. * rho_background * scf_gamma / (scf_lambda * scf_lambda);             // This assumes that Omega_scf will be subdominant.
-          pvecback_integration[pba->index_bi_phi_prime_scf] = a * sqrt(rho_tracking * scf_gamma); // This is the standard tracking solution
-          pvecback_integration[pba->index_bi_phi_scf] =
-              log(
-                  rho_tracking * (1. - omega_background) / (2. * c1)) /
-              scf_lambda;                // This is the small lambda approximation of the exponential function, which we assume to hold by continuation.
-          pba->attractor_regime_scf = 0; // subdominant regime.
-          if (pba->background_verbose > 2)
-          {
-            printf("The condition for the existence of the attractor solution is: scf_lambda^2 > 3*scf_gamma. Here, scf_lambda^2 = %e and 3*scf_gamma = %e. The root would be negative.\nWe assign phi_ini_scf=%e and phi_prime_ini_scf=%e instead of a tracking solution.\n", scf_lambda * scf_lambda, 3. * scf_gamma, pvecback_integration[pba->index_bi_phi_scf], pvecback_integration[pba->index_bi_phi_prime_scf]);
-          }
-        }
-        else
+        /** Reject if no tracking attractor exists (lambda^2 <= 3*gamma implies Omega_scf >= 0.5). */
+        class_test(1. <= 3. * scf_gamma / scf_lambda / scf_lambda,
+                   pba->error_message,
+                   "No tracking attractor exists for potential %d: "
+                   "|lambda| = %e < sqrt(3*gamma) = %.4f. "
+                   "Use non-tracking ICs (attractor_ic_scf = no) or increase |lambda|.",
+                   pba->scf_potential, fabs(scf_lambda), sqrt(3. * scf_gamma));
         {
           rho_tracking = rho_background * 3. * scf_gamma / (scf_lambda * scf_lambda) / (1. - 3. * scf_gamma / scf_lambda / scf_lambda);
+          /** See case 3 (hyperbolic) for why no subdominance check is needed. */
           pvecback_integration[pba->index_bi_phi_prime_scf] = a * sqrt(rho_tracking * scf_gamma);
           if (
               /* c1 > 0 branches */
@@ -3166,23 +3227,16 @@ int background_initial_conditions(
         break;
       case 8: // Bean
         scf_lambda = -c3;
-        if (1. <= 3. * scf_gamma / scf_lambda / scf_lambda) // KBL: No attractor solution exists, but we can assume Omega_scf is subdominant.
-        {
-          rho_tracking = 3. * rho_background * scf_gamma / (scf_lambda * scf_lambda);             // This assumes that Omega_scf will be subdominant.
-          pvecback_integration[pba->index_bi_phi_prime_scf] = a * sqrt(rho_tracking * scf_gamma); // This is the standard tracking solution
-          pvecback_integration[pba->index_bi_phi_scf] =
-              log(
-                  rho_tracking * (1. - omega_background) / (2. * c1)) /
-              scf_lambda;                // This is the small lambda approximation of the exponential function, which approximates the potential at small argument values.
-          pba->attractor_regime_scf = 0; // subdominant regime.
-          if (pba->background_verbose > 2)
-          {
-            printf("The condition for the existence of the attractor solution is: scf_lambda^2 > 3*scf_gamma. Here, scf_lambda^2 = %e and 3*scf_gamma = %e. The root would be negative.\nWe assign phi_ini_scf=%e and phi_prime_ini_scf=%e instead of a tracking solution.\n", scf_lambda * scf_lambda, 3. * scf_gamma, pvecback_integration[pba->index_bi_phi_scf], pvecback_integration[pba->index_bi_phi_prime_scf]);
-          }
-        }
-        else
+        /** Reject if no tracking attractor exists (lambda^2 <= 3*gamma implies Omega_scf >= 0.5). */
+        class_test(1. <= 3. * scf_gamma / scf_lambda / scf_lambda,
+                   pba->error_message,
+                   "No tracking attractor exists for potential %d: "
+                   "|lambda| = %e < sqrt(3*gamma) = %.4f. "
+                   "Use non-tracking ICs (attractor_ic_scf = no) or increase |lambda|.",
+                   pba->scf_potential, fabs(scf_lambda), sqrt(3. * scf_gamma));
         {
           rho_tracking = rho_background * 3. * scf_gamma / (scf_lambda * scf_lambda) / (1. - 3. * scf_gamma / scf_lambda / scf_lambda);
+          /** See case 3 (hyperbolic) for why no subdominance check is needed. */
           pvecback_integration[pba->index_bi_phi_prime_scf] = a * sqrt(rho_tracking * scf_gamma);
           // There is no analytic solution for the large-field attractor in this potential. It is approximated by the exponential potential attractor.
           if (
@@ -3238,23 +3292,16 @@ int background_initial_conditions(
           scf_lambda = -c4;
         else
           scf_lambda = -c2;
-        if (1. <= 3. * scf_gamma / scf_lambda / scf_lambda) // KBL: No attractor solution exists, but we can assume Omega_scf is subdominant.
-        {
-          rho_tracking = 3. * rho_background * scf_gamma / (scf_lambda * scf_lambda);             // This assumes that Omega_scf will be subdominant.
-          pvecback_integration[pba->index_bi_phi_prime_scf] = a * sqrt(rho_tracking * scf_gamma); // This is the standard tracking solution
-          pvecback_integration[pba->index_bi_phi_scf] =
-              log(
-                  rho_tracking * (1. - omega_background) / (2. * c1)) /
-              scf_lambda;                // This is the small lambda approximation of the exponential function, which approximates the potential at small argument values.
-          pba->attractor_regime_scf = 0; // subdominant regime.
-          if (pba->background_verbose > 2)
-          {
-            printf("The condition for the existence of the attractor solution is: scf_lambda^2 > 3*scf_gamma. Here, scf_lambda^2 = %e and 3*scf_gamma = %e. The root would be negative.\nWe assign phi_ini_scf=%e and phi_prime_ini_scf=%e instead of a tracking solution.\n", scf_lambda * scf_lambda, 3. * scf_gamma, pvecback_integration[pba->index_bi_phi_scf], pvecback_integration[pba->index_bi_phi_prime_scf]);
-          }
-        }
-        else
+        /** Reject if no tracking attractor exists (lambda^2 <= 3*gamma implies Omega_scf >= 0.5). */
+        class_test(1. <= 3. * scf_gamma / scf_lambda / scf_lambda,
+                   pba->error_message,
+                   "No tracking attractor exists for potential %d: "
+                   "|lambda| = %e < sqrt(3*gamma) = %.4f. "
+                   "Use non-tracking ICs (attractor_ic_scf = no) or increase |lambda|.",
+                   pba->scf_potential, fabs(scf_lambda), sqrt(3. * scf_gamma));
         {
           rho_tracking = rho_background * 3. * scf_gamma / (scf_lambda * scf_lambda) / (1. - 3. * scf_gamma / scf_lambda / scf_lambda);
+          /** See case 3 (hyperbolic) for why no subdominance check is needed. */
           pvecback_integration[pba->index_bi_phi_prime_scf] = a * sqrt(rho_tracking * scf_gamma);
           // There is no analytic solution for the large-field attractor in this potential. It is approximated by the single exponential potential attractor.
           if (
