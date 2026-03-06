@@ -3227,6 +3227,36 @@ int background_initial_conditions(
         break;
       case 8: // Bean
         scf_lambda = -c3;
+        /* KBL: Bean attractor ICs + shooting on c1 is non-viable, exactly
+           as for the exponential potential (case 6).
+
+           V_Bean = c1 * P(phi) * exp(-c3*phi),  P(phi) = (c4-phi)^2 + c2.
+
+           The attractor IC formula computes phi_ini = [ln(c1) + const] / c3,
+           so c1*exp(-c3*phi_ini) = rho_tracking / f  is c1-independent.
+           The only c1-dependence in V(phi_ini) comes through P(phi_ini),
+           which varies logarithmically (quadratic in ln(c1)/c3) — far too
+           weak for the bracket search to converge.
+
+           More fundamentally, the tracking solution fixes Omega_phi = 4/c3^2
+           during RD and 3/c3^2 during MD, both independent of c1.  The field
+           velocity on the attractor is also c1-independent, so the entire
+           trajectory phi(t) — including the exit from tracking near phi ~ c4
+           — depends only on (c2, c3, c4), never c1.  Shooting on c1 therefore
+           sees d(Omega_scf)/d(c1) = 0 and cannot converge.
+
+           Unlike the exponential, where one could in principle shoot on c2,
+           Bean's attractor slope lambda = -c3 means c3 determines both the
+           tracking fraction AND late-time dynamics simultaneously — there is
+           no free parameter to shoot on without destroying the attractor.
+           Use non-tracking ICs (attractor_ic_scf = no) instead. */
+        class_test(pba->scf_tuning_index == 0,
+                   pba->error_message,
+                   "Bean potential (case 8) with attractor_ic_scf = yes: "
+                   "attractor ICs make Omega_scf(today) independent of c1 "
+                   "(tracking trajectory depends only on c2, c3, c4). "
+                   "Shooting on c1 (scf_tuning_index = 0) cannot converge. "
+                   "Use non-tracking ICs (attractor_ic_scf = no) instead.");
         /** Reject if no tracking attractor exists (lambda^2 <= 3*gamma implies Omega_scf >= 0.5). */
         class_test(1. <= 3. * scf_gamma / scf_lambda / scf_lambda,
                    pba->error_message,

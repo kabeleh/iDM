@@ -123,11 +123,11 @@ def create_cobaya_yaml(
             Note: 'Run3_Planck_PP_SH0ES_DESIDR2' is a post-processing run that adds likelihoods to Run 1 chains.
     - potential (str): Model. Options: 'LCDM', 'power-law', 'cosine', 'hyperbolic', 'pNG', 'SqE', 'exponential', 'Bean', 'BeanSingleWell', 'BeanAdS', 'DoubleExp'.
       Note: 'LCDM' uses standard CLASS - attractor and coupling settings are ignored.
-      Note: 'power-law', 'cosine', 'pNG', 'exponential', 'SqE' do not support attractor initial conditions.
+      Note: 'power-law', 'cosine', 'pNG', 'exponential', 'SqE', 'Bean', 'BeanSingleWell', 'BeanAdS' do not support attractor initial conditions.
       Note: iPL (inverse power-law) is subsumed by 'power-law' with c2 in [-6, 6].
       Note: 'Bean' generates both single-well (c2>0) and double-well/AdS (c2<0) YAMLs. Use 'BeanSingleWell' or 'BeanAdS' to generate only one.
-      Note: Attractor runs restrict priors to the tracking-attractor domain (|lambda_eff|>2):
-            hyperbolic: |c2|>2, Bean/BeanAdS: c3 in [2,10], DoubleExp: |min(c2,c4)|>2.
+      Note: Attractor runs restrict priors to the tracking-attractor domain:
+            hyperbolic: |c2|>2, DoubleExp: |min(c2,c4)|>2.
     - attractor (str): Initial condition type. Options: 'yes'/'Yes'/'YES' (tracking), 'no'/'No'/'NO' (phi_ini).
       Ignored for 'LCDM' potential.
     - coupling (str): Coupling type. Options: 'uncoupled', 'coupled'.
@@ -206,9 +206,12 @@ def create_cobaya_yaml(
             "pNG",
             "exponential",
             "SqE",
+            "Bean",
+            "BeanSingleWell",
+            "BeanAdS",
         ):
             raise ValueError(
-                f"Attractor initial conditions are not implemented for potential '{potential}'"
+                f"Attractor initial conditions are not supported for potential '{potential}'. "
             )
 
     # Define samplers
@@ -757,14 +760,6 @@ def create_cobaya_yaml(
                     "prior": {
                         "hyperbolic_attractor": "lambda scf_c2: 0.0 if abs(scf_c2) > 2.0 else -np.inf"
                     }
-                }
-            elif potential in ("Bean", "BeanSingleWell", "BeanAdS"):
-                # lambda_eff = -c3, need c3 > 2 for tracking attractor
-                # Override c3 lower bound from 0.01 to 2
-                scf_c3 = {
-                    "prior": {"dist": "loguniform", "a": 2, "b": 1e1},
-                    "drop": True,
-                    "latex": "c_3",
                 }
             elif potential == "DoubleExp":
                 # lambda_eff = -min(c2, c4), need |min(c2, c4)| > 2
