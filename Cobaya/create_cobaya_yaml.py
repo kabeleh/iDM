@@ -576,6 +576,7 @@ def create_cobaya_yaml(
     scf_exp_f: dict[str, Any] = {}  # default: no extra prior
     attractor_prior: dict[str, Any] = {}  # default: no attractor constraint
     cdm_c_floor_prior: dict[str, Any] = {}  # default: no cdm_c floor
+    scf_c2_floor_prior: dict[str, Any] = {}  # default: no scf_c2 floor
 
     # Swampland derived parameters (shared between standard runs and post-processing)
     swampland_params: dict[str, Any] = {
@@ -601,6 +602,7 @@ def create_cobaya_yaml(
             "latex": "\\mathrm{(FLB--SSWGC) combined dSC}_\\mathrm{min}"
         },
         "conformal_age": {"latex": "\\tau_0"},
+        "cdm_f_phi0": {"latex": "f_\\mathrm{DM}(\\phi_0)"},
     }
 
     if not is_lcdm:
@@ -819,6 +821,11 @@ def create_cobaya_yaml(
 
         scf_phi_ini: dict[str, Any]
         scf_phi_prime_ini: dict[str, Any]
+        cdm_c = {
+            "prior": {"min": -18, "max": 18},
+            "ref": {"dist": "norm", "loc": 0, "scale": 3},
+            "latex": "c_\\mathrm{DM}",
+        }
         if is_attractor:
             scf_phi_ini = {"value": 0.001, "drop": True, "latex": "\\phi_\\mathrm{ini}"}
             scf_phi_prime_ini = {
@@ -826,20 +833,10 @@ def create_cobaya_yaml(
                 "drop": True,
                 "latex": "\\phi\\prime_\\mathrm{ini}",
             }
-            cdm_c = {
-                "prior": {"min": -18, "max": 18},
-                "ref": {"dist": "norm", "loc": 0, "scale": 3},
-                "latex": "c_\\mathrm{DM}",
-            }
         else:  # non-attractor initial conditions
             # phi'_ini is irrelevant: Hubble friction damps it by a^{-2}
             # from a_ini ~ 1e-14, so any initial velocity is erased long
             # before dark energy matters. Fix phi'_ini = 0.
-            cdm_c = {
-                "prior": {"min": -18, "max": 18},
-                "ref": {"dist": "norm", "loc": 0, "scale": 3},
-                "latex": "c_\\mathrm{DM}",
-            }
             scf_phi_prime_ini = {
                 "value": 0.0,
                 "drop": True,
@@ -910,7 +907,7 @@ def create_cobaya_yaml(
                 # Cosine: V = c1*cos(c2*phi).  V > 0 requires |c2*phi| < pi/2.
                 # The natural variable is xi_ini = c2 * phi_ini (argument
                 # of cosine).  Shooting fails around xi ~ 0.8 (V too small).
-                # xi_ini in [0, 0.5] covers up to ~3% Cl effect.
+                # xi_ini in [0, 0.7] covers up to ~3% Cl effect.
                 # V is even in phi; cdm_c in [-18,18] covers coupling sign.
                 # xi_ini dict is built in the "Build iDM parameter block" below.
                 scf_phi_ini = {
@@ -931,9 +928,28 @@ def create_cobaya_yaml(
                     "drop": True,
                     "latex": "\\phi_\\mathrm{ini}",
                 }
+            elif potential == "hyperbolic":
+                # Hyperbolic: V = c1*[1-tanh(c2*phi)].
+                # chi_ini = c2*phi_ini is the natural variable for the
+                # tanh transition, but coupling f(phi) depends on phi
+                # directly.  Sample chi_ini in [-5, 5] and derive phi.
+                scf_phi_ini = {
+                    "derived": "lambda chi_ini, scf_c2: chi_ini / scf_c2 if abs(scf_c2) > 1e-6 else 0.0",
+                    "drop": True,
+                    "latex": "\\phi_\\mathrm{ini}",
+                }
+                # Reject |scf_c2| < 1e-6 to match the chi_ini/scf_c2 guard.
+                # At |scf_c2| < 1e-6 the potential is constant (V = c1)
+                # and chi_ini is degenerate, creating a flat volume.
+                scf_c2_floor_prior = {
+                    "prior": {
+                        "scf_c2_floor": "lambda scf_c2: 0.0 if abs(scf_c2) > 1e-6 else -np.inf"
+                    }
+                }
             else:
-                # Hyperbolic: V = c1*[1-tanh(c2*phi)].  Sensitivity to
-                # phi_ini is < 0.002%; c2 carries all physics.  Fix phi=1.
+                # Fallback: fix phi_ini = 1.  All 9 potentials have
+                # explicit branches above; this only triggers if a new
+                # potential is added without defining its own IC.
                 scf_phi_ini = {
                     "value": 1.0,
                     "drop": True,
@@ -975,6 +991,14 @@ def create_cobaya_yaml(
                     "latex": "\\xi_\\mathrm{ini}",
                 }
                 parameters_iDM_ordered["xi_ini"] = xi_ini_pNG
+            elif potential == "hyperbolic":
+                chi_ini: dict[str, Any] = {
+                    "prior": {"min": -5.0, "max": 5.0},
+                    "ref": {"dist": "norm", "loc": 0, "scale": 1.5},
+                    "drop": True,
+                    "latex": "\\chi_\\mathrm{ini}",
+                }
+                parameters_iDM_ordered["chi_ini"] = chi_ini
         parameters_iDM_ordered["cdm_c"] = cdm_c
         parameters_iDM_ordered["scf_c1"] = scf_c1
         parameters_iDM_ordered["scf_c2"] = scf_c2
@@ -1014,6 +1038,12 @@ def create_cobaya_yaml(
             # pNG: phi_ini = xi_ini * scf_c2
             scf_parameters_entry = {
                 "value": 'lambda scf_c1,scf_c2,scf_c3,scf_c4,scf_q1,scf_q2,scf_q3,scf_q4,scf_exp1,scf_exp2,xi_ini,scf_phi_prime_ini: ",".join([str(scf_c1),str(scf_c2),str(scf_c3),str(scf_c4),str(scf_q1),str(scf_q2),str(scf_q3),str(scf_q4),str(scf_exp1),str(scf_exp2),str(xi_ini*scf_c2),str(scf_phi_prime_ini)])',
+                "derived": False,
+            }
+        elif not is_attractor and potential == "hyperbolic":
+            # Hyperbolic: phi_ini = chi_ini / scf_c2
+            scf_parameters_entry = {
+                "value": 'lambda scf_c1,scf_c2,scf_c3,scf_c4,scf_q1,scf_q2,scf_q3,scf_q4,scf_exp1,scf_exp2,chi_ini,scf_phi_prime_ini: ",".join([str(scf_c1),str(scf_c2),str(scf_c3),str(scf_c4),str(scf_q1),str(scf_q2),str(scf_q3),str(scf_q4),str(scf_exp1),str(scf_exp2),str(chi_ini/scf_c2 if abs(scf_c2)>1e-6 else 0.0),str(scf_phi_prime_ini)])',
                 "derived": False,
             }
         else:
@@ -1156,6 +1186,11 @@ def create_cobaya_yaml(
                 config["prior"].update(cdm_c_floor_prior["prior"])
             else:
                 config.update(cdm_c_floor_prior)
+        if not is_lcdm and scf_c2_floor_prior:
+            if "prior" in config:
+                config["prior"].update(scf_c2_floor_prior["prior"])
+            else:
+                config.update(scf_c2_floor_prior)
         if not is_lcdm and potential == "DoubleExp":
             # Exchange symmetry constraint: (c2,c4) <-> (c4,c2) is exact.
             # Break by requiring c4 >= c2 when both are non-negative.
