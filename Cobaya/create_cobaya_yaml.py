@@ -11,17 +11,6 @@ from ruamel.yaml import YAML
 from ruamel.yaml.comments import CommentedSeq
 import re
 
-# Specify the parameters
-sampler: str = "mcmc_fast"  # MCMC(_fast), minimizer_*, or Polychord
-likelihood: str = "CMB"  # likelihood combination
-potential: str = (
-    "DoubleExp"  # Options: 'LCDM', 'power-law', 'cosine', 'hyperbolic', 'pNG', 'SqE', 'exponential', 'Bean', 'BeanSingleWell', 'BeanAdS', 'DoubleExp'.
-)
-attractor: str = (
-    "yes"  # Scaling / Tracking / Attractor Solution to be used?; Ignored for LCDM
-)
-coupling: str = "uncoupled"  # Generalised Coupling to be used?; Ignored for LCDM
-
 yaml: YAML = YAML()
 # Configure YAML formatting: standard 2-space indentation for mappings and sequences
 # offset=2 ensures list items are indented from their parent key (output_params:\n  - item)
@@ -972,7 +961,7 @@ def create_cobaya_yaml(
                 parameters_iDM_ordered["psi_ini"] = psi_ini_exp
             elif potential == "cosine":
                 xi_ini_cos: dict[str, Any] = {
-                    "prior": {"min": 0.0, "max": 0.5},
+                    "prior": {"min": 0.0, "max": 0.7},
                     "ref": {"dist": "norm", "loc": 0.1, "scale": 0.1},
                     "drop": True,
                     "latex": "\\xi_\\mathrm{ini}",
@@ -1186,53 +1175,91 @@ def create_cobaya_yaml(
     return config
 
 
-# Determine which variants to generate
-# 'Bean' generates both single-well (Bean) and double-well (BeanAdS) configs
-_variants: list[str] = ["Bean", "BeanAdS"] if potential == "Bean" else [potential]
-_filenames: list[str] = []
+def main(
+    sampler: str = "mcmc_fast",
+    likelihood: str = "CMB",
+    potential: str = "DoubleExp",
+    attractor: str = "yes",
+    coupling: str = "uncoupled",
+) -> list[str]:
+    """
+    Generate Cobaya YAML configuration files and SLURM scripts.
 
-for _variant in _variants:
-    _config = create_cobaya_yaml(sampler, likelihood, _variant, attractor, coupling)
+    Parameters:
+        sampler: MCMC(_fast), minimizer_*, post_*, or Polychord.
+        likelihood: Likelihood combination (e.g. 'CMB', 'Run1_Planck_2018', etc.).
+        potential: Options: 'LCDM', 'power-law', 'cosine', 'hyperbolic', 'pNG',
+                   'SqE', 'exponential', 'Bean', 'BeanSingleWell', 'BeanAdS', 'DoubleExp'.
+        attractor: 'yes' or 'no'. Ignored for LCDM.
+        coupling: 'uncoupled' or 'coupled'. Ignored for LCDM.
 
-    _is_postprocessing_run: bool = sampler.startswith("post_")
+    Returns:
+        List of generated YAML filenames.
+    """
+    # Determine which variants to generate
+    # 'Bean' generates both single-well (Bean) and double-well (BeanAdS) configs
+    _variants: list[str] = ["Bean", "BeanAdS"] if potential == "Bean" else [potential]
+    _filenames: list[str] = []
 
-    _filename: str = (
-        build_filename_stem(_variant, likelihood, attractor, coupling, sampler) + ".yml"
-    )
-    _filenames.append(_filename)
+    for _variant in _variants:
+        _config = create_cobaya_yaml(sampler, likelihood, _variant, attractor, coupling)
 
-    # Specify the output path in the YAML file
-    # For post-processing runs (Run 3 or post_* samplers), output is already set in the config
-    if likelihood != "Run3_Planck_PP_SH0ES_DESIDR2" and not _is_postprocessing_run:
-        _output_stem = build_chain_output_stem(
-            _variant, likelihood, attractor, coupling, sampler
+        _is_postprocessing_run: bool = sampler.startswith("post_")
+
+        _filename: str = (
+            build_filename_stem(_variant, likelihood, attractor, coupling, sampler)
+            + ".yml"
         )
-        _config["output"] = "/project/home/p201176/" + _output_stem
+        _filenames.append(_filename)
 
-    # Writing nested data to a YAML file
-    _yaml_path = f"Cobaya/MCMC/{_filename}"
-    try:
-        with open(_yaml_path, "w") as file:
-            yaml.dump(_config, file)  # type: ignore[misc]
+        # Specify the output path in the YAML file
+        # For post-processing runs (Run 3 or post_* samplers), output is already set in the config
+        if likelihood != "Run3_Planck_PP_SH0ES_DESIDR2" and not _is_postprocessing_run:
+            _output_stem = build_chain_output_stem(
+                _variant, likelihood, attractor, coupling, sampler
+            )
+            _config["output"] = "/project/home/p201176/" + _output_stem
 
-        # Post-process to use bracket notation for z and R lists (used by sigma_R())
-        # Standard YAML serializes lists with dashes, but these need inline bracket notation
-        with open(_yaml_path, "r") as file:
-            content = file.read()
-        content = re.sub(r"(\s+)z:\s*\n\s*-\s*([0-9.]+)", r"\1z: [\2]", content)
-        content = re.sub(r"(\s+)R:\s*\n\s*-\s*([0-9.]+)", r"\1R: [\2]", content)
-        with open(_yaml_path, "w") as file:
-            file.write(content)
-    except IOError as e:
-        print(f"Error handling YAML file: {e}")
-        raise
-    except Exception as e:
-        print(f"Unexpected error during YAML processing: {e}")
-        raise
+        # Writing nested data to a YAML file
+        _yaml_path = f"Cobaya/MCMC/{_filename}"
+        try:
+            with open(_yaml_path, "w") as file:
+                yaml.dump(_config, file)  # type: ignore[misc]
 
-    print(f"cobaya configuration has been written to '{_yaml_path}'")
+            # Post-process to use bracket notation for z and R lists (used by sigma_R())
+            # Standard YAML serializes lists with dashes, but these need inline bracket notation
+            with open(_yaml_path, "r") as file:
+                content = file.read()
+            content = re.sub(r"(\s+)z:\s*\n\s*-\s*([0-9.]+)", r"\1z: [\2]", content)
+            content = re.sub(r"(\s+)R:\s*\n\s*-\s*([0-9.]+)", r"\1R: [\2]", content)
+            with open(_yaml_path, "w") as file:
+                file.write(content)
+        except IOError as e:
+            print(f"Error handling YAML file: {e}")
+            raise
+        except Exception as e:
+            print(f"Unexpected error during YAML processing: {e}")
+            raise
 
-# Now, we create the bash script to run the cobaya test job on the cluster and save it as test_<filename>.sh
+        print(f"cobaya configuration has been written to '{_yaml_path}'")
+
+    # Create the SLURM test scripts
+    for _filename in _filenames:
+        slurm_script_filename: str = create_slurm_test_script(yaml_filename=_filename)
+        print(f"SLURM test script has been written to '{slurm_script_filename}'")
+
+    # Create the SLURM production run scripts (use minimize script for minimize sampler variants)
+    for _filename in _filenames:
+        slurm_run_script_filename: str
+        if sampler.startswith("minimize_"):
+            slurm_run_script_filename = create_slurm_minimize_script(
+                yaml_filename=_filename
+            )
+        else:
+            slurm_run_script_filename = create_slurm_run_script(yaml_filename=_filename)
+        print(f"SLURM run script has been written to '{slurm_run_script_filename}'")
+
+    return _filenames
 
 
 def create_slurm_test_script(
@@ -1313,11 +1340,6 @@ sacct -j $SLURM_JOB_ID -o jobid,jobname,partition,account,state,consumedenergyra
 
     return script_filename
 
-
-# Create the SLURM test scripts
-for _filename in _filenames:
-    slurm_script_filename: str = create_slurm_test_script(yaml_filename=_filename)
-    print(f"SLURM test script has been written to '{slurm_script_filename}'")
 
 # Next, we create the SLURM production script to run the full Cobaya job on the cluster and save it as run_<filename>.sh
 
@@ -1503,13 +1525,5 @@ sacct -j $SLURM_JOB_ID -o jobid,jobname,partition,account,state,consumedenergyra
     return script_filename
 
 
-# Create the SLURM production run scripts (use minimize script for minimize sampler variants)
-for _filename in _filenames:
-    slurm_run_script_filename: str
-    if sampler.startswith("minimize_"):
-        slurm_run_script_filename = create_slurm_minimize_script(
-            yaml_filename=_filename
-        )
-    else:
-        slurm_run_script_filename = create_slurm_run_script(yaml_filename=_filename)
-    print(f"SLURM run script has been written to '{slurm_run_script_filename}'")
+if __name__ == "__main__":
+    main()
