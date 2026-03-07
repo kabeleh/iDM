@@ -114,6 +114,12 @@
 
 #include "background.h"
 
+/** KBL: Maximum derivative evaluations per background evolver call.
+ *  Normal background integration uses ~5000 fevals.  This limit catches
+ *  pathological stiffness (e.g. extreme scalar field parameters) that
+ *  would otherwise make the evolver loop indefinitely. */
+#define _BACKGROUND_MAX_FEVALS_ 100000
+
 /**
  * Background quantities at given redshift z.
  *
@@ -2312,6 +2318,9 @@ int background_solve(
         memcpy(pvecback_integration, pvecback_integration_saved,
                pba->bi_size * sizeof(double));
 
+      /* KBL: Reset derivative evaluation counter for stiffness detection */
+      bpaw.derivs_call_count = 0;
+
       class_call(generic_evolver(background_derivs,
                                  loga_ini,
                                  loga_final,
@@ -3799,6 +3808,15 @@ int background_derivs(
   pbpaw = parameters_and_workspace;
   pba = pbpaw->pba;
   pvecback = pbpaw->pvecback;
+
+  /** - KBL: check derivative evaluation budget (catches pathological stiffness) */
+  pbpaw->derivs_call_count++;
+  class_test(pbpaw->derivs_call_count > _BACKGROUND_MAX_FEVALS_,
+             error_message,
+             "Background integration exceeded %d derivative evaluations "
+             "(loga ~ %g). This indicates extreme stiffness, likely from "
+             "pathological scalar field parameters.",
+             _BACKGROUND_MAX_FEVALS_, loga);
 
   /** - scale factor a (in fact, given our normalisation conventions, this stands for a/a_0) */
   a = exp(loga);

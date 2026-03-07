@@ -59,6 +59,12 @@
 // #include "perturbations.h"
 #include "sparse.h"
 
+/** KBL: Safety limit on successful steps per evolver call.
+ *  The largest legitimate count observed is ~2.6M (perturbation modes
+ *  for stiff potentials).  30M gives ~20x headroom while preventing
+ *  truly infinite loops. */
+#define _NDF15_MAX_STEPS_ 60000000
+
 int evolver_ndf15(
     int (*derivs)(double x, double *y, double *dy,
                   void *parameters_and_workspace, ErrorMsg error_message),
@@ -331,9 +337,11 @@ int evolver_ndf15(
   at_hmin = _FALSE_;
   while (done == _FALSE_)
   {
-    /**class_test(stepstat[2] > 1e5, error_message,
-           "Too many steps in evolver! Current stepsize:%g, in interval: [%g:%g]\n",
-           absh,t0,tfinal);*/
+    // KBL: safety check to prevent infinite loops in pathological cases
+    class_test(stepstat[0] > _NDF15_MAX_STEPS_, error_message,
+               "ndf15: exceeded %d steps (fevals=%d) in interval [%g:%g], "
+               "current h=%g. The ODE system is too stiff to solve.",
+               _NDF15_MAX_STEPS_, stepstat[2], t0, tfinal, absh);
     maxtmp = MAX(hmin, absh);
     absh = MIN(hmax, maxtmp);
     if (fabs(absh - hmin) < 100 * eps)

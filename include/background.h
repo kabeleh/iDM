@@ -380,6 +380,9 @@ struct background_parameters_and_workspace
 
     /* workspace */
     double *pvecback;
+
+    /* KBL: derivative evaluation counter (reset before each evolver call) */
+    int derivs_call_count;
 };
 
 /**
