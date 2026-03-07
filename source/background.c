@@ -3256,9 +3256,13 @@ int background_initial_conditions(
 
            Unlike the exponential, where one could in principle shoot on c2,
            Bean's attractor slope lambda = -c3 means c3 determines both the
-           tracking fraction AND late-time dynamics simultaneously — there is
-           no free parameter to shoot on without destroying the attractor.
-           Use non-tracking ICs (attractor_ic_scf = no) instead. */
+           tracking fraction AND late-time dynamics simultaneously — shooting
+           on c3 would destroy the meaning of the tracking attractor.
+
+           However, shooting on c4 (scf_tuning_index = 3) IS feasible:
+           c4 is absent from the attractor IC formulas and controls only the
+           exit from tracking (where the polynomial bump is encountered).
+           This block only rejects scf_tuning_index = 0 (c1 shooting). */
         class_test(pba->scf_tuning_index == 0,
                    pba->error_message,
                    "Bean potential (case 8) with attractor_ic_scf = yes: "
@@ -3331,6 +3335,31 @@ int background_initial_conditions(
           scf_lambda = -c4;
         else
           scf_lambda = -c2;
+        /* KBL: DoubleExp attractor ICs + shooting on c1 is non-viable,
+           exactly as for the exponential (case 6) and Bean (case 8).
+
+           On the tracking attractor with lambda = min(c2, c4), the shallower
+           exponential dominates: V ~ c1 * exp(-lambda*phi).  The attractor IC
+           formula computes phi_ini = ln(c1 * f(lambda, gamma)) / lambda, so
+           c1 * exp(-lambda * phi_ini) = rho_tracking / g is c1-independent.
+           The steeper exponential is subdominant and its coefficient c3 is
+           already absorbed into c1*c3 above.  No late-time transition exists:
+           the field permanently tracks at Omega_phi = 3*gamma/lambda^2,
+           making the full trajectory and Omega_scf(today) c1-independent.
+
+           Unlike Bean (where c4 controls a late-time exit from tracking),
+           DoubleExp has no structural feature that breaks the c1-degeneracy.
+           Shooting on c2 or c4 (the slopes) is technically feasible but
+           physically equivalent to the pure exponential — the tracker has
+           w = w_bg at all times and never acts as dark energy.
+           Use non-tracking ICs (attractor_ic_scf = no) instead. */
+        class_test(pba->scf_tuning_index == 0,
+                   pba->error_message,
+                   "DoubleExp potential (case 9) with attractor_ic_scf = yes: "
+                   "attractor ICs make Omega_scf(today) independent of c1 "
+                   "(tracking trajectory depends only on c2, c3, c4). "
+                   "Shooting on c1 (scf_tuning_index = 0) cannot converge. "
+                   "Use non-tracking ICs (attractor_ic_scf = no) instead.");
         /** Reject if no tracking attractor exists (lambda^2 <= 3*gamma implies Omega_scf >= 0.5). */
         class_test(1. <= 3. * scf_gamma / scf_lambda / scf_lambda,
                    pba->error_message,

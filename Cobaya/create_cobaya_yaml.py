@@ -123,11 +123,11 @@ def create_cobaya_yaml(
             Note: 'Run3_Planck_PP_SH0ES_DESIDR2' is a post-processing run that adds likelihoods to Run 1 chains.
     - potential (str): Model. Options: 'LCDM', 'power-law', 'cosine', 'hyperbolic', 'pNG', 'SqE', 'exponential', 'Bean', 'BeanSingleWell', 'BeanAdS', 'DoubleExp'.
       Note: 'LCDM' uses standard CLASS - attractor and coupling settings are ignored.
-      Note: 'power-law', 'cosine', 'pNG', 'exponential', 'SqE', 'Bean', 'BeanSingleWell', 'BeanAdS' do not support attractor initial conditions.
+      Note: 'power-law', 'cosine', 'pNG', 'exponential', 'SqE', 'Bean', 'BeanSingleWell', 'BeanAdS', 'DoubleExp' do not support attractor initial conditions.
       Note: iPL (inverse power-law) is subsumed by 'power-law' with c2 in [-6, 6].
       Note: 'Bean' generates both single-well (c2>0) and double-well/AdS (c2<0) YAMLs. Use 'BeanSingleWell' or 'BeanAdS' to generate only one.
       Note: Attractor runs restrict priors to the tracking-attractor domain:
-            hyperbolic: |c2|>2, DoubleExp: |min(c2,c4)|>2.
+            hyperbolic: |c2|>2.
     - attractor (str): Initial condition type. Options: 'yes'/'Yes'/'YES' (tracking), 'no'/'No'/'NO' (phi_ini).
       Ignored for 'LCDM' potential.
     - coupling (str): Coupling type. Options: 'uncoupled', 'coupled'.
@@ -209,9 +209,13 @@ def create_cobaya_yaml(
             "Bean",
             "BeanSingleWell",
             "BeanAdS",
+            "DoubleExp",
         ):
             raise ValueError(
                 f"Attractor initial conditions are not supported for potential '{potential}'. "
+                "Either no attractor exists or tracking is degenerate with a single exponential "
+                "(c1 cancels from Omega_scf on the attractor). "
+                "Use attractor='no' with phi_ini sampling instead."
             )
 
     # Define samplers
@@ -761,15 +765,6 @@ def create_cobaya_yaml(
                         "hyperbolic_attractor": "lambda scf_c2: 0.0 if abs(scf_c2) > 2.0 else -np.inf"
                     }
                 }
-            elif potential == "DoubleExp":
-                # lambda_eff = -min(c2, c4), need |min(c2, c4)| > 2
-                # With c2 >= 0: if c4 >= 0, min = c2, need c2 > 2.
-                # If c4 < 0, min = c4, need c4 < -2.
-                attractor_prior = {
-                    "prior": {
-                        "doubleexp_attractor": "lambda scf_c2, scf_c4: 0.0 if abs(min(scf_c2, scf_c4)) > 2.0 else -np.inf"
-                    }
-                }
 
         scf_q1: dict[str, Any]
         scf_q2: dict[str, Any]
@@ -1209,7 +1204,7 @@ def main(
     sampler: str = "mcmc_fast",
     likelihood: str = "CMB",
     potential: str = "DoubleExp",
-    attractor: str = "yes",
+    attractor: str = "no",
     coupling: str = "uncoupled",
 ) -> list[str]:
     """
