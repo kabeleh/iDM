@@ -4564,6 +4564,7 @@ int input_prepare_pk_eq(struct precision *ppr,
     class_call_except(background_init(ppr, pba),
                       pba->error_message,
                       errmsg,
+                      background_free_noinput(pba);
                       pba->background_verbose = true_background_verbose;
                       pth->thermodynamics_verbose = true_thermodynamics_verbose;
                       pth->hyrec_verbose = true_hyrec_verbose;
@@ -4598,6 +4599,7 @@ int input_prepare_pk_eq(struct precision *ppr,
       class_call_except(background_init(ppr, pba),
                         pba->error_message,
                         errmsg,
+                        background_free_noinput(pba);
                         pba->background_verbose = true_background_verbose;
                         pth->thermodynamics_verbose = true_thermodynamics_verbose;
                         pth->hyrec_verbose = true_hyrec_verbose;

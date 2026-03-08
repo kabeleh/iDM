@@ -993,6 +993,18 @@ int background_init(
     printf("Computing background\n");
   }
 
+  /** - KBL: NULL-initialise table pointers so that background_free_noinput()
+   *    is safe to call at any point, even if background_solve is never
+   *    reached.  Handles both stack-garbage (shooting handler) and
+   *    dangling pointers (Pk_equal loop) */
+  pba->tau_table = NULL;
+  pba->z_table = NULL;
+  pba->loga_table = NULL;
+  pba->d2tau_dz2_table = NULL;
+  pba->d2z_dtau2_table = NULL;
+  pba->background_table = NULL;
+  pba->d2background_dloga2_table = NULL;
+
   /** - if shooting failed during input, catch the error here */
   class_test(pba->shooting_failed == _TRUE_,
              pba->error_message,
@@ -1068,6 +1080,7 @@ int background_free(
 /**
  * Free only the memory space NOT allocated through
  * input_read_parameters(), but through background_init()
+ * This frees the memory heap, but leaves the pointer still active, which we NULL to avoid dangling pointers and double frees. This is useful to be able to call background_free() at any point, even if background_solve() was never reached, which can happen if the shooting fails during input, or if we are in the Pk_equal loop where we call background_free() at each iteration but we never call background_init() after the first iteration.
  *
  * @param pba Input: pointer to background structure (to be freed)
  * @return the error status
@@ -1078,12 +1091,19 @@ int background_free_noinput(
 {
 
   free(pba->tau_table);
+  pba->tau_table = NULL;
   free(pba->z_table);
+  pba->z_table = NULL;
   free(pba->loga_table);
+  pba->loga_table = NULL;
   free(pba->d2tau_dz2_table);
+  pba->d2tau_dz2_table = NULL;
   free(pba->d2z_dtau2_table);
+  pba->d2z_dtau2_table = NULL;
   free(pba->background_table);
+  pba->background_table = NULL;
   free(pba->d2background_dloga2_table);
+  pba->d2background_dloga2_table = NULL;
 
   return _SUCCESS_;
 }
