@@ -3325,24 +3325,28 @@ int perturbations_solve(
       generic_evolver = evolver_ndf15;
     }
 
-    class_call(generic_evolver(perturbations_derivs,
-                               interval_limit[index_interval],
-                               interval_limit[index_interval + 1],
-                               ppw->pv->y,
-                               ppw->pv->used_in_sources,
-                               ppw->pv->pt_size,
-                               &ppaw,
-                               ppr->tol_perturbations_integration,
-                               ppr->smallest_allowed_variation,
-                               perturbations_timescale,
-                               ppr->perturbations_integration_stepsize,
-                               ppt->tau_sampling,
-                               tau_actual_size,
-                               perturbations_sources,
-                               perhaps_print_variables,
-                               ppt->error_message),
-               ppt->error_message,
-               ppt->error_message);
+    class_call_except(generic_evolver(perturbations_derivs,
+                                      interval_limit[index_interval],
+                                      interval_limit[index_interval + 1],
+                                      ppw->pv->y,
+                                      ppw->pv->used_in_sources,
+                                      ppw->pv->pt_size,
+                                      &ppaw,
+                                      ppr->tol_perturbations_integration,
+                                      ppr->smallest_allowed_variation,
+                                      perturbations_timescale,
+                                      ppr->perturbations_integration_stepsize,
+                                      ppt->tau_sampling,
+                                      tau_actual_size,
+                                      perturbations_sources,
+                                      perhaps_print_variables,
+                                      ppt->error_message),
+                      ppt->error_message,
+                      ppt->error_message,
+                      perturbations_vector_free(ppw->pv);
+                      for (int ii = 0; ii < interval_number; ii++) free(interval_approx[ii]);
+                      free(interval_approx);
+                      free(interval_limit));
   }
 
   /** - if perturbations were printed in a file, close the file */

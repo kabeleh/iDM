@@ -2180,6 +2180,16 @@ int background_solve(
   /* index of ncdm species */
   int n_ncdm;
 
+  /** - NULL-initialise table pointers so that background_free_noinput()
+   *    is safe to call at any point (free(NULL) is a no-op per C standard) */
+  pba->tau_table = NULL;
+  pba->z_table = NULL;
+  pba->loga_table = NULL;
+  pba->d2tau_dz2_table = NULL;
+  pba->d2z_dtau2_table = NULL;
+  pba->background_table = NULL;
+  pba->d2background_dloga2_table = NULL;
+
   /** - setup background workspace */
   bpaw.pba = pba;
   class_alloc(pvecback, pba->bg_size * sizeof(double), pba->error_message);
@@ -2321,24 +2331,26 @@ int background_solve(
       /* KBL: Reset derivative evaluation counter for stiffness detection */
       bpaw.derivs_call_count = 0;
 
-      class_call(generic_evolver(background_derivs,
-                                 loga_ini,
-                                 loga_final,
-                                 pvecback_integration,
-                                 used_in_output,
-                                 pba->bi_size,
-                                 &bpaw,
-                                 ppr->tol_background_integration,
-                                 ppr->smallest_allowed_variation,
-                                 background_timescale, //'evaluate_timescale', required by evolver_rk but not by ndf15
-                                 ppr->background_integration_stepsize,
-                                 pba->loga_table,
-                                 pba->bt_size,
-                                 background_sources,
-                                 NULL, //'print_variables' in evolver_rk could be set, but, not required
-                                 pba->error_message),
-                 pba->error_message,
-                 pba->error_message);
+      class_call_except(generic_evolver(background_derivs,
+                                        loga_ini,
+                                        loga_final,
+                                        pvecback_integration,
+                                        used_in_output,
+                                        pba->bi_size,
+                                        &bpaw,
+                                        ppr->tol_background_integration,
+                                        ppr->smallest_allowed_variation,
+                                        background_timescale, //'evaluate_timescale', required by evolver_rk but not by ndf15
+                                        ppr->background_integration_stepsize,
+                                        pba->loga_table,
+                                        pba->bt_size,
+                                        background_sources,
+                                        NULL, //'print_variables' in evolver_rk could be set, but, not required
+                                        pba->error_message),
+                        pba->error_message,
+                        pba->error_message,
+                        free(pvecback);
+                        free(pvecback_integration); free(used_in_output); free(pvecback_integration_saved));
 
       /* Convergence check for CDM renormalization */
       if (!need_cdm_renorm)
@@ -2737,35 +2749,41 @@ int background_solve(
   }
 
   /** - fill tables of second derivatives (in view of spline interpolation) */
-  class_call(array_spline_table_lines(pba->z_table,
-                                      pba->bt_size,
-                                      pba->tau_table,
-                                      1,
-                                      pba->d2tau_dz2_table,
-                                      _SPLINE_EST_DERIV_,
-                                      pba->error_message),
-             pba->error_message,
-             pba->error_message);
+  class_call_except(array_spline_table_lines(pba->z_table,
+                                             pba->bt_size,
+                                             pba->tau_table,
+                                             1,
+                                             pba->d2tau_dz2_table,
+                                             _SPLINE_EST_DERIV_,
+                                             pba->error_message),
+                    pba->error_message,
+                    pba->error_message,
+                    free(pvecback);
+                    free(pvecback_integration); free(used_in_output));
 
-  class_call(array_spline_table_lines(pba->tau_table,
-                                      pba->bt_size,
-                                      pba->z_table,
-                                      1,
-                                      pba->d2z_dtau2_table,
-                                      _SPLINE_EST_DERIV_,
-                                      pba->error_message),
-             pba->error_message,
-             pba->error_message);
+  class_call_except(array_spline_table_lines(pba->tau_table,
+                                             pba->bt_size,
+                                             pba->z_table,
+                                             1,
+                                             pba->d2z_dtau2_table,
+                                             _SPLINE_EST_DERIV_,
+                                             pba->error_message),
+                    pba->error_message,
+                    pba->error_message,
+                    free(pvecback);
+                    free(pvecback_integration); free(used_in_output));
 
-  class_call(array_spline_table_lines(pba->loga_table,
-                                      pba->bt_size,
-                                      pba->background_table,
-                                      pba->bg_size,
-                                      pba->d2background_dloga2_table,
-                                      _SPLINE_EST_DERIV_,
-                                      pba->error_message),
-             pba->error_message,
-             pba->error_message);
+  class_call_except(array_spline_table_lines(pba->loga_table,
+                                             pba->bt_size,
+                                             pba->background_table,
+                                             pba->bg_size,
+                                             pba->d2background_dloga2_table,
+                                             _SPLINE_EST_DERIV_,
+                                             pba->error_message),
+                    pba->error_message,
+                    pba->error_message,
+                    free(pvecback);
+                    free(pvecback_integration); free(used_in_output));
 
   /** - compute remaining "related parameters" */
 

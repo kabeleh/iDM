@@ -65,7 +65,7 @@
  *  truly infinite loops. */
 #define _NDF15_MAX_STEPS_ 60000000
 
-int evolver_ndf15(
+static int evolver_ndf15_inner(
     int (*derivs)(double x, double *y, double *dy,
                   void *parameters_and_workspace, ErrorMsg error_message),
     double x_ini,
@@ -87,7 +87,9 @@ int evolver_ndf15(
                   ErrorMsg error_message),
     int (*print_variables)(double x, double y[], double dy[], void *parameters_and_workspace,
                            ErrorMsg error_message),
-    ErrorMsg error_message)
+    ErrorMsg error_message,
+    /* Workspace passed by wrapper: */
+    void *buffer, struct jacobian *jac, struct numjac_workspace *nj_ws)
 {
 
   /* Constants: */
@@ -104,8 +106,6 @@ int evolver_ndf15(
   double *f0, *y, *wt, *ddfddt, *pred, *ynew, *invwt, *rhs, *psi, *difkp1, *del, *yinterp;
   double *tempvec1, *tempvec2, *ypinterp, *yppinterp;
   double **dif;
-  struct jacobian jac;
-  struct numjac_workspace nj_ws;
 
   /* Method variables: */
   double t, t0, tfinal, tnew = 0;
@@ -119,17 +119,7 @@ int evolver_ndf15(
   int verbose = 0;
   int funcreturn;
 
-  /** Allocate memory . */
-
-  void *buffer;
-  int buffer_size;
-
-  buffer_size =
-      15 * neqp * sizeof(double) + neqp * sizeof(double *) + (7 * neq + 1) * sizeof(double) + neqp * sizeof(int); /* int array last to preserve 8-byte alignment of double/double* */
-
-  class_alloc(buffer,
-              buffer_size,
-              error_message);
+  /** Set up workspace pointers from pre-allocated buffer. */
 
   f0 = (double *)buffer;
   wt = f0 + neqp;
@@ -188,12 +178,6 @@ int evolver_ndf15(
 
   /*Set pointers:*/
   ynew = y_inout - 1; /* This way y_inout is always up to date. */
-
-  /*Initialize the jacobian:*/
-  class_call(initialize_jacobian(&jac, neq, error_message), error_message, error_message);
-
-  /* Initialize workspace for numjac: */
-  class_call(initialize_numjac_workspace(&nj_ws, neq, error_message), error_message, error_message);
 
   /* Initialize some method parameters:*/
   for (ii = 0; ii < 5; ii++)
@@ -264,7 +248,7 @@ int evolver_ndf15(
   t = t0;
 
   nfenj = 0;
-  class_call(numjac((*derivs), t, y, f0, &jac, &nj_ws, abstol, neq,
+  class_call(numjac((*derivs), t, y, f0, jac, nj_ws, abstol, neq,
                     &nfenj, parameters_and_workspace_for_derivs, error_message),
              error_message, error_message);
   stepstat[3] += 1;
@@ -300,7 +284,7 @@ int evolver_ndf15(
     ddfddt[ii] = 0.0;
     for (jj = 1; jj <= neq; jj++)
     {
-      ddfddt[ii] += (jac.dfdy[ii][jj]) * f0[jj];
+      ddfddt[ii] += (jac->dfdy[ii][jj]) * f0[jj];
     }
   }
 
@@ -327,7 +311,7 @@ int evolver_ndf15(
 
   hinvGak = h * invGa[k - 1];
   nconhk = 0; /*steps taken with current h and k*/
-  class_call(new_linearisation(&jac, hinvGak, neq, error_message),
+  class_call(new_linearisation(jac, hinvGak, neq, error_message),
              error_message, error_message);
   stepstat[4] += 1;
   havrate = _FALSE_; /*false*/
@@ -370,7 +354,7 @@ int evolver_ndf15(
       adjust_stepsize(dif, (absh / abshlast), neq, k);
       hinvGak = h * invGa[k - 1];
       nconhk = 0;
-      class_call(new_linearisation(&jac, hinvGak, neq, error_message),
+      class_call(new_linearisation(jac, hinvGak, neq, error_message),
                  error_message, error_message);
       stepstat[4] += 1;
       havrate = _FALSE_;
@@ -440,16 +424,16 @@ int evolver_ndf15(
           }
 
           /*Solve the linear system A*x=del by using the LU decomposition stored in jac.*/
-          if (jac.use_sparse)
+          if (jac->use_sparse)
           {
-            funcreturn = sp_lusolve(jac.Numerical, rhs + 1, del + 1);
+            funcreturn = sp_lusolve(jac->Numerical, rhs + 1, del + 1);
             class_test(funcreturn == _FAILURE_, error_message,
                        "Failure in sp_lusolve. Possibly singular matrix!");
           }
           else
           {
             eqvec(rhs, del, neq);
-            funcreturn = lubksb(jac.LU, neq, jac.luidx, del);
+            funcreturn = lubksb(jac->LU, neq, jac->luidx, del);
             class_test(funcreturn == _FAILURE_, error_message,
                        "Failure in lubksb. Possibly singular matrix!");
           }
@@ -524,7 +508,7 @@ int evolver_ndf15(
             class_call((*derivs)(t, y + 1, f0 + 1, parameters_and_workspace_for_derivs, error_message),
                        error_message, error_message);
             nfenj = 0;
-            class_call(numjac((*derivs), t, y, f0, &jac, &nj_ws, abstol, neq,
+            class_call(numjac((*derivs), t, y, f0, jac, nj_ws, abstol, neq,
                               &nfenj, parameters_and_workspace_for_derivs, error_message),
                        error_message, error_message);
             stepstat[3] += 1;
@@ -548,7 +532,7 @@ int evolver_ndf15(
             nconhk = 0;
           }
           /* A new linearisation is needed in both cases */
-          class_call(new_linearisation(&jac, hinvGak, neq, error_message),
+          class_call(new_linearisation(jac, hinvGak, neq, error_message),
                      error_message, error_message);
           stepstat[4] += 1;
           havrate = _FALSE_;
@@ -606,7 +590,7 @@ int evolver_ndf15(
         adjust_stepsize(dif, (absh / abshlast), neq, k);
         hinvGak = h * invGa[k - 1];
         nconhk = 0;
-        class_call(new_linearisation(&jac, hinvGak, neq, error_message),
+        class_call(new_linearisation(jac, hinvGak, neq, error_message),
                    error_message, error_message);
         stepstat[4] += 1;
         havrate = _FALSE_;
@@ -783,35 +767,72 @@ int evolver_ndf15(
            stepstat[2], stepstat[3], stepstat[4], stepstat[5]);
   }
 
-  /** Deallocate memory */
-
-  free(buffer);
-
-  /*     free(f0); */
-  /*     free(wt); */
-  /*     free(ddfddt); */
-  /*     free(pred); */
-  /*     free(y); */
-  /*     free(invwt); */
-  /*     free(rhs); */
-  /*     free(psi); */
-  /*     free(difkp1); */
-  /*     free(del); */
-  /*     free(yinterp); */
-  /*     free(ypinterp); */
-  /*     free(yppinterp); */
-  /*     free(tempvec1); */
-  /*     free(tempvec2); */
-
-  /*     free(interpidx); */
-  /*     free(dif[1]); */
-  /*     free(dif); */
-
-  uninitialize_jacobian(&jac);
-  uninitialize_numjac_workspace(&nj_ws);
   return _SUCCESS_;
 
-} /*End of program*/
+} /* End of evolver_ndf15_inner */
+
+/** Wrapper: allocates workspace, calls inner, always deallocates. */
+int evolver_ndf15(
+    int (*derivs)(double x, double *y, double *dy,
+                  void *parameters_and_workspace, ErrorMsg error_message),
+    double x_ini,
+    double x_final,
+    double *y_inout,
+    int *used_in_output,
+    int neq,
+    void *parameters_and_workspace_for_derivs,
+    double rtol,
+    double minimum_variation,
+    int (*timescale_and_approximation)(double x,
+                                       void *parameters_and_workspace,
+                                       double *timescales,
+                                       ErrorMsg error_message),
+    double timestep_over_timescale,
+    double *t_vec,
+    int tres,
+    int (*output)(double x, double y[], double dy[], int index_x, void *parameters_and_workspace,
+                  ErrorMsg error_message),
+    int (*print_variables)(double x, double y[], double dy[], void *parameters_and_workspace,
+                           ErrorMsg error_message),
+    ErrorMsg error_message)
+{
+  void *buffer;
+  struct jacobian jac;
+  struct numjac_workspace nj_ws;
+  int neqp = neq + 1;
+  int buffer_size =
+      15 * neqp * sizeof(double) + neqp * sizeof(double *) + (7 * neq + 1) * sizeof(double) + neqp * sizeof(int);
+  int status;
+
+  class_alloc(buffer, buffer_size, error_message);
+
+  if (initialize_jacobian(&jac, neq, error_message) == _FAILURE_)
+  {
+    free(buffer);
+    return _FAILURE_;
+  }
+
+  if (initialize_numjac_workspace(&nj_ws, neq, error_message) == _FAILURE_)
+  {
+    uninitialize_jacobian(&jac);
+    free(buffer);
+    return _FAILURE_;
+  }
+
+  status = evolver_ndf15_inner(
+      derivs, x_ini, x_final, y_inout, used_in_output, neq,
+      parameters_and_workspace_for_derivs, rtol, minimum_variation,
+      timescale_and_approximation, timestep_over_timescale,
+      t_vec, tres, output, print_variables,
+      error_message,
+      buffer, &jac, &nj_ws);
+
+  free(buffer);
+  uninitialize_jacobian(&jac);
+  uninitialize_numjac_workspace(&nj_ws);
+
+  return status;
+}
 
 /**********************************************************************/
 /* Here are some small routines used in evolver_ndf15:                */

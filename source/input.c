@@ -1595,7 +1595,7 @@ int input_try_unknown_parameters(double *unknown_parameter,
     ba.background_verbose = 0;
 
     class_call_except(background_init(&pr, &ba), ba.error_message, errmsg,
-                      background_free_input(&ba);
+                      background_free(&ba);
                       thermodynamics_free_input(&th); perturbations_free_input(&pt););
 
     /* KBL: Show CDM renorm result during shooting so user sees progress */
@@ -4561,12 +4561,27 @@ int input_prepare_pk_eq(struct precision *ppr,
     /* get chi = (tau[z_i] - tau_rec) in true model */
     pba->w0_fld = true_w0_fld;
     pba->wa_fld = true_wa_fld;
-    class_call(background_init(ppr, pba),
-               pba->error_message,
-               errmsg);
-    class_call(thermodynamics_init(ppr, pba, pth),
-               pth->error_message,
-               errmsg);
+    class_call_except(background_init(ppr, pba),
+                      pba->error_message,
+                      errmsg,
+                      pba->background_verbose = true_background_verbose;
+                      pth->thermodynamics_verbose = true_thermodynamics_verbose;
+                      pth->hyrec_verbose = true_hyrec_verbose;
+                      pba->w0_fld = true_w0_fld;
+                      pba->wa_fld = true_wa_fld;
+                      free(z); free(pfo->pk_eq_tau);
+                      free(pfo->pk_eq_w_and_Omega); free(pfo->pk_eq_ddw_and_ddOmega));
+    class_call_except(thermodynamics_init(ppr, pba, pth),
+                      pth->error_message,
+                      errmsg,
+                      background_free_noinput(pba);
+                      pba->background_verbose = true_background_verbose;
+                      pth->thermodynamics_verbose = true_thermodynamics_verbose;
+                      pth->hyrec_verbose = true_hyrec_verbose;
+                      pba->w0_fld = true_w0_fld;
+                      pba->wa_fld = true_wa_fld;
+                      free(z); free(pfo->pk_eq_tau);
+                      free(pfo->pk_eq_w_and_Omega); free(pfo->pk_eq_ddw_and_ddOmega));
     delta_tau = pfo->pk_eq_tau[index_pk_eq_z] - pth->tau_rec;
     /* launch iterations in order to coverge to effective model with wa=0 but the same chi = (tau[z_i] - tau_rec) */
     pba->wa_fld = 0.;
@@ -4580,17 +4595,32 @@ int input_prepare_pk_eq(struct precision *ppr,
                  pth->error_message,
                  errmsg);
 
-      class_call(background_init(ppr, pba),
-                 pba->error_message,
-                 errmsg);
+      class_call_except(background_init(ppr, pba),
+                        pba->error_message,
+                        errmsg,
+                        pba->background_verbose = true_background_verbose;
+                        pth->thermodynamics_verbose = true_thermodynamics_verbose;
+                        pth->hyrec_verbose = true_hyrec_verbose;
+                        pba->w0_fld = true_w0_fld;
+                        pba->wa_fld = true_wa_fld;
+                        free(z); free(pfo->pk_eq_tau);
+                        free(pfo->pk_eq_w_and_Omega); free(pfo->pk_eq_ddw_and_ddOmega));
       class_call(background_tau_of_z(pba,
                                      z[index_pk_eq_z],
                                      &tau_of_z),
                  pba->error_message,
                  errmsg);
-      class_call(thermodynamics_init(ppr, pba, pth),
-                 pth->error_message,
-                 errmsg);
+      class_call_except(thermodynamics_init(ppr, pba, pth),
+                        pth->error_message,
+                        errmsg,
+                        background_free_noinput(pba);
+                        pba->background_verbose = true_background_verbose;
+                        pth->thermodynamics_verbose = true_thermodynamics_verbose;
+                        pth->hyrec_verbose = true_hyrec_verbose;
+                        pba->w0_fld = true_w0_fld;
+                        pba->wa_fld = true_wa_fld;
+                        free(z); free(pfo->pk_eq_tau);
+                        free(pfo->pk_eq_w_and_Omega); free(pfo->pk_eq_ddw_and_ddOmega));
 
       delta_tau_eq = tau_of_z - pth->tau_rec;
 
