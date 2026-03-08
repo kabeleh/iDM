@@ -26,3 +26,7 @@ classy.egg-info/SOURCES.txt
 classy.egg-info/PKG-INFO
 classy.egg-info/SOURCES.txt
 _classy.cpython-312-x86_64-linux-gnu.so
+assessment/
+baseline/*.dat
+baseline/*.npz
+baseline/*.npy
