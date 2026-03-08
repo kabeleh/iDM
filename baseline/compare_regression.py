@@ -256,7 +256,7 @@ def compare_dat_files(ref_path, test_path):
         results.append(
             {
                 "label": f"{name}",
-                "error": f"one file is header-only, other has data",
+                "error": "one file is header-only, other has data",
                 "pass": False,
                 "shape_a": ref_data.shape,
                 "shape_b": test_data.shape,
