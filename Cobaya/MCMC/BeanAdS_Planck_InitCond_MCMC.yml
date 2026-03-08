@@ -159,7 +159,9 @@ params:
       scale: 3
     latex: c_\mathrm{DM}
   scf_c1:
-    value: 1e-07
+    value: 'lambda scf_phi_ini, scf_c2, scf_c3, scf_c4: np.clip(1.037467682923965e-07
+      / (max(((scf_c4 - scf_phi_ini)**2 + scf_c2), 1e-30) * np.exp(np.clip(-scf_c3
+      * scf_phi_ini, -500, 500))), 1e-15, 1e5)'
     drop: true
     latex: c_1
   scf_c2:
@@ -262,6 +264,8 @@ params:
     latex: \mathrm{(FLB--SSWGC) combined dSC}_\mathrm{min}
   conformal_age:
     latex: \tau_0
+  cdm_f_phi0:
+    latex: f_\mathrm{DM}(\phi_0)
 theory:
   classy:
     extra_args:

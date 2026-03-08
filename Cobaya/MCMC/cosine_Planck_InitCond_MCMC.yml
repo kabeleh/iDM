@@ -152,7 +152,7 @@ params:
   xi_ini:
     prior:
       min: 0.0
-      max: 0.5
+      max: 0.7
     ref:
       dist: norm
       loc: 0.1
@@ -169,7 +169,8 @@ params:
       scale: 3
     latex: c_\mathrm{DM}
   scf_c1:
-    value: 1e-07
+    value: 'lambda xi_ini: 1.037467682923965e-07 / np.cos(xi_ini) if np.cos(xi_ini)
+      > 0.01 else 1e-7'
     drop: true
     latex: c_1
   scf_c2:
@@ -257,6 +258,8 @@ params:
     latex: \mathrm{(FLB--SSWGC) combined dSC}_\mathrm{min}
   conformal_age:
     latex: \tau_0
+  cdm_f_phi0:
+    latex: f_\mathrm{DM}(\phi_0)
 theory:
   classy:
     extra_args:

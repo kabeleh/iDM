@@ -159,7 +159,8 @@ params:
       scale: 3
     latex: c_\mathrm{DM}
   scf_c1:
-    value: 0.01
+    value: 'lambda scf_phi_ini, scf_c2: (1.037467682923965e-07 / scf_phi_ini**scf_c2)**(1.0/(4.0
+      - scf_c2)) if abs(4 - scf_c2) > 0.01 and scf_phi_ini > 0 else 1e-2'
     drop: true
     latex: c_1
   scf_c2:
@@ -258,6 +259,8 @@ params:
     latex: \mathrm{(FLB--SSWGC) combined dSC}_\mathrm{min}
   conformal_age:
     latex: \tau_0
+  cdm_f_phi0:
+    latex: f_\mathrm{DM}(\phi_0)
 theory:
   classy:
     extra_args:

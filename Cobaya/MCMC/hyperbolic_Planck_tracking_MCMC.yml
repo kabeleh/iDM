@@ -251,6 +251,8 @@ params:
     latex: \mathrm{(FLB--SSWGC) combined dSC}_\mathrm{min}
   conformal_age:
     latex: \tau_0
+  cdm_f_phi0:
+    latex: f_\mathrm{DM}(\phi_0)
 prior:
   hyperbolic_attractor: 'lambda scf_c2: 0.0 if abs(scf_c2) > 2.0 else -np.inf'
 theory:

@@ -169,7 +169,8 @@ params:
       scale: 3
     latex: c_\mathrm{DM}
   scf_c1:
-    value: 1e-07
+    value: 'lambda psi_ini, scf_c2, cdm_c: 1.037467682923965e-07 * np.exp(np.clip(scf_c2
+      * psi_ini / cdm_c, -500, 500)) if abs(cdm_c) > 1e-6 else 1e-7'
     drop: true
     latex: c_1
   scf_c2:
@@ -263,6 +264,8 @@ params:
     latex: \mathrm{(FLB--SSWGC) combined dSC}_\mathrm{min}
   conformal_age:
     latex: \tau_0
+  cdm_f_phi0:
+    latex: f_\mathrm{DM}(\phi_0)
 prior:
   cdm_c_floor: 'lambda cdm_c: 0.0 if abs(cdm_c) > 1e-6 else -np.inf'
 theory:
