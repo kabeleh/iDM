@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """compare_regression.py — Compare two regression output directories.
 
-Usage: python3 assessment/compare_regression.py <reference_dir> <test_dir>
-   e.g. python3 assessment/compare_regression.py baseline assessment
+Usage: python3 baseline/compare_regression.py <reference_dir> <test_dir>
+   e.g. python3 baseline/compare_regression.py baseline assessment
 
 Compares:
   1. .dat files: column-by-column numerical comparison with max relative
@@ -208,7 +208,7 @@ def _extract_column_names(header):
         stripped = line.strip()
         if stripped.startswith("#") and ":" in stripped:
             # CLASS format: "#  1:col_name  2:col_name  ..."
-            cols = re.findall(r'\d+:([^\s]+)', stripped)
+            cols = re.findall(r"\d+:([^\s]+)", stripped)
             if cols:
                 return cols
     return None

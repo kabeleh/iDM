@@ -1,9 +1,9 @@
 #!/bin/bash
 # run_regression.sh — Generate regression reference outputs (C + Python)
 #
-# Usage: bash assessment/run_regression.sh <output_dir>
-#   e.g. bash assessment/run_regression.sh baseline
-#        bash assessment/run_regression.sh assessment
+# Usage: bash baseline/run_regression.sh <output_dir>
+#   e.g. bash baseline/run_regression.sh baseline
+#        bash baseline/run_regression.sh assessment
 #
 # Requires: ./class binary compiled, classy installed in active Python env.
 # Must be run from the CLASS repo root.
