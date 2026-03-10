@@ -3950,7 +3950,7 @@ int background_derivs(
     /** - Use the pre-computed effective derivative pvecback[index_bg_dV_scf]
         (= V'_pure + coupling) from background_functions() above,
         avoiding a redundant dV_p_scf() switch + coupling_scf() evaluation. */
-    if (pba->model_cdm == 2)
+    if (pba->model_cdm == 2 && pba->cdm_c != 0.0) /* skip rho_cdm_prime when uncoupled: it returns 0 but the branch change can perturb compiler optimisation */
     {
       dy[pba->index_bi_phi_prime_scf] = -2 * y[pba->index_bi_phi_prime_scf] - a * pvecback[pba->index_bg_dV_scf] / H - a * rho_cdm_prime(pba, y[pba->index_bi_phi_scf], pvecback) / H; // rho_cdm_prime is part of the Klein–Gordon equation
     }

@@ -7321,7 +7321,7 @@ int perturbations_total_stress_energy(
       {
         ppw->delta_rho += ppw->pvecback[pba->index_bg_rho_cdm] * ppw->pvecback[pba->index_bg_H_prime] / ppw->pvecback[pba->index_bg_H];
       }
-      else if (pba->model_cdm == 2)
+      else if (pba->model_cdm == 2 && pba->cdm_c != 0.0) /* skip when uncoupled: avoids unnecessary tanh() and prevents compiler-optimisation rounding artifacts */
       {
         ppw->delta_rho += ppw->pvecback[pba->index_bg_rho_cdm] * (-pba->cdm_c * (1 + tanh(pba->cdm_c * ppw->pvecback[pba->index_bg_phi_scf]))) * y[ppw->pv->index_pt_phi_scf];
       }
@@ -7338,7 +7338,7 @@ int perturbations_total_stress_energy(
         {
           delta_rho_m += ppw->pvecback[pba->index_bg_rho_cdm] * ppw->pvecback[pba->index_bg_H_prime] / ppw->pvecback[pba->index_bg_H];
         }
-        else if (pba->model_cdm == 2)
+        else if (pba->model_cdm == 2 && pba->cdm_c != 0.0) /* skip when uncoupled: avoids unnecessary tanh() and prevents compiler-optimisation rounding artifacts */
         {
           delta_rho_m += ppw->pvecback[pba->index_bg_rho_cdm] * (-pba->cdm_c * (1 + tanh(pba->cdm_c * ppw->pvecback[pba->index_bg_phi_scf]))) * ppw->pv->y[ppw->pv->index_pt_phi_scf];
         }
@@ -9719,7 +9719,7 @@ int perturbations_derivs(double tau,
                                                                                                                           );
         }
         // KBL scalar field interaction contribution
-        if (pba->model_cdm == 2)
+        if (pba->model_cdm == 2 && pba->cdm_c != 0.0) /* skip when uncoupled: avoids unnecessary tanh() and prevents compiler-optimisation rounding artifacts */
         {
           dy[pv->index_pt_theta_cdm] += (pba->cdm_c * (1 + tanh(pba->cdm_c * ppw->pvecback[pba->index_bg_phi_scf]))) * (-k2 * y[pv->index_pt_phi_scf] + y[pv->index_pt_theta_cdm] * pvecback[pba->index_bg_phi_prime_scf]);
         }
@@ -9909,7 +9909,7 @@ int perturbations_derivs(double tau,
                                  - y[pv->index_pt_phi_scf] * (k2 + a2 * pvecback[pba->index_bg_ddV_scf])    // -(k^2 + a^2 d^2V) delta_phi
                                  - metric_continuity * pvecback[pba->index_bg_phi_prime_scf]                // +3 Psi_prime * phi_prime (Psi in xPand = phi in CLASS)
                                  - 2 * a2 * pvecmetric[ppw->index_mt_psi] * pvecback[pba->index_bg_dV_scf]; // -2a^2 Psi V' (phi in xPand = psi in CLASS)
-      if (pba->model_cdm == 2)                                                                              // KBL: for interacting DM, additional terms appear in the KG perturbation equation
+      if (pba->model_cdm == 2 && pba->cdm_c != 0.0)                                                         /* skip when uncoupled: avoids unnecessary cosh()/tanh() and prevents compiler-optimisation rounding artifacts */
       {
         cosh_c_phi = cosh(pba->cdm_c * pvecback[pba->index_bg_phi_scf]);
         tanh_c_phi = tanh(pba->cdm_c * pvecback[pba->index_bg_phi_scf]);                                                                                                 // this is used 4 times. Compute it once and reuse it for performance boost.
