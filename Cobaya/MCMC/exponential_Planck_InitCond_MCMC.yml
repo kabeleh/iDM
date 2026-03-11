@@ -169,7 +169,7 @@ params:
       scale: 3
     latex: c_\mathrm{DM}
   scf_c1:
-    value: 'lambda psi_ini, scf_c2, cdm_c: 1.037467682923965e-07 * np.exp(np.clip(scf_c2
+    derived: 'lambda psi_ini, scf_c2, cdm_c: 1.037467682923965e-07 * np.exp(np.clip(scf_c2
       * psi_ini / cdm_c, -500, 500)) if abs(cdm_c) > 1e-6 else 1e-7'
     drop: true
     latex: c_1
@@ -225,8 +225,9 @@ params:
     drop: true
     latex: \phi\prime_\mathrm{ini}
   scf_parameters:
-    value: 'lambda scf_c1,scf_c2,scf_c3,scf_c4,scf_q1,scf_q2,scf_q3,scf_q4,scf_exp1,scf_exp2,psi_ini,scf_phi_prime_ini,cdm_c:
-      ",".join([str(scf_c1),str(scf_c2),str(scf_c3),str(scf_c4),str(scf_q1),str(scf_q2),str(scf_q3),str(scf_q4),str(scf_exp1),str(scf_exp2),str(psi_ini/cdm_c
+    value: 'lambda scf_c2,scf_c3,scf_c4,scf_q1,scf_q2,scf_q3,scf_q4,scf_exp1,scf_exp2,psi_ini,scf_phi_prime_ini,cdm_c:
+      ",".join([str(1.037467682923965e-07 * np.exp(np.clip(scf_c2 * psi_ini / cdm_c,
+      -500, 500)) if abs(cdm_c) > 1e-6 else 1e-7),str(scf_c2),str(scf_c3),str(scf_c4),str(scf_q1),str(scf_q2),str(scf_q3),str(scf_q4),str(scf_exp1),str(scf_exp2),str(psi_ini/cdm_c
       if abs(cdm_c)>1e-6 else 0.0),str(scf_phi_prime_ini)])'
     derived: false
   Omega_fld: 0.0

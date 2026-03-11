@@ -159,7 +159,7 @@ params:
       scale: 3
     latex: c_\mathrm{DM}
   scf_c1:
-    value: 'lambda scf_phi_ini, scf_c2, scf_c3, scf_c4: np.clip(1.037467682923965e-07
+    derived: 'lambda scf_phi_ini, scf_c2, scf_c3, scf_c4: np.clip(1.037467682923965e-07
       / (np.exp(np.clip(-scf_c2 * scf_phi_ini, -500, 500)) + scf_c3 * np.exp(np.clip(-scf_c4
       * scf_phi_ini, -500, 500))), 1e-15, 1e5)'
     drop: true
@@ -227,8 +227,10 @@ params:
     drop: true
     latex: \phi\prime_\mathrm{ini}
   scf_parameters:
-    value: 'lambda scf_c1,scf_c2,scf_c3,scf_c4,scf_q1,scf_q2,scf_q3,scf_q4,scf_exp1,scf_exp2,scf_phi_ini,scf_phi_prime_ini:
-      ",".join([str(scf_c1),str(scf_c2),str(scf_c3),str(scf_c4),str(scf_q1),str(scf_q2),str(scf_q3),str(scf_q4),str(scf_exp1),str(scf_exp2),str(scf_phi_ini),str(scf_phi_prime_ini)])'
+    value: 'lambda scf_c2,scf_c3,scf_c4,scf_q1,scf_q2,scf_q3,scf_q4,scf_exp1,scf_exp2,scf_phi_ini,scf_phi_prime_ini:
+      ",".join([str(np.clip(1.037467682923965e-07 / (np.exp(np.clip(-scf_c2 * scf_phi_ini,
+      -500, 500)) + scf_c3 * np.exp(np.clip(-scf_c4 * scf_phi_ini, -500, 500))), 1e-15,
+      1e5)),str(scf_c2),str(scf_c3),str(scf_c4),str(scf_q1),str(scf_q2),str(scf_q3),str(scf_q4),str(scf_exp1),str(scf_exp2),str(scf_phi_ini),str(scf_phi_prime_ini)])'
     derived: false
   Omega_fld: 0.0
   Omega_scf:

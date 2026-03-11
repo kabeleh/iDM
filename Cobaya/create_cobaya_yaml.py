@@ -978,7 +978,7 @@ def create_cobaya_yaml(
             if potential == "cosine":
                 # V = c1*cos(c2*phi) = c1*cos(xi_ini)  [xi = c2*phi]
                 scf_c1 = {
-                    "value": f"lambda xi_ini: {_V_T} / np.cos(xi_ini)"
+                    "derived": f"lambda xi_ini: {_V_T} / np.cos(xi_ini)"
                     f" if np.cos(xi_ini) > 0.01 else 1e-7",
                     "drop": True,
                     "latex": "c_1",
@@ -987,7 +987,7 @@ def create_cobaya_yaml(
                 # V = c1*[1-tanh(c2*phi)] = c1*[1-tanh(chi_ini)]
                 # Guard chi_ini < 15 to avoid 1-tanh(x) losing all digits.
                 scf_c1 = {
-                    "value": f"lambda chi_ini: {_V_T} / (1 - np.tanh(chi_ini))"
+                    "derived": f"lambda chi_ini: {_V_T} / (1 - np.tanh(chi_ini))"
                     f" if chi_ini < 15 else 1e-8",
                     "drop": True,
                     "latex": "c_1",
@@ -995,7 +995,7 @@ def create_cobaya_yaml(
             elif potential == "pNG":
                 # V = c1^4*(1+cos(phi/c2)) = c1^4*(1+cos(xi_ini))
                 scf_c1 = {
-                    "value": f"lambda xi_ini: ({_V_T} / (1 + np.cos(xi_ini)))**0.25"
+                    "derived": f"lambda xi_ini: ({_V_T} / (1 + np.cos(xi_ini)))**0.25"
                     f" if (1 + np.cos(xi_ini)) > 0.01 else 1e-1",
                     "drop": True,
                     "latex": "c_1",
@@ -1005,7 +1005,7 @@ def create_cobaya_yaml(
                 # Rewrite as multiplication to avoid 1/exp → 0 division.
                 # Clamp exponent to [-500, 500] against overflow.
                 scf_c1 = {
-                    "value": f"lambda psi_ini, scf_c2, cdm_c: {_V_T}"
+                    "derived": f"lambda psi_ini, scf_c2, cdm_c: {_V_T}"
                     f" * np.exp(np.clip(scf_c2 * psi_ini / cdm_c, -500, 500))"
                     f" if abs(cdm_c) > 1e-6 else 1e-7",
                     "drop": True,
@@ -1016,7 +1016,7 @@ def create_cobaya_yaml(
                 # phi = psi_ini/c3, so exp(-c3*phi) = exp(-psi_ini)
                 # Clamp result to [1e-15, 1e5] against tiny/huge denominators.
                 scf_c1 = {
-                    "value": f"lambda psi_ini, scf_c2, scf_c3, scf_c4:"
+                    "derived": f"lambda psi_ini, scf_c2, scf_c3, scf_c4:"
                     f" np.clip({_V_T}"
                     f" / (max(((scf_c4 - psi_ini/scf_c3)**2 + scf_c2), 1e-30)"
                     f" * np.exp(np.clip(-psi_ini, -500, 500))), 1e-15, 1e5)",
@@ -1027,7 +1027,7 @@ def create_cobaya_yaml(
                 # V = c1*[(c4-phi)^2+c2]*exp(-c3*phi), phi sampled directly
                 # Clamp result to [1e-15, 1e5]; clamp exp argument.
                 scf_c1 = {
-                    "value": f"lambda scf_phi_ini, scf_c2, scf_c3, scf_c4:"
+                    "derived": f"lambda scf_phi_ini, scf_c2, scf_c3, scf_c4:"
                     f" np.clip({_V_T}"
                     f" / (max(((scf_c4 - scf_phi_ini)**2 + scf_c2), 1e-30)"
                     f" * np.exp(np.clip(-scf_c3 * scf_phi_ini, -500, 500))),"
@@ -1039,7 +1039,7 @@ def create_cobaya_yaml(
                 # V = c1*(exp(-c2*phi)+c3*exp(-c4*phi)), phi sampled directly
                 # Clamp exp arguments and result against overflow.
                 scf_c1 = {
-                    "value": f"lambda scf_phi_ini, scf_c2, scf_c3, scf_c4:"
+                    "derived": f"lambda scf_phi_ini, scf_c2, scf_c3, scf_c4:"
                     f" np.clip({_V_T}"
                     f" / (np.exp(np.clip(-scf_c2 * scf_phi_ini, -500, 500))"
                     f" + scf_c3 * np.exp(np.clip(-scf_c4 * scf_phi_ini, -500, 500))),"
@@ -1051,7 +1051,7 @@ def create_cobaya_yaml(
                 # V = c1^(4-c2)*phi^c2  (c3=0)
                 # c1 = (V_t / phi^c2)^(1/(4-c2))
                 scf_c1 = {
-                    "value": f"lambda scf_phi_ini, scf_c2:"
+                    "derived": f"lambda scf_phi_ini, scf_c2:"
                     f" ({_V_T} / scf_phi_ini**scf_c2)**(1.0/(4.0 - scf_c2))"
                     f" if abs(4 - scf_c2) > 0.01 and scf_phi_ini > 0 else 1e-2",
                     "drop": True,
@@ -1061,7 +1061,7 @@ def create_cobaya_yaml(
                 # V ≈ c1^(c2+4)*phi^(-c2)  (exp(c1*phi^2) ≈ 1 for small c1)
                 # c1 = (V_t * phi^c2)^(1/(c2+4))
                 scf_c1 = {
-                    "value": f"lambda scf_phi_ini, scf_c2:"
+                    "derived": f"lambda scf_phi_ini, scf_c2:"
                     f" ({_V_T} * scf_phi_ini**scf_c2)**(1.0/(scf_c2 + 4.0))"
                     f" if (scf_c2 + 4) > 0.01 and scf_phi_ini > 0 else 1e-2",
                     "drop": True,
@@ -1126,39 +1126,77 @@ def create_cobaya_yaml(
         parameters_iDM_ordered["scf_phi_prime_ini"] = scf_phi_prime_ini
 
         # scf_parameters lambda: assembles the comma-separated string for CLASS.
-        # Default: uses scf_phi_ini directly.  Override for potentials that
-        # reparametrize phi_ini via a sampled auxiliary variable.
+        # In non-attractor mode scf_c1 is a derived parameter (computed via
+        # lambda), so Cobaya won't pass it as an argument to another lambda.
+        # We must inline the scf_c1 formula directly into the scf_parameters
+        # lambda for every non-attractor potential.
+        # In attractor mode scf_c1 has a fixed value and can be referenced
+        # normally (the final else branch).
         if not is_attractor and potential in ("Bean", "BeanSingleWell"):
             # Bean: phi_ini = psi_ini / scf_c3
+            # c1 = clip(V_T / [((c4-phi)^2+c2)*exp(-psi_ini)], 1e-15, 1e5)
             scf_parameters_entry: dict[str, Any] = {
-                "value": 'lambda scf_c1,scf_c2,scf_c3,scf_c4,scf_q1,scf_q2,scf_q3,scf_q4,scf_exp1,scf_exp2,psi_ini,scf_phi_prime_ini: ",".join([str(scf_c1),str(scf_c2),str(scf_c3),str(scf_c4),str(scf_q1),str(scf_q2),str(scf_q3),str(scf_q4),str(scf_exp1),str(scf_exp2),str(psi_ini/scf_c3),str(scf_phi_prime_ini)])',
+                "value": f'lambda scf_c2,scf_c3,scf_c4,scf_q1,scf_q2,scf_q3,scf_q4,scf_exp1,scf_exp2,psi_ini,scf_phi_prime_ini: ",".join([str(np.clip({_V_T} / (max(((scf_c4 - psi_ini/scf_c3)**2 + scf_c2), 1e-30) * np.exp(np.clip(-psi_ini, -500, 500))), 1e-15, 1e5)),str(scf_c2),str(scf_c3),str(scf_c4),str(scf_q1),str(scf_q2),str(scf_q3),str(scf_q4),str(scf_exp1),str(scf_exp2),str(psi_ini/scf_c3),str(scf_phi_prime_ini)])',
                 "derived": False,
             }
         elif not is_attractor and potential == "exponential":
             # Exponential: phi_ini = psi_ini / cdm_c (guard: cdm_c ~ 0 → phi = 0)
+            # c1 = V_T * exp(clip(c2*psi_ini/cdm_c, -500, 500))
             scf_parameters_entry = {
-                "value": 'lambda scf_c1,scf_c2,scf_c3,scf_c4,scf_q1,scf_q2,scf_q3,scf_q4,scf_exp1,scf_exp2,psi_ini,scf_phi_prime_ini,cdm_c: ",".join([str(scf_c1),str(scf_c2),str(scf_c3),str(scf_c4),str(scf_q1),str(scf_q2),str(scf_q3),str(scf_q4),str(scf_exp1),str(scf_exp2),str(psi_ini/cdm_c if abs(cdm_c)>1e-6 else 0.0),str(scf_phi_prime_ini)])',
+                "value": f'lambda scf_c2,scf_c3,scf_c4,scf_q1,scf_q2,scf_q3,scf_q4,scf_exp1,scf_exp2,psi_ini,scf_phi_prime_ini,cdm_c: ",".join([str({_V_T} * np.exp(np.clip(scf_c2 * psi_ini / cdm_c, -500, 500)) if abs(cdm_c) > 1e-6 else 1e-7),str(scf_c2),str(scf_c3),str(scf_c4),str(scf_q1),str(scf_q2),str(scf_q3),str(scf_q4),str(scf_exp1),str(scf_exp2),str(psi_ini/cdm_c if abs(cdm_c)>1e-6 else 0.0),str(scf_phi_prime_ini)])',
                 "derived": False,
             }
         elif not is_attractor and potential == "cosine":
             # Cosine: phi_ini = xi_ini / scf_c2
+            # c1 = V_T / cos(xi_ini)
             scf_parameters_entry = {
-                "value": 'lambda scf_c1,scf_c2,scf_c3,scf_c4,scf_q1,scf_q2,scf_q3,scf_q4,scf_exp1,scf_exp2,xi_ini,scf_phi_prime_ini: ",".join([str(scf_c1),str(scf_c2),str(scf_c3),str(scf_c4),str(scf_q1),str(scf_q2),str(scf_q3),str(scf_q4),str(scf_exp1),str(scf_exp2),str(xi_ini/scf_c2),str(scf_phi_prime_ini)])',
+                "value": f'lambda scf_c2,scf_c3,scf_c4,scf_q1,scf_q2,scf_q3,scf_q4,scf_exp1,scf_exp2,xi_ini,scf_phi_prime_ini: ",".join([str({_V_T} / np.cos(xi_ini) if np.cos(xi_ini) > 0.01 else 1e-7),str(scf_c2),str(scf_c3),str(scf_c4),str(scf_q1),str(scf_q2),str(scf_q3),str(scf_q4),str(scf_exp1),str(scf_exp2),str(xi_ini/scf_c2),str(scf_phi_prime_ini)])',
                 "derived": False,
             }
         elif not is_attractor and potential == "pNG":
             # pNG: phi_ini = xi_ini * scf_c2
+            # c1 = (V_T / (1+cos(xi_ini)))^0.25
             scf_parameters_entry = {
-                "value": 'lambda scf_c1,scf_c2,scf_c3,scf_c4,scf_q1,scf_q2,scf_q3,scf_q4,scf_exp1,scf_exp2,xi_ini,scf_phi_prime_ini: ",".join([str(scf_c1),str(scf_c2),str(scf_c3),str(scf_c4),str(scf_q1),str(scf_q2),str(scf_q3),str(scf_q4),str(scf_exp1),str(scf_exp2),str(xi_ini*scf_c2),str(scf_phi_prime_ini)])',
+                "value": f'lambda scf_c2,scf_c3,scf_c4,scf_q1,scf_q2,scf_q3,scf_q4,scf_exp1,scf_exp2,xi_ini,scf_phi_prime_ini: ",".join([str(({_V_T} / (1 + np.cos(xi_ini)))**0.25 if (1 + np.cos(xi_ini)) > 0.01 else 1e-1),str(scf_c2),str(scf_c3),str(scf_c4),str(scf_q1),str(scf_q2),str(scf_q3),str(scf_q4),str(scf_exp1),str(scf_exp2),str(xi_ini*scf_c2),str(scf_phi_prime_ini)])',
                 "derived": False,
             }
         elif not is_attractor and potential == "hyperbolic":
             # Hyperbolic: phi_ini = chi_ini / scf_c2
+            # c1 = V_T / (1-tanh(chi_ini))
             scf_parameters_entry = {
-                "value": 'lambda scf_c1,scf_c2,scf_c3,scf_c4,scf_q1,scf_q2,scf_q3,scf_q4,scf_exp1,scf_exp2,chi_ini,scf_phi_prime_ini: ",".join([str(scf_c1),str(scf_c2),str(scf_c3),str(scf_c4),str(scf_q1),str(scf_q2),str(scf_q3),str(scf_q4),str(scf_exp1),str(scf_exp2),str(chi_ini/scf_c2 if abs(scf_c2)>1e-6 else 0.0),str(scf_phi_prime_ini)])',
+                "value": f'lambda scf_c2,scf_c3,scf_c4,scf_q1,scf_q2,scf_q3,scf_q4,scf_exp1,scf_exp2,chi_ini,scf_phi_prime_ini: ",".join([str({_V_T} / (1 - np.tanh(chi_ini)) if chi_ini < 15 else 1e-8),str(scf_c2),str(scf_c3),str(scf_c4),str(scf_q1),str(scf_q2),str(scf_q3),str(scf_q4),str(scf_exp1),str(scf_exp2),str(chi_ini/scf_c2 if abs(scf_c2)>1e-6 else 0.0),str(scf_phi_prime_ini)])',
+                "derived": False,
+            }
+        elif not is_attractor and potential == "BeanAdS":
+            # BeanAdS: phi_ini sampled directly
+            # c1 = clip(V_T / [((c4-phi)^2+c2)*exp(-c3*phi)], 1e-15, 1e5)
+            scf_parameters_entry = {
+                "value": f'lambda scf_c2,scf_c3,scf_c4,scf_q1,scf_q2,scf_q3,scf_q4,scf_exp1,scf_exp2,scf_phi_ini,scf_phi_prime_ini: ",".join([str(np.clip({_V_T} / (max(((scf_c4 - scf_phi_ini)**2 + scf_c2), 1e-30) * np.exp(np.clip(-scf_c3 * scf_phi_ini, -500, 500))), 1e-15, 1e5)),str(scf_c2),str(scf_c3),str(scf_c4),str(scf_q1),str(scf_q2),str(scf_q3),str(scf_q4),str(scf_exp1),str(scf_exp2),str(scf_phi_ini),str(scf_phi_prime_ini)])',
+                "derived": False,
+            }
+        elif not is_attractor and potential == "DoubleExp":
+            # DoubleExp: phi_ini sampled directly
+            # c1 = clip(V_T / (exp(-c2*phi)+c3*exp(-c4*phi)), 1e-15, 1e5)
+            scf_parameters_entry = {
+                "value": f'lambda scf_c2,scf_c3,scf_c4,scf_q1,scf_q2,scf_q3,scf_q4,scf_exp1,scf_exp2,scf_phi_ini,scf_phi_prime_ini: ",".join([str(np.clip({_V_T} / (np.exp(np.clip(-scf_c2 * scf_phi_ini, -500, 500)) + scf_c3 * np.exp(np.clip(-scf_c4 * scf_phi_ini, -500, 500))), 1e-15, 1e5)),str(scf_c2),str(scf_c3),str(scf_c4),str(scf_q1),str(scf_q2),str(scf_q3),str(scf_q4),str(scf_exp1),str(scf_exp2),str(scf_phi_ini),str(scf_phi_prime_ini)])',
+                "derived": False,
+            }
+        elif not is_attractor and potential == "power-law":
+            # power-law: phi_ini sampled directly (loguniform)
+            # c1 = (V_T / phi^c2)^(1/(4-c2))
+            scf_parameters_entry = {
+                "value": f'lambda scf_c2,scf_c3,scf_c4,scf_q1,scf_q2,scf_q3,scf_q4,scf_exp1,scf_exp2,scf_phi_ini,scf_phi_prime_ini: ",".join([str(({_V_T} / scf_phi_ini**scf_c2)**(1.0/(4.0 - scf_c2)) if abs(4 - scf_c2) > 0.01 and scf_phi_ini > 0 else 1e-2),str(scf_c2),str(scf_c3),str(scf_c4),str(scf_q1),str(scf_q2),str(scf_q3),str(scf_q4),str(scf_exp1),str(scf_exp2),str(scf_phi_ini),str(scf_phi_prime_ini)])',
+                "derived": False,
+            }
+        elif not is_attractor and potential == "SqE":
+            # SqE: phi_ini sampled directly (loguniform)
+            # c1 = (V_T * phi^c2)^(1/(c2+4))
+            scf_parameters_entry = {
+                "value": f'lambda scf_c2,scf_c3,scf_c4,scf_q1,scf_q2,scf_q3,scf_q4,scf_exp1,scf_exp2,scf_phi_ini,scf_phi_prime_ini: ",".join([str(({_V_T} * scf_phi_ini**scf_c2)**(1.0/(scf_c2 + 4.0)) if (scf_c2 + 4) > 0.01 and scf_phi_ini > 0 else 1e-2),str(scf_c2),str(scf_c3),str(scf_c4),str(scf_q1),str(scf_q2),str(scf_q3),str(scf_q4),str(scf_exp1),str(scf_exp2),str(scf_phi_ini),str(scf_phi_prime_ini)])',
                 "derived": False,
             }
         else:
+            # Attractor mode: scf_c1 has a fixed value and can be referenced directly
             scf_parameters_entry = {
                 "value": 'lambda scf_c1,scf_c2,scf_c3,scf_c4,scf_q1,scf_q2,scf_q3,scf_q4,scf_exp1,scf_exp2,scf_phi_ini,scf_phi_prime_ini: ",".join([str(scf_c1),str(scf_c2),str(scf_c3),str(scf_c4),str(scf_q1),str(scf_q2),str(scf_q3),str(scf_q4),str(scf_exp1),str(scf_exp2),str(scf_phi_ini),str(scf_phi_prime_ini)])',
                 "derived": False,
