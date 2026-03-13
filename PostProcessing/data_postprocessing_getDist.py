@@ -1,9 +1,11 @@
+# --skip-plots for only tables; otherwise, generate both plots and tables.
 # %%
 # Import required libraries:
 # - matplotlib.pyplot for plotting
 # - cmcrameri.cm for perceptually uniform colormaps
 # - getdist.plots for MCMC chain plotting
 from typing import Any, Callable, Mapping, Sequence, cast
+import argparse
 import os
 import re
 import glob
@@ -29,6 +31,22 @@ from getdist import MCSamples, loadMCSamples  # type: ignore[import-untyped]
 
 MCSamples = cast(Any, MCSamples)
 loadMCSamples = cast(Callable[..., Any], loadMCSamples)
+
+
+def parse_cli_args() -> argparse.Namespace:
+    """Parse command-line arguments for the postprocessing script."""
+    parser = argparse.ArgumentParser(
+        description="Generate GetDist plots and LaTeX tables from MCMC chains."
+    )
+    parser.add_argument(
+        "--skip-plots",
+        action="store_true",
+        help="Skip all plotting and only generate the tables.",
+    )
+    return parser.parse_args()
+
+
+CLI_ARGS = parse_cli_args()
 
 
 def preload_all_chains(
@@ -86,16 +104,53 @@ def preload_all_chains(
 # COMMON CONFIGURATION
 # ============================================================================
 
-# Directory where MCMC chain files are stored
-# Try both paths and use the one that works
-# _path1 = r"/Users/klmba/kDrive/Sci/PhD/Research/HDM/MCMC_archive/"
-_path2 = r"/home/kl/kDrive/Sci/PhD/Research/HDM/MCMC_archive/"
-_path1 = r"/Users/klmba/kDrive/Sci/PhD/Research/HDM/MCMC_chains/"
-CHAIN_DIR: str = _path1 if os.path.exists(_path1) else _path2
+# Resolve paths relative to this script so both Linux and macOS layouts work.
+# Expected layout:
+#   <HDM>/class_public/PostProcessing/data_postprocessing_getDist.py
+#   <HDM>/MCMC_archive/
+#   <HDM>/MCMC_chains/
+_SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+_CLASS_PUBLIC_DIR = os.path.dirname(_SCRIPT_DIR)
+HDM_DIR: str = os.path.dirname(_CLASS_PUBLIC_DIR)
+
+# Keep a single chain root directory and resolve each root with per-chain
+# precedence: MCMC_archive first, then MCMC_chains.
+CHAIN_DIR: str = HDM_DIR
+_CHAIN_SEARCH_SUBDIRS: tuple[str, ...] = ("MCMC_archive", "MCMC_chains")
+
+
+def _ordered_chain_search_dirs(chain_dir: str) -> list[str]:
+    """Return existing chain search dirs in priority order."""
+    prioritized = [os.path.join(chain_dir, sub) for sub in _CHAIN_SEARCH_SUBDIRS]
+    existing_prioritized = [d for d in prioritized if os.path.isdir(d)]
+
+    # Fall back to chain_dir itself if the subdirs are missing.
+    if os.path.isdir(chain_dir):
+        if chain_dir not in existing_prioritized:
+            existing_prioritized.append(chain_dir)
+
+    return existing_prioritized
+
+
 ANALYSIS_SETTINGS: dict[str, float] = {
     "ignore_rows": 0.33,
     # "fine_bins": 2048,
     "fine_bins_2D": 2048,
+}
+
+# Centralized observational references used by plots and tension calculations.
+# Update these values in one place when new measurements are released.
+OBSERVATIONAL_REFERENCES: dict[str, dict[str, Any]] = {
+    "H0": {
+        "mean": 73.18,
+        "sigma": 0.88,
+        "label": r"$H_0$ SH0ES 2025",
+    },
+    "S8": {
+        "mean": 0.776,
+        "sigma": 0.031,
+        "label": r"$S_8$ KiDS-1000 2023",
+    },
 }
 
 # Define the root names of the MCMC chains (file prefixes without extensions)
@@ -122,8 +177,21 @@ ROOTS: list[str] = [
     # "hyperbolic_PP_S_D_InitCond_Polychord",
     # "DoubleExp_Planck_InitCond_MCMC.post.SN_BAO",
     # "DoubleExp_SPA_PP_S_D_InitCond_MCMC.post.swampland",
-    "DoubleExp_SPA_PP_S_D_InitCond_MCMC",
-    "hyperbolic_PP_S_D_InitCond_MCMC",
+    # "DoubleExp_SPA_PP_S_D_InitCond_MCMC",
+    # "hyperbolic_PP_S_D_InitCond_MCMC",
+    # --- LCDM Archive ---
+    "cobaya_mcmc_fast_CMB_LCDM",
+    # --- All potentials comparison Planck Data ---
+    "BeanAdS_Planck_InitCond_MCMC",
+    "Bean_Planck_InitCond_MCMC",
+    "cosine_Planck_InitCond_MCMC",
+    "DoubleExp_Planck_InitCond_MCMC",
+    "exponential_Planck_InitCond_MCMC",
+    "hyperbolic_Planck_InitCond_MCMC",
+    "hyperbolic_Planck_tracking_MCMC",
+    "pNG_Planck_InitCond_MCMC",
+    "power-law_Planck_InitCond_MCMC",
+    "SqE_Planck_InitCond_MCMC",
 ]
 
 # Extract a list of colors from the categorical batlowKS colourmap
@@ -143,6 +211,35 @@ def _root_from_filepath(path: str, chain_dir: str) -> str:
     rel = re.sub(r"\.input\.yaml$", "", rel)
     rel = re.sub(r"\.updated\.yaml$", "", rel)
     return rel
+
+
+def _sort_chain_matches(matches: Sequence[str], chain_dir: str) -> list[str]:
+    """Prefer canonical top-level matches over deeper duplicates."""
+
+    def _match_key(path: str) -> tuple[int, int, str]:
+        rel = os.path.relpath(path, chain_dir).replace(os.sep, "/")
+        root = _root_from_filepath(path, chain_dir)
+        depth = root.count("/")
+        penalty = 1 if "/initialTesting/" in f"/{rel}" else 0
+        return (penalty, depth, rel)
+
+    return sorted(set(matches), key=_match_key)
+
+
+def _collect_chain_matches(
+    patterns: Sequence[str],
+    chain_dir: str,
+) -> list[str]:
+    """Return prioritized matches from archive/chains search dirs."""
+    for search_dir in _ordered_chain_search_dirs(chain_dir):
+        dir_matches: list[str] = []
+        for pattern in patterns:
+            dir_matches.extend(
+                glob.glob(os.path.join(search_dir, pattern), recursive=True)
+            )
+        if dir_matches:
+            return _sort_chain_matches(dir_matches, chain_dir)
+    return []
 
 
 def resolve_chain_root(root: str, chain_dir: str = CHAIN_DIR) -> str:
@@ -180,14 +277,11 @@ def resolve_chain_root(root: str, chain_dir: str = CHAIN_DIR) -> str:
             f"**/{search_root}.input.yaml",
             f"**/{search_root}.updated.yaml",
         ]
-        matches: list[str] = []
-        for pattern in patterns:
-            matches.extend(glob.glob(os.path.join(chain_dir, pattern), recursive=True))
+        matches = _collect_chain_matches(patterns, chain_dir)
 
         if not matches:
             return root
 
-        matches = sorted(set(matches))
         resolved = _root_from_filepath(matches[0], chain_dir)
         _ROOT_PATH_CACHE[root] = resolved
 
@@ -214,15 +308,12 @@ def resolve_chain_root(root: str, chain_dir: str = CHAIN_DIR) -> str:
         f"**/{root}.input.yaml",
         f"**/{root}.updated.yaml",
     ]
-    matches: list[str] = []
-    for pattern in patterns:
-        matches.extend(glob.glob(os.path.join(chain_dir, pattern), recursive=True))
+    matches = _collect_chain_matches(patterns, chain_dir)
 
     if not matches:
         _ROOT_PATH_CACHE[root] = root
         return root
 
-    matches = sorted(set(matches))
     resolved = _root_from_filepath(matches[0], chain_dir)
     _ROOT_PATH_CACHE[root] = resolved
 
@@ -292,18 +383,26 @@ def build_legend_label(root: str) -> str:
     # --- Detect model/potential ---
     if "lcdm" in base_lower:
         model_label = r"$\Lambda$CDM"
+    elif "hyperbolic" in base_lower and "tracking" in base_lower:
+        model_label = "Hyperbolic (tracking)"
     elif "hyperbolic" in base_lower:
         model_label = "Hyperbolic"
     elif "doubleexp" in base_lower or "doubleexponential" in base_lower:
         model_label = "Double Exponential"
+    elif "beanads" in base_lower:
+        model_label = "BeanAdS"
     elif "bean" in base_lower:
         model_label = "Bean"
     elif "exponential" in base_lower:
         model_label = "Exponential"
     elif "cosine" in base_lower:
         model_label = "Cosine"
+    elif "png" in base_lower:
+        model_label = "pseudo-Nambu-Goldstone"
     elif re.search(r"power.?law", base_lower):
         model_label = "Power-law"
+    elif "sqe" in base_lower:
+        model_label = "Squared Exponential"
     else:
         model_label = "Model"
 
@@ -514,17 +613,29 @@ def annotate_H0_S8(g: Any) -> list[Patch]:
     Add H0 (SH0ES) and S8 (KiDS-1000) observational bands.
     Returns legend handles for these annotations.
     """
-    # SH0ES 2020b: H0 = 73.2 ± 1.3 km/s/Mpc
-    g.add_x_bands(73.18, 0.88, ax=0, color=BAND_COLOURS[0])
-    g.add_x_bands(73.18, 0.88, ax=2, color=BAND_COLOURS[0])
+    h0_mean = float(OBSERVATIONAL_REFERENCES["H0"]["mean"])
+    h0_sigma = float(OBSERVATIONAL_REFERENCES["H0"]["sigma"])
+    s8_mean = float(OBSERVATIONAL_REFERENCES["S8"]["mean"])
+    s8_sigma = float(OBSERVATIONAL_REFERENCES["S8"]["sigma"])
 
-    # KiDS-1000 2023: S8 = 0.776 ± 0.031
-    g.add_x_bands(0.776, 0.031, ax=3, color=BAND_COLOURS[1])
-    g.add_y_bands(0.776, 0.031, ax=2, color=BAND_COLOURS[1])
+    # SH0ES 2020b default reference (configurable in OBSERVATIONAL_REFERENCES)
+    g.add_x_bands(h0_mean, h0_sigma, ax=0, color=BAND_COLOURS[0])
+    g.add_x_bands(h0_mean, h0_sigma, ax=2, color=BAND_COLOURS[0])
+
+    # KiDS-1000 2023 default reference (configurable in OBSERVATIONAL_REFERENCES)
+    g.add_x_bands(s8_mean, s8_sigma, ax=3, color=BAND_COLOURS[1])
+    g.add_y_bands(s8_mean, s8_sigma, ax=2, color=BAND_COLOURS[1])
 
     return [
-        Patch(facecolor=BAND_COLOURS[0], alpha=0.5, label=r"$H_0$ SH0ES 2025"),
-        Patch(facecolor=BAND_COLOURS[1], label=r"$S_8$ KiDS-1000"),
+        Patch(
+            facecolor=BAND_COLOURS[0],
+            alpha=0.5,
+            label=str(OBSERVATIONAL_REFERENCES["H0"]["label"]),
+        ),
+        Patch(
+            facecolor=BAND_COLOURS[1],
+            label=str(OBSERVATIONAL_REFERENCES["S8"]["label"]),
+        ),
     ]
 
 
@@ -569,43 +680,47 @@ def annotate_scf_constraints(g: Any) -> list[Patch]:
 # This ensures both plots and tables benefit from cached data
 preload_all_chains(ROOTS, CHAIN_DIR, ANALYSIS_SETTINGS, verbose=True)
 
-# ============================================================================
-# PLOT 1: H0 & S8 with observational bands
-# ============================================================================
-# %%
-params_cosmology = ["H0", "S8"]
-g1 = make_triangle_plot(params_cosmology, annotations=annotate_H0_S8, title=None)
-
-# Export example:
-# g1.fig.savefig("plot_H0_S8_PP_S_DESI_LCDM_hyperbolic.png", bbox_inches="tight", dpi=300)
-
-plt.show()
-
-# ============================================================================
-# PLOT 2: Scalar field parameters with constraints
-# ============================================================================
-# %%
-params_scf = ["cdm_c", "scf_c2", "scf_c3", "scf_c4"]
 scf_labels = {
     "cdm_c": r"c_\mathrm{DM}",
     "scf_c2": r"c_2",
     "scf_c3": r"c_3",
     "scf_c4": r"c_4",
 }
-try:
-    g2 = make_triangle_plot(
-        params_scf,
-        annotations=annotate_scf_constraints,
-        param_labels=scf_labels,
-        title=None,
-    )
+params_scf = ["cdm_c", "scf_c2", "scf_c3", "scf_c4"]
+
+if CLI_ARGS.skip_plots:
+    print("Skipping plots (--skip-plots); generating tables only.")
+else:
+    # ============================================================================
+    # PLOT 1: H0 & S8 with observational bands
+    # ============================================================================
+    # %%
+    params_cosmology = ["H0", "S8"]
+    g1 = make_triangle_plot(params_cosmology, annotations=annotate_H0_S8, title=None)
 
     # Export example:
-    # g2.fig.savefig("plot_scf_params_PP_S_DESI_hyperbolic.png", bbox_inches="tight", dpi=300)
+    # g1.fig.savefig("plot_H0_S8_PP_S_DESI_LCDM_hyperbolic.png", bbox_inches="tight", dpi=300)
 
     plt.show()
-except ValueError as e:
-    print(f"Skipping scalar field parameters plot: {e}")
+
+    # ============================================================================
+    # PLOT 2: Scalar field parameters with constraints
+    # ============================================================================
+    # %%
+    try:
+        g2 = make_triangle_plot(
+            params_scf,
+            annotations=annotate_scf_constraints,
+            param_labels=scf_labels,
+            title=None,
+        )
+
+        # Export example:
+        # g2.fig.savefig("plot_scf_params_PP_S_DESI_hyperbolic.png", bbox_inches="tight", dpi=300)
+
+        plt.show()
+    except ValueError as e:
+        print(f"Skipping scalar field parameters plot: {e}")
 
 # ============================================================================
 # TABLE GENERATION: Extract data from chains and create LaTeX tables
@@ -1002,7 +1117,7 @@ def count_free_parameters(
     root: str,
     chain_dir: str = CHAIN_DIR,
     settings: Mapping[str, Any] = ANALYSIS_SETTINGS,
-) -> int:
+) -> int | None:
     """
     Count the number of free (sampled) parameters in a chain.
 
@@ -1026,13 +1141,34 @@ def count_free_parameters(
     if cache_key in _SAMPLES_CACHE and _SAMPLES_CACHE[cache_key] is not None:
         samples: Any = _SAMPLES_CACHE[cache_key]
     else:
-        samples = loadMCSamples(
-            _root_base_path(resolved_root, chain_dir), settings=settings
+        try:
+            samples = loadMCSamples(
+                _root_base_path(resolved_root, chain_dir), settings=settings
+            )
+            _SAMPLES_CACHE[cache_key] = samples
+        except Exception as e:
+            print(
+                f"Note: Skipping {root} in tables because free parameters could not be loaded: {e}"
+            )
+            _SAMPLES_CACHE[cache_key] = None
+            return None
+
+    if samples is None or getattr(samples, "paramNames", None) is None:
+        print(
+            f"Note: Skipping {root} in tables because parameter names are unavailable."
         )
-        _SAMPLES_CACHE[cache_key] = samples
+        return None
     # paramNames.names includes all parameters; we want only sampled ones
     # The .paramNames.list() returns sampled params, .paramNames.numberOfName() for derived
     return len([p for p in samples.paramNames.names if not p.isDerived])
+
+
+def _has_any_valid_stats(
+    stats: Mapping[str, Any],
+    params: Sequence[str],
+) -> bool:
+    """Return True if at least one requested parameter has usable statistics."""
+    return any(stats.get(param) is not None for param in params)
 
 
 def compute_aic_bic(
@@ -1100,10 +1236,28 @@ def identify_dataset_from_root(root: str) -> tuple[str, str, bool]:
     is_lcdm = "lcdm" in root_lower
     if is_lcdm:
         model_name = r"\gls{lcdm}"
+    elif "hyperbolic" in root_lower and "tracking" in root_lower:
+        model_name = r"\Nref{pot:tanh} (tracking)"
     elif "doubleexp" in root_lower or "dexp" in root_lower:
         model_name = r"\Nref{pot:dexp}"
     elif "hyperbolic" in root_lower or "tanh" in root_lower:
         model_name = r"\Nref{pot:tanh}"
+    elif (
+        "beanads" in root_lower
+        or "bean_" in root_lower
+        or root_lower.startswith("bean")
+    ):
+        model_name = r"\Nref{pot:bexp}"
+    elif "cosine" in root_lower:
+        model_name = r"\Nref{pot:cosine}"
+    elif "exponential" in root_lower:
+        model_name = r"\Nref{pot:exp}"
+    elif "png" in root_lower:
+        model_name = r"\Nref{pot:pNG}"
+    elif re.search(r"power.?law", root_lower):
+        model_name = r"\Nref{pot:PL}"
+    elif "sqe" in root_lower:
+        model_name = r"\Nref{pot:sqexp}"
     else:
         # Fallback: use shortened root name
         model_name = (
@@ -1194,6 +1348,67 @@ def format_symmetric_error(mean: float, std: float, precision: int = 2) -> str:
     return f"{mean:{fmt}} \\pm {std:{fmt}}"
 
 
+def format_plain_number(value: float | None, precision: int = 2) -> str:
+    """Format a scalar number for table cells (without math delimiters)."""
+    if value is None:
+        return "--"
+    return f"{value:.{precision}f}"
+
+
+def compute_tension(
+    model_value: float | None,
+    model_sigma: float | None,
+    reference_value: float,
+    reference_sigma: float,
+) -> float | None:
+    """Compute Gaussian tension in sigma units."""
+    if model_value is None or model_sigma is None:
+        return None
+    denom = float(np.sqrt(model_sigma**2 + reference_sigma**2))  # type: ignore[no-untyped-call]
+    if denom <= 0:
+        return None
+    return (model_value - reference_value) / denom
+
+
+def get_accepted_steps(
+    root: str,
+    chain_dir: str = CHAIN_DIR,
+    settings: Mapping[str, Any] = ANALYSIS_SETTINGS,
+) -> int | None:
+    """Estimate accepted steps from .progress (fallback: chain weights)."""
+    try:
+        resolved_root = resolve_chain_root(root, chain_dir)
+        progress_file = _root_base_path(resolved_root, chain_dir) + ".progress"
+
+        if os.path.exists(progress_file):
+            with open(progress_file, "r") as f:
+                lines = f.readlines()
+
+            # Use last non-empty, non-comment row: N timestamp acceptance_rate ...
+            for raw_line in reversed(lines):
+                line = raw_line.strip()
+                if not line or line.startswith("#"):
+                    continue
+                parts = line.split()
+                if len(parts) < 3:
+                    continue
+                try:
+                    n_steps = float(parts[0])
+                    acceptance_rate = float(parts[2])
+                    return int(round(n_steps * acceptance_rate))
+                except ValueError:
+                    continue
+
+        chain_data = read_chain_data_directly(root, [], chain_dir, settings)
+        weights = chain_data.get("weights")
+        if weights is None:
+            return None
+        return int(round(float(np.sum(weights))))  # type: ignore[no-untyped-call]
+    except Exception as e:
+        print(f"Note: Could not estimate accepted steps for {root}: {e}")
+        return None
+
+
 def get_param_latex(param: str, chain_data: Mapping[str, Any] | None = None) -> str:
     """Get LaTeX label for a parameter, checking multiple sources."""
     # First check our predefined labels
@@ -1268,6 +1483,11 @@ def generate_cosmology_table(
 
         stats = get_chain_statistics(root, params, chain_dir, settings)
         n_params = count_free_parameters(root, chain_dir, settings)
+        if n_params is None or not _has_any_valid_stats(stats, params):
+            print(
+                f"Note: Skipping {root} in cosmology table because the chain could not be loaded reliably."
+            )
+            continue
 
         chi_sq = min_data["chi_sq"]
 
@@ -1295,6 +1515,9 @@ def generate_cosmology_table(
             "aic": aic,
             "bic": bic,
         }
+
+    if not chain_data:
+        return "% No chains with usable data were available for the cosmology table."
 
     # Build column spec with math mode columns
     # Model | param1 (68% limits) | ... | χ² | ΔAIC | ΔBIC
@@ -1333,6 +1556,9 @@ def generate_cosmology_table(
             baseline_aic = None
             baseline_bic = None
 
+        if not lcdm_root and not group["others"]:
+            continue
+
         # Add dataset separator
         n_total_cols = n_param_cols + 4
         lines.append(
@@ -1345,9 +1571,12 @@ def generate_cosmology_table(
 
         # Add LCDM first, then others
         group_roots: list[str] = []
-        if lcdm_root:
+        if lcdm_root and lcdm_root in chain_data:
             group_roots.append(lcdm_root)
-        group_roots.extend(group["others"])
+        group_roots.extend(root for root in group["others"] if root in chain_data)
+
+        if not group_roots:
+            continue
 
         for root in group_roots:
             if root not in chain_data:
@@ -1512,7 +1741,15 @@ def generate_scf_table(
                 min_data = {"params": {}}
 
             stats = get_chain_statistics(root, params, chain_dir, settings)
+            if not _has_any_valid_stats(stats, params):
+                print(
+                    f"Note: Skipping {root} in scalar field table because the chain could not be loaded reliably."
+                )
+                continue
             chain_data[root] = {"minimum": min_data, "stats": stats}
+
+        if not chain_data:
+            continue
 
         # Build table with math mode columns
         n_param_cols = len(params)
@@ -1541,6 +1778,8 @@ def generate_scf_table(
 
         # Data rows - one per dataset
         for root in model_roots:
+            if root not in chain_data:
+                continue
             data = chain_data[root]
             dataset_label = get_dataset_label(root)
             row_parts: list[str] = [dataset_label]
@@ -2055,6 +2294,11 @@ def generate_swampland_table(
             min_data = {"params": {}}
 
         stats = get_chain_statistics(root, swampland_params, chain_dir, settings)
+        if not _has_any_valid_stats(stats, swampland_params):
+            print(
+                f"Note: Skipping {root} in swampland table because the chain could not be loaded reliably."
+            )
+            continue
 
         # Extract mode for integer parameter
         if "attractor_regime_scf" in swampland_params:
@@ -2065,6 +2309,9 @@ def generate_swampland_table(
                 integer_modes[root] = (mean_val, mode_val)
 
         chain_data[root] = {"minimum": min_data, "stats": stats}
+
+    if not chain_data:
+        return "% No swampland chains with usable data were available."
 
     # Build LaTeX table
     # Parameters as column headers, datasets as sub-headers, within each dataset: Hyperbolic then Double Exp
@@ -2175,6 +2422,259 @@ def generate_swampland_table(
     return "\n".join(lines)
 
 
+def generate_tension_summary_table(
+    roots: Sequence[str],
+    chain_dir: str = CHAIN_DIR,
+    settings: Mapping[str, Any] = ANALYSIS_SETTINGS,
+) -> str:
+    """
+    Generate a LaTeX table with model-comparison metrics and tensions.
+
+    Columns:
+    Potential, accepted steps, Delta chi^2, Delta AIC, Delta BIC,
+    best-fit H0, H0 tension, best-fit S8, S8 tension.
+    """
+    h0_ref = float(OBSERVATIONAL_REFERENCES["H0"]["mean"])
+    h0_ref_sigma = float(OBSERVATIONAL_REFERENCES["H0"]["sigma"])
+    s8_ref = float(OBSERVATIONAL_REFERENCES["S8"]["mean"])
+    s8_ref_sigma = float(OBSERVATIONAL_REFERENCES["S8"]["sigma"])
+
+    row_data: list[dict[str, Any]] = []
+
+    for root in roots:
+        resolved_root = resolve_chain_root(root, chain_dir)
+        minimum_file = _root_base_path(resolved_root, chain_dir) + ".bestfit"
+        if os.path.exists(minimum_file):
+            min_data: dict[str, Any] = parse_minimum_file(minimum_file)
+        else:
+            min_data = {
+                "neg_log_like": None,
+                "chi_sq": None,
+                "chi_sq_components": {},
+                "params": {},
+            }
+
+        stats = get_chain_statistics(root, ["H0", "S8"], chain_dir, settings)
+        n_params = count_free_parameters(root, chain_dir, settings)
+        if n_params is None:
+            print(
+                f"Note: Skipping {root} in tension summary table because free parameters are unavailable."
+            )
+            continue
+
+        chi_sq = min_data.get("chi_sq")
+        n_data = estimate_n_data_from_likelihoods(min_data.get("chi_sq_components"))
+        aic, bic = (
+            compute_aic_bic(float(chi_sq), n_params, n_data)
+            if chi_sq is not None
+            else (None, None)
+        )
+
+        bestfit_h0 = None
+        bestfit_s8 = None
+        if min_data.get("params"):
+            if "H0" in min_data["params"]:
+                bestfit_h0 = float(min_data["params"]["H0"]["value"])
+            if "S8" in min_data["params"]:
+                bestfit_s8 = float(min_data["params"]["S8"]["value"])
+
+        h0_sigma_model = (
+            float(stats["H0"]["std"])
+            if stats.get("H0") and stats["H0"].get("std") is not None
+            else None
+        )
+        s8_sigma_model = (
+            float(stats["S8"]["std"])
+            if stats.get("S8") and stats["S8"].get("std") is not None
+            else None
+        )
+
+        h0_tension = compute_tension(bestfit_h0, h0_sigma_model, h0_ref, h0_ref_sigma)
+        s8_tension = compute_tension(bestfit_s8, s8_sigma_model, s8_ref, s8_ref_sigma)
+
+        _, model_name, is_lcdm = identify_dataset_from_root(root)
+        row_data.append(
+            {
+                "root": root,
+                "model_name": model_name,
+                "is_lcdm": is_lcdm,
+                "accepted_steps": get_accepted_steps(root, chain_dir, settings),
+                "chi_sq": float(chi_sq) if chi_sq is not None else None,
+                "aic": aic,
+                "bic": bic,
+                "bestfit_h0": bestfit_h0,
+                "h0_tension": h0_tension,
+                "bestfit_s8": bestfit_s8,
+                "s8_tension": s8_tension,
+            }
+        )
+
+    if not row_data:
+        return (
+            "% No chains with usable data were available for the tension summary table."
+        )
+
+    lcdm_rows = [r for r in row_data if r["is_lcdm"]]
+    baseline = lcdm_rows[0] if lcdm_rows else None
+    baseline_chi_sq = baseline["chi_sq"] if baseline else None
+    baseline_aic = baseline["aic"] if baseline else None
+    baseline_bic = baseline["bic"] if baseline else None
+
+    for row in row_data:
+        row["dchi2"] = (
+            row["chi_sq"] - baseline_chi_sq
+            if baseline_chi_sq is not None and row["chi_sq"] is not None
+            else None
+        )
+        row["daic"] = (
+            row["aic"] - baseline_aic
+            if baseline_aic is not None and row["aic"] is not None
+            else None
+        )
+        row["dbic"] = (
+            row["bic"] - baseline_bic
+            if baseline_bic is not None and row["bic"] is not None
+            else None
+        )
+
+    n_models = len(row_data)
+
+    def _category_points(
+        rows: Sequence[dict[str, Any]],
+        key_func: Callable[[dict[str, Any]], float | None],
+    ) -> dict[str, int]:
+        points: dict[str, int] = {str(r["root"]): 1 for r in rows}
+        valid: list[tuple[dict[str, Any], float]] = []
+        for r in rows:
+            value = key_func(r)
+            if value is not None:
+                valid.append((r, value))
+
+        valid.sort(key=lambda item: item[1])
+        for rank, (r, _) in enumerate(valid):
+            points[str(r["root"])] = max(n_models - rank, 1)
+        return points
+
+    h0_points = _category_points(
+        row_data,
+        lambda r: (
+            abs(float(r["h0_tension"])) if r.get("h0_tension") is not None else None
+        ),
+    )
+    s8_points = _category_points(
+        row_data,
+        lambda r: (
+            abs(float(r["s8_tension"])) if r.get("s8_tension") is not None else None
+        ),
+    )
+    aic_points = _category_points(
+        row_data,
+        lambda r: float(r["daic"]) if r.get("daic") is not None else None,
+    )
+    bic_points = _category_points(
+        row_data,
+        lambda r: float(r["dbic"]) if r.get("dbic") is not None else None,
+    )
+
+    for row in row_data:
+        root_key = str(row["root"])
+        row["ranking_points"] = (
+            h0_points[root_key]
+            + s8_points[root_key]
+            + aic_points[root_key]
+            + bic_points[root_key]
+        )
+
+    # Toggle this to include/exclude the transparency column in Table 4.
+    # Comment out the next line (or set to False) to remove "Total points".
+    include_total_points_column = True
+
+    col_spec = (
+        "l r"
+        + (" r" if include_total_points_column else "")
+        + " >{$}c<{$} >{$}c<{$} >{$}c<{$} >{$}c<{$} >{$}c<{$} >{$}c<{$} >{$}c<{$}"
+    )
+    lines: list[str] = []
+    lines.append(r"\begin{sidewaystable}")
+    lines.append(r"\centering")
+    lines.append(
+        r"\caption{Model comparison metrics and observational tensions. "
+        + r"Tensions are computed with references "
+        + rf"$H_0={h0_ref:.1f}\pm{h0_ref_sigma:.1f}$ and $S_8={s8_ref:.3f}\pm{s8_ref_sigma:.3f}$."
+        + r"}"
+    )
+    lines.append(r"\label{tab:model_tension_summary}")
+    lines.append(r"\tagpdfsetup{table/header-rows={1}}")
+    lines.append(r"\begin{tabular}{" + col_spec + "}")
+    lines.append(r"\toprule")
+    header_parts = ["Potential", "Accepted steps"]
+    if include_total_points_column:
+        header_parts.append("Total points")
+    header_parts.extend(
+        [
+            r"\Delta\chi^2",
+            r"\Delta\text{AIC}",
+            r"\Delta\text{BIC}",
+            r"H_0^{\mathrm{bf}}",
+            r"T(H_0)\,[\sigma]",
+            r"S_8^{\mathrm{bf}}",
+            r"T(S_8)\,[\sigma]",
+        ]
+    )
+    lines.append(" & ".join(header_parts) + r" \\")
+    lines.append(r"\midrule")
+
+    sorted_rows = sorted(
+        row_data,
+        key=lambda r: (
+            -int(r["ranking_points"]),
+            float("inf") if r.get("daic") is None else float(r["daic"]),
+            (
+                float("inf")
+                if r.get("h0_tension") is None
+                else abs(float(r["h0_tension"]))
+            ),
+            str(r["model_name"]),
+        ),
+    )
+    for row in sorted_rows:
+        dchi2 = row.get("dchi2")
+        daic = row.get("daic")
+        dbic = row.get("dbic")
+
+        steps_str = (
+            str(row["accepted_steps"]) if row["accepted_steps"] is not None else "--"
+        )
+        dchi2_str = "--" if dchi2 is None else f"{dchi2:+.2f}"
+        daic_str = "--" if daic is None else f"{daic:+.2f}"
+        dbic_str = "--" if dbic is None else f"{dbic:+.2f}"
+
+        row_parts = [
+            str(row["model_name"]),
+            steps_str,
+        ]
+        if include_total_points_column:
+            row_parts.append(str(row["ranking_points"]))
+        row_parts.extend(
+            [
+                dchi2_str,
+                daic_str,
+                dbic_str,
+                format_plain_number(row["bestfit_h0"], precision=2),
+                format_plain_number(row["h0_tension"], precision=2),
+                format_plain_number(row["bestfit_s8"], precision=3),
+                format_plain_number(row["s8_tension"], precision=2),
+            ]
+        )
+        lines.append(" & ".join(row_parts) + r" \\")
+
+    lines.append(r"\bottomrule")
+    lines.append(r"\end{tabular}")
+    lines.append(r"\end{sidewaystable}")
+
+    return "\n".join(lines)
+
+
 # ============================================================================
 # Generate tables for the current analysis
 # ============================================================================
@@ -2218,3 +2718,15 @@ swampland_table = generate_swampland_table(
     settings=ANALYSIS_SETTINGS,
 )
 print(swampland_table)
+
+# %%
+# Table 4: Model comparison with tensions
+print("\n" + "=" * 80)
+print("TABLE 4: Model Comparison and Tensions")
+print("=" * 80)
+tension_summary_table = generate_tension_summary_table(
+    ROOTS,
+    chain_dir=CHAIN_DIR,
+    settings=ANALYSIS_SETTINGS,
+)
+print(tension_summary_table)
