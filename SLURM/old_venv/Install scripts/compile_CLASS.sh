@@ -31,9 +31,10 @@ source my_2025-env/bin/activate
 cd $HOME/iDM/
 
 #Compile C program with GCC (in parallel)
-# make clean; make class -j
+make clean; make class -j
 
 ## Test task execution
+./run_all_pgo.sh
 # srun ./class iDM.ini
 # ./class pgo_doubleexp_bao.ini
 # ./class pgo_doubleexp_cmb_shooting_fails.ini

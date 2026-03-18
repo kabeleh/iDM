@@ -1,0 +1,52 @@
+# Post-processing information
+post:
+  suffix: Swamp
+  add:
+    params:
+      swamp_sigma_dV:
+        value: 1.0
+        drop: true
+      swamp_sigma_ddV:
+        value: 1.0
+        drop: true
+      swamp_target_abs:
+        value: 1.0
+        drop: true
+      swamp_tolerance_abs:
+        value: 0.5
+        drop: true
+    likelihood:
+      swamp_cut_phi_range: >-
+        lambda phi_scf_range:
+          0.0 if phi_scf_range < 10.0 else -np.inf
+      swamp_cut_swgc: >-
+        lambda swgc_expr_min:
+          0.0 if swgc_expr_min >= 0.0 else -np.inf
+      swamp_soft_or_criterion: >-
+        lambda dV_V_scf_min, ddV_V_at_dV_V_min,
+               ddV_V_scf_max, dV_V_at_ddV_V_max,
+               swamp_sigma_dV, swamp_sigma_ddV,
+               swamp_target_abs, swamp_tolerance_abs:
+        (-np.inf if (swamp_tolerance_abs <= 0.0 or
+               swamp_target_abs <= swamp_tolerance_abs or
+               dV_V_scf_min <= 0.0 or
+               dV_V_at_ddV_V_max <= 0.0) else
+           -0.5 * min(
+             (
+               (max(0.0,
+            -np.log10(dV_V_scf_min / (swamp_target_abs - swamp_tolerance_abs))) / swamp_sigma_dV) ** 2 +
+               (max(0.0,
+            -np.log10(dV_V_at_ddV_V_max / (swamp_target_abs - swamp_tolerance_abs))) / swamp_sigma_dV) ** 2
+             ),
+             (
+               (-np.inf if ddV_V_scf_max >= 0.0 else
+                (max(0.0,
+             -np.log10((-ddV_V_scf_max) / (swamp_target_abs - swamp_tolerance_abs))) / swamp_sigma_ddV) ** 2) +
+               (-np.inf if ddV_V_at_dV_V_min >= 0.0 else
+                (max(0.0,
+             -np.log10((-ddV_V_at_dV_V_min) / (swamp_target_abs - swamp_tolerance_abs))) / swamp_sigma_ddV) ** 2)
+             )
+           ))
+
+# Path of the original sample
+output: /project/home/p201176/hyperbolic_Planck_InitCond_MCMC

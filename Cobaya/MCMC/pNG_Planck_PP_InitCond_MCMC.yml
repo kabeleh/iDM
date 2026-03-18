@@ -1,0 +1,9 @@
+# Post-processing information
+post:
+  suffix: PP_DESI
+  add:
+    likelihood:
+      bao.desi_dr2:
+      sn.pantheonplus:
+# Path the original sample
+output: /project/home/p201176/pNG_Planck_InitCond_MCMC
