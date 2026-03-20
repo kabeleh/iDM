@@ -119,17 +119,35 @@ run_with_retry "/home/users/u103677/iDM/Cobaya/MCMC/hyperbolic_Planck_tracking_M
     "${SLURM_JOB_ID}_hyperbolicTracking.txt" 10 &
 PID3=$!
 
-run_pipeline_with_retry "${SLURM_JOB_ID}_hyperbolic_PP_PPS_DESI.txt" 10 \
-    "/home/users/u103677/iDM/Cobaya/MCMC/hyperbolic_Planck_InitCond_MCMC_minimizer.yml" \
-    "/home/users/u103677/iDM/Cobaya/MCMC/hyperbolic_Planck_PP_DESI_InitCond_MCMC.yml" \
-    "/home/users/u103677/iDM/Cobaya/MCMC/hyperbolic_Planck_PPS_DESI_InitCond_MCMC.yml" &
+run_pipeline_with_retry "${SLURM_JOB_ID}_hyperbolic_PP.txt" 4 \
+    "/home/users/u103677/iDM/Cobaya/MCMC/hyperbolic_PP_D_InitCond_MCMC.yml" \
+    "/home/users/u103677/iDM/Cobaya/MCMC/hyperbolic_PP_D_InitCond_MCMC_minimizer.yml" &
 PID4=$!
 
-run_pipeline_with_retry "${SLURM_JOB_ID}_pNG_PP_PPS.txt" 10 \
-    "/home/users/u103677/iDM/Cobaya/MCMC/pNG_Planck_InitCond_MCMC_minimizer.yml" \
-    "/home/users/u103677/iDM/Cobaya/MCMC/pNG_Planck_PP_InitCond_MCMC.yml" \
-    "/home/users/u103677/iDM/Cobaya/MCMC/pNG_Planck_PPS_InitCond_MCMC.yml" &
+run_pipeline_with_retry "${SLURM_JOB_ID}_hyperbolic_PPS.txt" 4 \
+    "/home/users/u103677/iDM/Cobaya/MCMC/hyperbolic_PP_S_D_InitCond_MCMC.yml" \
+    "/home/users/u103677/iDM/Cobaya/MCMC/hyperbolic_PP_S_D_InitCond_MCMC_minimizer.yml" &
 PID5=$!
+
+run_pipeline_with_retry "${SLURM_JOB_ID}_hyperbolic_SPA.txt" 4 \
+    "/home/users/u103677/iDM/Cobaya/MCMC/hyperbolic_SPA_InitCond_MCMC.yml" \
+    "/home/users/u103677/iDM/Cobaya/MCMC/hyperbolic_SPA_InitCond_MCMC_minimizer.yml" &
+PID6=$!
+
+run_pipeline_with_retry "${SLURM_JOB_ID}_pNG_PP.txt" 4 \
+    "/home/users/u103677/iDM/Cobaya/MCMC/pNG_PP_D_InitCond_MCMC.yml" \
+    "/home/users/u103677/iDM/Cobaya/MCMC/pNG_PP_D_InitCond_MCMC_minimizer.yml" &
+PID7=$!
+
+run_pipeline_with_retry "${SLURM_JOB_ID}_pNG_PPS.txt" 4 \
+    "/home/users/u103677/iDM/Cobaya/MCMC/pNG_PP_S_D_InitCond_MCMC.yml" \
+    "/home/users/u103677/iDM/Cobaya/MCMC/pNG_PP_S_D_InitCond_MCMC_minimizer.yml" &
+PID8=$!
+
+run_pipeline_with_retry "${SLURM_JOB_ID}_pNG_SPA.txt" 4 \
+    "/home/users/u103677/iDM/Cobaya/MCMC/pNG_SPA_InitCond_MCMC.yml" \
+    "/home/users/u103677/iDM/Cobaya/MCMC/pNG_SPA_InitCond_MCMC_minimizer.yml" &
+PID9=$!
 
 
 
@@ -144,15 +162,26 @@ wait $PID4
 EXIT4=$?
 wait $PID5
 EXIT5=$?
-
+wait $PID6
+EXIT6=$?
+wait $PID7
+EXIT7=$?
+wait $PID8
+EXIT8=$?
+wait $PID9=$?
+EXIT9=$?
 
 echo "============================================"
 echo "All tasks completed"
 echo "DoubleExp exit code: $EXIT1"
 echo "Exponential exit code: $EXIT2"
 echo "Hyperbolic Tracking exit code: $EXIT3"
-echo "Hyperbolic PP/PPS DESI pipeline exit code: $EXIT4"
-echo "pNG PP/PPS pipeline exit code: $EXIT5"
+echo "Hyperbolic PP DESI pipeline exit code: $EXIT4"
+echo "Hyperbolic PPS DESI pipeline exit code: $EXIT5"
+echo "Hyperbolic SPA pipeline exit code: $EXIT6"
+echo "pNG PP pipeline exit code: $EXIT7"
+echo "pNG PPS pipeline exit code: $EXIT8"
+echo "pNG SPA pipeline exit code: $EXIT9"
 echo "============================================"
 
 #Check energy consumption after job completion

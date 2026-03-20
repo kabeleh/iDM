@@ -1,0 +1,7 @@
+output: /project/home/p201176/DoubleExp_Planck_InitCond_MCMC
+post:
+  add:
+    likelihood:
+      bao.desi_dr2: null
+      sn.pantheonplusshoes: null
+  suffix: PPS_DESI

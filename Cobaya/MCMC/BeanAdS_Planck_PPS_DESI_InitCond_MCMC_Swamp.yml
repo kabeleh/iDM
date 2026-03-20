@@ -1,0 +1,17 @@
+post:
+  suffix: Swamp
+  add:
+    params:
+      dSC_tolerance: 0.1
+      dSC_target_abs: 1.0
+      dSC_sigma: 0.5
+    likelihood:
+      DC: 'lambda phi_scf_range: 0.0 if phi_scf_range <= 10.0 else -1e10'
+      SWGC: 'lambda swgc_expr_min: 0.0 if swgc_expr_min >= 0.0 else -1e10'
+      dSC: 'lambda dV_V_scf_min, ddV_V_at_dV_V_min, ddV_V_scf_max, dV_V_at_ddV_V_max,
+        dSC_tolerance, dSC_target_abs, dSC_sigma: (-1e10 if (dSC_tolerance <= 0.0
+        or dSC_target_abs <= dSC_tolerance or dSC_sigma <= 0.0) else (-0.5 * (max(0.0,
+        np.log10(dSC_target_abs / max(1e-300, max(max(max(1e-300, dV_V_scf_min), max(1e-300,
+        -ddV_V_at_dV_V_min)), max(max(1e-300, -ddV_V_scf_max), max(1e-300, dV_V_at_ddV_V_max))))))
+        / dSC_sigma) ** 2))'
+output: /project/home/p201176/BeanAdS_Planck_InitCond_MCMC.post.PPS_DESI

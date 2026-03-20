@@ -1,0 +1,12 @@
+# Enforcing the Distance Conjecture and Scalar Weak Gravity Conjecture as hard cuts in the likelihood
+post:
+  suffix: DC_SWGC
+  add:
+    likelihood:
+      # Distance Conjecture: scalar field excursion
+      swamp_cut_phi_range: 'lambda phi_scf_range: 0.0 if phi_scf_range <= 10.0 else -np.inf'
+      # Scalar Weak Gravity Conjecture: positive dV/V at minimum
+      swamp_cut_swgc: 'lambda swgc_expr_min: 0.0 if swgc_expr_min >= 0.0 else -np.inf'
+
+# Path of the original sample
+output: /project/home/p201176/hyperbolic_Planck_InitCond_MCMC

@@ -1,0 +1,279 @@
+likelihood:
+  planck_2018_highl_plik.TTTEEE_lite_native: null
+  planck_2018_lensing.native: null
+  planck_2018_lowl.EE: null
+  planck_2018_lowl.TT: null
+output: /project/home/p201176/Bean_Planck_InitCond_MCMC
+packages_path: /home/users/u103677/cobaya_packages_2026
+params:
+  A:
+    derived: 'lambda A_s: 1e9*A_s'
+    latex: 10^9 A_\mathrm{s}
+  A_s:
+    derived: true
+    latex: A_\mathrm{s}
+    value: 'lambda logA: 1e-10*np.exp(logA)'
+  AdSDC2_max:
+    latex: m_\mathrm{DM,min (no scale separation)}
+  AdSDC4_max:
+    latex: m_\mathrm{DM,min (scale separation)}
+  H0:
+    latex: H_0
+    prior:
+      max: 100
+      min: 40
+    proposal: 2
+    ref:
+      dist: norm
+      loc: 67
+      scale: 2
+  Omega_Lambda:
+    latex: \Omega_\Lambda
+    value: 0.0
+  Omega_fld: 0.0
+  Omega_m:
+    derived: true
+    latex: \Omega_\mathrm{m}
+  Omega_scf:
+    latex: \Omega_\phi
+    value: -0.7
+  S8:
+    derived: 'lambda sigma8, Omega_m: (Omega_m/0.3)**0.5*sigma8'
+    latex: S_8
+  YHe:
+    derived: true
+    latex: Y_\mathrm{P}
+  age:
+    derived: true
+    latex: '{\rm{Age}}/\mathrm{Gyr}'
+  attractor_regime_scf: null
+  cdm_c:
+    latex: c_\mathrm{DM}
+    prior:
+      max: 18
+      min: -18
+    ref:
+      dist: norm
+      loc: 0
+      scale: 3
+  cdm_f_phi0:
+    latex: f_\mathrm{DM}(\phi_0)
+  clamp:
+    derived: 'lambda A_s, tau_reio: 1e9*A_s*np.exp(-2*tau_reio)'
+    latex: 10^9 A_\mathrm{s} e^{-2\tau}
+  combined_dSC_min:
+    latex: \mathrm{(FLB--SSWGC) combined dSC}_\mathrm{min}
+  conformal_age:
+    latex: \tau_0
+  dV_V_at_ddV_V_max:
+    latex: \mathfrak{s}_{1@\mathfrak{s}_{2,\mathrm{max}}}
+  dV_V_scf_min:
+    latex: \mathfrak{s}_{1,\mathrm{min}}
+  da_star:
+    derived: true
+    latex: D_A(z_\star)
+  ddV_V_at_dV_V_min:
+    latex: -\mathfrak{s}_{2@\mathfrak{s}_{1,\mathrm{min}}}
+  ddV_V_scf_max:
+    latex: -\mathfrak{s}_{2,\mathrm{max}}
+  k_eq:
+    derived: true
+    latex: k_\mathrm{eq}
+  logA:
+    drop: true
+    latex: \log(10^{10} A_\mathrm{s})
+    prior:
+      max: 3.91
+      min: 1.61
+    proposal: 0.001
+    ref:
+      dist: norm
+      loc: 3.05
+      scale: 0.001
+  m_ncdm:
+    value: 0.06
+  n_s:
+    latex: n_\mathrm{s}
+    prior:
+      max: 1.2
+      min: 0.8
+    proposal: 0.002
+    ref:
+      dist: norm
+      loc: 0.965
+      scale: 0.004
+  omega_b:
+    latex: \Omega_\mathrm{b} h^2
+    prior:
+      max: 0.1
+      min: 0.005
+    proposal: 0.0001
+    ref:
+      dist: norm
+      loc: 0.0224
+      scale: 0.0001
+  omega_cdm:
+    latex: \Omega_\mathrm{c} h^2
+    prior:
+      max: 0.99
+      min: 0.001
+    proposal: 0.0005
+    ref:
+      dist: norm
+      loc: 0.12
+      scale: 0.001
+  omegamh2:
+    derived: 'lambda Omega_m, H0: Omega_m*(H0/100)**2'
+    latex: \Omega_\mathrm{m} h^2
+  omegamh3:
+    derived: 'lambda Omega_m, H0: Omega_m*(H0/100)**3'
+    latex: \Omega_\mathrm{m} h^3
+  phi_ini_scf_ic:
+    latex: \phi_{\mathrm{ini}}
+  phi_prime_scf_ic:
+    latex: \phi^{\prime}_{\mathrm{ini}}
+  phi_scf_max:
+    latex: \phi_{\mathrm{max}}
+  phi_scf_min:
+    latex: \phi_{\mathrm{min}}
+  phi_scf_range:
+    latex: \Delta \phi
+  psi_ini:
+    drop: true
+    latex: \psi_\mathrm{ini}
+    prior:
+      max: 10.0
+      min: -10.0
+    ref:
+      dist: norm
+      loc: 0
+      scale: 2
+  rs_d_h:
+    derived: true
+    latex: r_\mathrm{drag}
+  rs_drag:
+    derived: true
+    latex: r_\mathrm{drag}
+  rs_star:
+    derived: true
+    latex: r_\star
+  s8h5:
+    derived: 'lambda sigma8, H0: sigma8*(H0*1e-2)**(-0.5)'
+    latex: \sigma_8/h^{0.5}
+  s8omegamp25:
+    derived: 'lambda sigma8, Omega_m: sigma8*Omega_m**0.25'
+    latex: \sigma_8 \Omega_\mathrm{m}^{0.25}
+  s8omegamp5:
+    derived: 'lambda sigma8, Omega_m: sigma8*Omega_m**0.5'
+    latex: \sigma_8 \Omega_\mathrm{m}^{0.5}
+  scf_c1:
+    derived: 'lambda psi_ini, scf_c2, scf_c3, scf_c4: np.clip(1.037467682923965e-07
+      / (max(((scf_c4 - psi_ini/scf_c3)**2 + scf_c2), 1e-30) * np.exp(np.clip(-psi_ini,
+      -500, 500))), 1e-15, 1e5)'
+    drop: true
+    latex: c_1
+  scf_c2:
+    drop: true
+    latex: c_2
+    prior:
+      a: 1e-06
+      b: 1000.0
+      dist: loguniform
+  scf_c3:
+    drop: true
+    latex: c_3
+    prior:
+      a: 0.01
+      b: 10.0
+      dist: loguniform
+  scf_c4:
+    drop: true
+    latex: c_4
+    prior:
+      max: 4.0
+      min: 0.0
+  scf_exp1:
+    drop: true
+    latex: \exp_1
+    value: 0
+  scf_exp2:
+    drop: true
+    latex: \exp_2
+    value: 0
+  scf_parameters:
+    derived: false
+    value: 'lambda scf_c2,scf_c3,scf_c4,scf_q1,scf_q2,scf_q3,scf_q4,scf_exp1,scf_exp2,psi_ini,scf_phi_prime_ini:
+      ",".join([str(np.clip(1.037467682923965e-07 / (max(((scf_c4 - psi_ini/scf_c3)**2
+      + scf_c2), 1e-30) * np.exp(np.clip(-psi_ini, -500, 500))), 1e-15, 1e5)),str(scf_c2),str(scf_c3),str(scf_c4),str(scf_q1),str(scf_q2),str(scf_q3),str(scf_q4),str(scf_exp1),str(scf_exp2),str(psi_ini/scf_c3),str(scf_phi_prime_ini)])'
+  scf_phi_ini:
+    derived: 'lambda psi_ini, scf_c3: psi_ini / scf_c3'
+    drop: true
+    latex: \phi_\mathrm{ini}
+  scf_phi_prime_ini:
+    drop: true
+    latex: \phi\prime_\mathrm{ini}
+    value: 0.0
+  scf_q1:
+    drop: true
+    latex: q_1
+    value: 0
+  scf_q2:
+    drop: true
+    latex: q_2
+    value: 0
+  scf_q3:
+    drop: true
+    latex: q_3
+    value: 0
+  scf_q4:
+    drop: true
+    latex: q_4
+    value: 0
+  sigma8:
+    derived: true
+    latex: \sigma_8
+  sswgc_min:
+    latex: \mathrm{SSWGC}_\mathrm{DM}
+  swgc_expr_min:
+    latex: \mathrm{SWGC}_\phi
+  tau_reio:
+    latex: \tau_\mathrm{reio}
+    prior:
+      dist: norm
+      loc: 0.051
+      scale: 0.006
+    proposal: 0.003
+    ref: 0.051
+  theta_star_100:
+    derived: true
+    latex: 100\theta_\star
+  z_d:
+    derived: true
+    latex: z_\mathrm{d}
+  z_eq:
+    derived: true
+    latex: z_\mathrm{eq}
+  z_reio:
+    derived: true
+    latex: z_\mathrm{re}
+  z_star:
+    derived: true
+    latex: z_\star
+sampler:
+  minimize:
+    best_of: 10
+    ignore_prior: true
+    method: scipy
+theory:
+  classy:
+    extra_args:
+      N_ncdm: 1
+      N_ur: 2.046
+      attractor_ic_scf: false
+      gauge: newtonian
+      model_cdm: i
+      non linear: halofit
+      sBBN file: sBBN_2017.dat
+      scf_potential: Bean
+      scf_tuning_index: 0
+    path: /home/users/u103677/iDM/

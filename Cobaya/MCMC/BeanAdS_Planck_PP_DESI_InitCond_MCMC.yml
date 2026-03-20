@@ -1,0 +1,7 @@
+output: /project/home/p201176/BeanAdS_Planck_InitCond_MCMC
+post:
+  add:
+    likelihood:
+      bao.desi_dr2: null
+      sn.pantheonplus: null
+  suffix: PP_DESI
