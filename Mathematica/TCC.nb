@@ -10,10 +10,10 @@
 NotebookFileLineBreakTest
 NotebookFileLineBreakTest
 NotebookDataPosition[       154,          7]
-NotebookDataLength[     25304,        704]
-NotebookOptionsPosition[     22345,        624]
-NotebookOutlinePosition[     24201,        684]
-CellTagsIndexPosition[     24158,        681]
+NotebookDataLength[     25402,        706]
+NotebookOptionsPosition[     22408,        625]
+NotebookOutlinePosition[     24298,        686]
+CellTagsIndexPosition[     24255,        683]
 WindowFrame->Normal*)
 
 (* Beginning of Notebook Content *)
@@ -575,11 +575,11 @@ the squared exponential violate the TCC.\nThe hyperbolic potentials requires ",
  Cell[BoxData[
   FormBox[
    TemplateBox[<|"boxes" -> FormBox[
-       RowBox[{
+       RowBox[{"|", 
          SubscriptBox[
-          StyleBox["c", "TI"], "2"], "\[GreaterEqual]", "2", "/", 
+          StyleBox["c", "TI"], "2"], "|", "\[GreaterEqual]", "2", "/", 
          SqrtBox["6"]}], TraditionalForm], "errors" -> {}, "input" -> 
-     "$c_2\\geq2/\\sqrt{6}$", "state" -> "Boxes"|>,
+     "$|c_2|\\geq2/\\sqrt{6}$", "state" -> "Boxes"|>,
     "TeXAssistantTemplate"], TraditionalForm]],ExpressionUUID->
   "ef268a01-e61e-4e98-b790-f7607fe3cb5d"],
  " to satisfy the TCC.\nBean\[CloseCurlyQuote]s potential requires ",
@@ -617,7 +617,8 @@ the squared exponential violate the TCC.\nThe hyperbolic potentials requires ",
 }], "Text",
  CellChangeTimes->{{3.983431006702465*^9, 3.983431250853829*^9}, {
   3.9834316370102654`*^9, 3.983431658603816*^9}, {3.983431693233096*^9, 
-  3.983431720848143*^9}},ExpressionUUID->"1e366965-3181-43b4-8b5f-\
+  3.983431720848143*^9}, {3.983438423601873*^9, 
+  3.9834384376459913`*^9}},ExpressionUUID->"1e366965-3181-43b4-8b5f-\
 abee311b82a0"]
 }, Open  ]]
 }, Open  ]]
@@ -663,11 +664,12 @@ PrintingOptions->{"FacingPages"->True,
 "PaperOrientation"->"Portrait",
 "PaperSize"->{595, 842},
 "PostScriptOutputFile"->"/home/kl/kDrive/Sci/PhD/Research/HDM/class_public/\
-Mathematica/TCC",
+Mathematica/TCC.pdf",
 "PrintCellBrackets"->False,
 "PrintMultipleHorizontalPages"->False,
 "PrintRegistrationMarks"->False,
 "PrintingMargins"->{{54, 54}, {72, 72}}},
+Magnification:>1.5 Inherited,
 FrontEndVersion->"14.3 for Linux x86 (64-bit) (July 8, 2025)",
 StyleDefinitions->"Default.nb",
 ExpressionUUID->"bca1cdc0-23aa-471f-95b8-1bfe9893f677"
@@ -684,26 +686,26 @@ CellTagsIndex->{}
 (*NotebookFileOutline
 Notebook[{
 Cell[CellGroupData[{
-Cell[576, 22, 230, 4, 125, "Title",ExpressionUUID->"a7d88442-0652-456f-8418-6faf29af0775"],
-Cell[809, 28, 1603, 38, 88, "Text",ExpressionUUID->"14858ec1-8cbf-4150-bfb1-ec3cb3f19123"],
+Cell[576, 22, 230, 4, 188, "Title",ExpressionUUID->"a7d88442-0652-456f-8418-6faf29af0775"],
+Cell[809, 28, 1603, 38, 131, "Text",ExpressionUUID->"14858ec1-8cbf-4150-bfb1-ec3cb3f19123"],
 Cell[CellGroupData[{
-Cell[2437, 70, 150, 3, 53, "Chapter",ExpressionUUID->"e5a6f5f2-f6cd-42da-830e-993778205dc9"],
+Cell[2437, 70, 150, 3, 80, "Chapter",ExpressionUUID->"e5a6f5f2-f6cd-42da-830e-993778205dc9"],
 Cell[CellGroupData[{
-Cell[2612, 77, 157, 3, 53, "Section",ExpressionUUID->"0bf6b29c-a243-4c4d-b0ae-06034e7c91df"],
-Cell[2772, 82, 3297, 92, 338, "Input",ExpressionUUID->"4cac35ae-57b8-4847-8124-8ed1ef2b78be"]
+Cell[2612, 77, 157, 3, 79, "Section",ExpressionUUID->"0bf6b29c-a243-4c4d-b0ae-06034e7c91df"],
+Cell[2772, 82, 3297, 92, 498, "Input",ExpressionUUID->"4cac35ae-57b8-4847-8124-8ed1ef2b78be"]
 }, Open  ]],
 Cell[CellGroupData[{
-Cell[6106, 179, 186, 3, 53, "Section",ExpressionUUID->"ef17720d-ab1e-421e-8c27-73924daec18f"],
-Cell[6295, 184, 550, 12, 56, "Input",ExpressionUUID->"13b19608-b238-4e8b-bcfb-0d1032e58e59"]
+Cell[6106, 179, 186, 3, 79, "Section",ExpressionUUID->"ef17720d-ab1e-421e-8c27-73924daec18f"],
+Cell[6295, 184, 550, 12, 83, "Input",ExpressionUUID->"13b19608-b238-4e8b-bcfb-0d1032e58e59"]
 }, Open  ]]
 }, Open  ]],
 Cell[CellGroupData[{
-Cell[6894, 202, 206, 4, 53, "Chapter",ExpressionUUID->"e8610970-26ad-4649-b3c8-2e21b943f466"],
+Cell[6894, 202, 206, 4, 80, "Chapter",ExpressionUUID->"e8610970-26ad-4649-b3c8-2e21b943f466"],
 Cell[CellGroupData[{
-Cell[7125, 210, 2566, 63, 143, "Input",ExpressionUUID->"b155d4bf-f095-45d3-9257-d6d26df30312"],
-Cell[9694, 275, 10019, 282, 283, "Output",ExpressionUUID->"9e927417-25dd-4ffd-9248-38d42fcb5ee4"]
+Cell[7125, 210, 2566, 63, 214, "Input",ExpressionUUID->"b155d4bf-f095-45d3-9257-d6d26df30312"],
+Cell[9694, 275, 10019, 282, 414, "Output",ExpressionUUID->"9e927417-25dd-4ffd-9248-38d42fcb5ee4"]
 }, Open  ]],
-Cell[19728, 560, 2589, 60, 145, "Text",ExpressionUUID->"1e366965-3181-43b4-8b5f-abee311b82a0"]
+Cell[19728, 560, 2652, 61, 218, "Text",ExpressionUUID->"1e366965-3181-43b4-8b5f-abee311b82a0"]
 }, Open  ]]
 }, Open  ]]
 }
