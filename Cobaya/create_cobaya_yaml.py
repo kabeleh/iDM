@@ -266,7 +266,7 @@ def create_cobaya_yaml(
     minimize: dict[str, Any] = {
         "sampler": {
             "minimize": {
-                "best_of": 4,
+                "best_of": 10,
                 "ignore_prior": True,  # needed for AIC and BIC computation, where prior is not taken into account
             }
         },
