@@ -716,7 +716,7 @@ def load_background_dataset(background_file: str) -> Dict[str, Any]:
         w = np.where(rho_scf != 0.0, p_scf / rho_scf, np.nan)
         s1 = np.where(V != 0.0, np.abs(dV) / V, np.nan)
         minus_s2 = np.where(V != 0.0, d2V / V, np.nan)
-        swampland_expr = 1.0 + w - 0.15 * s1 * s1
+        swampland_expr = np.subtract(1.0 + w, np.multiply(0.15, np.square(s1)))
         Omega_cdm = np.where(rho_crit != 0.0, rho_cdm / rho_crit, np.nan)
         Omega_scf = np.where(rho_crit != 0.0, rho_scf / rho_crit, np.nan)
 
@@ -974,12 +974,15 @@ if __name__ == "__main__":
 # 3. Plot the results
 import matplotlib as mpl
 import matplotlib.pyplot as plt
+from matplotlib.axes import Axes
+from matplotlib.figure import Figure
 from matplotlib.ticker import FixedFormatter, FixedLocator, NullFormatter
 
 _HIGH_CONTRAST_PALETTE: Dict[str, str] = {
     "black": "#000000",
     "blue": "#004488",
     "red": "#BB5566",
+    "teal": "#009988",
     "yellow": "#DDAA33",
     "white": "#FFFFFF",
 }
@@ -987,25 +990,25 @@ _HIGH_CONTRAST_PALETTE: Dict[str, str] = {
 mpl.rcParams.update(
     {
         "font.family": "serif",  # Computer Modern — the default LaTeX font
-        "font.size": 9.5,  # slightly lighter page color in print while staying legible
-        "axes.labelsize": 10,
-        "xtick.labelsize": 9,
-        "ytick.labelsize": 9,
-        "legend.fontsize": 9,
-        "lines.linewidth": 1.35,  # balance curve emphasis against grid and frame
-        "axes.linewidth": 0.75,
+        "font.size": 11.5,
+        "axes.labelsize": 12,
+        "xtick.labelsize": 11,
+        "ytick.labelsize": 11,
+        "legend.fontsize": 11,
+        "lines.linewidth": 1.85,  # stronger curve visibility in print
+        "axes.linewidth": 0.95,
         "xtick.direction": "in",  # inward ticks — journal standard
         "ytick.direction": "in",
         "xtick.minor.visible": True,  # show minor ticks
         "ytick.minor.visible": True,
-        "xtick.major.size": 4,  # longer than the 3.5 default
-        "ytick.major.size": 4,
-        "xtick.minor.size": 2,  # half of major — proportional
-        "ytick.minor.size": 2,
-        "xtick.major.width": 0.75,
-        "ytick.major.width": 0.75,
-        "xtick.minor.width": 0.55,
-        "ytick.minor.width": 0.55,
+        "xtick.major.size": 4.8,
+        "ytick.major.size": 4.8,
+        "xtick.minor.size": 2.4,
+        "ytick.minor.size": 2.4,
+        "xtick.major.width": 0.95,
+        "ytick.major.width": 0.95,
+        "xtick.minor.width": 0.72,
+        "ytick.minor.width": 0.72,
         "lines.markersize": 4,  # smaller markers for print scale
         "errorbar.capsize": 3,  # visible end-caps (default is 0)
         "axes.xmargin": 0.02,  # hug the data (default is 0.05)
@@ -1068,7 +1071,7 @@ def _prepare_plot_arrays(background_dataset: Dict[str, Any]) -> Dict[str, np.nda
     }
 
 
-def _style_redshift_axis(ax: plt.Axes, z: np.ndarray) -> None:
+def _style_redshift_axis(ax: Axes, z: np.ndarray) -> None:
     """Apply consistent redshift-axis styling with z=0 at the right side."""
     finite_z = z[np.isfinite(z)]
     zmax = float(np.nanmax(finite_z)) if finite_z.size else 1.0
@@ -1115,11 +1118,11 @@ def _style_redshift_axis(ax: plt.Axes, z: np.ndarray) -> None:
     ax.xaxis.set_minor_formatter(NullFormatter())
 
     ax.set_xlabel(r"Redshift $z$")
-    ax.grid(True, which="major", alpha=0.25, linewidth=0.6)
-    ax.grid(True, which="minor", alpha=0.12, linewidth=0.4)
+    ax.grid(True, which="major", alpha=0.32, linewidth=0.6)
+    ax.grid(True, which="minor", alpha=0.09, linewidth=0.4)
 
 
-def _save_figure_bundle(fig: plt.Figure, base_path: Path) -> None:
+def _save_figure_bundle(fig: Figure, base_path: Path) -> None:
     """Save each figure as PNG/PDF/PGF for quick view and publication workflows."""
     fig.savefig(str(base_path.with_suffix(".png")))
     fig.savefig(str(base_path.with_suffix(".pdf")))
@@ -1127,7 +1130,7 @@ def _save_figure_bundle(fig: plt.Figure, base_path: Path) -> None:
 
 
 def _apply_tight_ylims(
-    ax: plt.Axes,
+    ax: Axes,
     arrays: List[np.ndarray],
     pad_frac: float = 0.08,
 ) -> None:
@@ -1169,7 +1172,7 @@ def make_three_plots(
     out_dir.mkdir(parents=True, exist_ok=True)
 
     c1 = _HIGH_CONTRAST_PALETTE["blue"]
-    c2 = _HIGH_CONTRAST_PALETTE["yellow"]
+    c2 = _HIGH_CONTRAST_PALETTE["teal"]
     c3 = _HIGH_CONTRAST_PALETTE["red"]
     c4 = _HIGH_CONTRAST_PALETTE["black"]
 
