@@ -1,4 +1,28 @@
-# --skip-plots for only tables; otherwise, generate both plots and tables.
+"""
+GetDist MCMC Chain Post-Processing: Tables and Visualization
+
+Generate publication-ready GetDist plots and LaTeX tables from MCMC chains.
+Includes robust font handling, adaptive convergence diagnostics, and marker/style visualization.
+
+Available CLI flags:
+  --skip-plots                 Skip all plotting and only generate LaTeX tables.
+  --skip-tables                Skip LaTeX table generation and only produce plots.
+  --strict-export              Automatically export final plots with strict IBM Plex Math
+                               (PDF + PGF via lualatex); requires lualatex installed.
+  --strict-export-dir DIR      Output directory for --strict-export files
+                               (default: current working directory).
+  --show-all-kde-warnings      Show all repetitive GetDist KDE/binning warnings
+                               (default: condensed output with 4 representative warnings per category).
+
+Examples:
+  python3 data_postprocessing_getDist.py                     # Full pipeline: tables + plots
+  python3 data_postprocessing_getDist.py --skip-plots         # Tables only
+  python3 data_postprocessing_getDist.py --skip-tables        # Plots only
+  python3 data_postprocessing_getDist.py --strict-export      # Tables + plots + PGF export
+  python3 data_postprocessing_getDist.py --skip-tables --strict-export  # Plots + PGF export
+  python3 data_postprocessing_getDist.py --show-all-kde-warnings  # Debug: show all warnings
+"""
+
 # %%
 # Import required libraries:
 # - matplotlib.pyplot for plotting
@@ -9,18 +33,209 @@ import argparse
 import os
 import re
 import glob
+import shutil
+import math
+import atexit
+import logging
 import numpy as np  # type: ignore[import-untyped]
+from cycler import cycler
+
+import matplotlib as mpl
+from matplotlib import font_manager
+from matplotlib import colors as mcolors
 
 import matplotlib.pyplot as plt  # type: ignore[import-untyped]
+from matplotlib.lines import Line2D
 from matplotlib.patches import Patch
 from cmcrameri import cm  # type: ignore[import-untyped]
 from getdist import plots  # type: ignore[import-untyped]
+
+
+# Preview font selection: robust detection with fallback and file logging.
+def _find_font_file(font_family: str) -> tuple[bool, str]:
+    """Check font availability and return (found, file_path_or_status).
+
+    Returns:
+        (True, '/path/to/font.ttf') if found
+        (False, 'reason') if not found
+    """
+    # Method 1: Check fontManager.ttflist cache (fast and safe)
+    try:
+        for font_entry in font_manager.fontManager.ttflist:
+            if (
+                isinstance(font_entry.name, str)
+                and font_entry.name.strip().lower() == font_family.strip().lower()
+            ):
+                return (True, font_entry.fname)
+    except Exception:
+        pass
+
+    # Method 2: Scan system fonts and match exact FT2 family name.
+    # This catches user-installed fonts that may not be in matplotlib's cache.
+    try:
+        for font_path in font_manager.findSystemFonts():
+            try:
+                ft_font = font_manager.get_font(font_path)
+                family_name = getattr(ft_font, "family_name", "")
+                if (
+                    isinstance(family_name, str)
+                    and family_name.strip().lower() == font_family.strip().lower()
+                ):
+                    return (True, font_path)
+            except Exception:
+                pass
+    except Exception:
+        pass
+
+    # Method 3: Last resort - findfont (may return fallback, not our font)
+    try:
+        resolved = font_manager.findfont(font_family)
+        # Only return True if the path actually contains the font name
+        if (
+            resolved
+            and font_family.replace(" ", "").lower()
+            in resolved.replace(" ", "").lower()
+        ):
+            return (True, resolved)
+        # findfont returned a fallback, not what we want
+        return (False, "Not found in system; findfont would use fallback")
+    except Exception as e:
+        return (False, f"Font detection failed: {str(e)}")
+
+
+def _register_preview_font(font_name: str, path: str) -> None:
+    """Register a discovered font file with matplotlib runtime manager."""
+    try:
+        font_manager.fontManager.addfont(path)
+    except Exception:
+        pass
+
+
+# Check each required font and collect results, then register explicit files.
+_FONT_CHECK_RESULTS: dict[str, tuple[bool, str]] = {}
+for font_name in ("IBM Plex Serif", "IBM Plex Sans", "IBM Plex Mono"):
+    found, info = _find_font_file(font_name)
+    _FONT_CHECK_RESULTS[font_name] = (found, info)
+    if found:
+        _register_preview_font(font_name, info)
+
+_HAS_PLEX_PREVIEW = all(found for found, _ in _FONT_CHECK_RESULTS.values())
+
+if _HAS_PLEX_PREVIEW:
+    _PREVIEW_SERIF = "IBM Plex Serif"
+    _PREVIEW_SANS = "IBM Plex Sans"
+    _PREVIEW_MONO = "IBM Plex Mono"
+    print("Using IBM Plex fonts for preview:")
+    for font_name, (found, path) in _FONT_CHECK_RESULTS.items():
+        if found:
+            print(f"  {font_name}: {path}")
+else:
+    _PREVIEW_SERIF = "DejaVu Serif"
+    _PREVIEW_SANS = "DejaVu Sans"
+    _PREVIEW_MONO = "DejaVu Sans Mono"
+    print(
+        "Warning: Not all IBM Plex fonts found for interactive preview. "
+        "Using DejaVu fallback. Strict --strict-export remains IBM Plex Math via lualatex."
+    )
+    for font_name, (found, reason) in _FONT_CHECK_RESULTS.items():
+        if not found:
+            print(f"  {font_name}: {reason}")
+
+
+# Plot Configuration
+mpl.rcParams.update(
+    {
+        "font.family": [_PREVIEW_SERIF],
+        "font.sans-serif": [_PREVIEW_SANS, "DejaVu Sans", "sans-serif"],
+        "font.monospace": [_PREVIEW_MONO, "DejaVu Sans Mono", "monospace"],
+        "font.serif": [_PREVIEW_SERIF, "DejaVu Serif", "serif"],
+        "font.size": 10,  # body text size (most journals use 10 pt)
+        "axes.labelsize": 10,  # axis-label size matches body text
+        "xtick.labelsize": 9,  # tick labels one point smaller
+        "ytick.labelsize": 9,
+        "legend.fontsize": 9,  # legend text one point smaller
+        "axes.prop_cycle": cycler(
+            "color",
+            [  # Okabe–Ito colorblind-safe palette
+                "#0072B2",
+                "#D55E00",
+                "#009E73",
+                "#E69F00",
+                "#CC79A7",
+                "#56B4E9",
+            ],
+        ),
+        "lines.linewidth": 1.5,  # slightly thicker for print clarity
+        "axes.linewidth": 0.8,  # thinner axis frame
+        "xtick.direction": "in",  # inward ticks — journal standard
+        "ytick.direction": "in",
+        "xtick.minor.visible": True,  # show minor ticks
+        "ytick.minor.visible": True,
+        "xtick.major.size": 4,  # longer than the 3.5 default
+        "ytick.major.size": 4,
+        "xtick.minor.size": 2,  # half of major — proportional
+        "ytick.minor.size": 2,
+        "xtick.major.width": 0.8,  # match axes.linewidth
+        "ytick.major.width": 0.8,
+        "xtick.minor.width": 0.6,  # thinner for visual hierarchy
+        "ytick.minor.width": 0.6,
+        "lines.markersize": 4,  # smaller markers for print scale
+        "errorbar.capsize": 3,  # visible end-caps (default is 0)
+        "axes.xmargin": 0.02,  # hug the data (default is 0.05)
+        "axes.ymargin": 0.02,
+        "legend.frameon": False,  # no legend box
+        "savefig.bbox": "tight",  # tight bounding box by default
+        "savefig.dpi": 300,  # publication-quality resolution
+        # Thesis text width is 13.1 cm. Keep a consistent figure footprint.
+        "figure.figsize": (13.1 / 2.54, 13.1 / 2.54 * 0.72),
+        # Prefer high-quality static output by default.
+        "savefig.format": "pdf",
+        # Interactive preview mode: robust on-screen rendering.
+        "text.usetex": False,
+        "mathtext.fontset": "stix",
+    }
+)
+
+
+STRICT_PLEX_PGF_RC: dict[str, Any] = {
+    "text.usetex": True,
+    "pgf.texsystem": "lualatex",
+    "pgf.rcfonts": False,
+    "pgf.preamble": (
+        r"\usepackage{fontspec}"
+        r"\usepackage{mathtools}"
+        r"\usepackage{amssymb}"
+        r"\usepackage[warnings-off={mathtools-overbracket,mathtools-colon}]{unicode-math}"
+        r"\setmainfont{IBM Plex Serif}"
+        r"\setsansfont{IBM Plex Sans}"
+        r"\setmonofont{IBM Plex Mono}"
+        r"\setmathfont{IBM Plex Math}"
+    ),
+    "text.latex.preamble": (
+        r"\usepackage{fontspec}"
+        r"\usepackage{mathtools}"
+        r"\usepackage{amssymb}"
+        r"\usepackage[warnings-off={mathtools-overbracket,mathtools-colon}]{unicode-math}"
+        r"\setmainfont{IBM Plex Serif}"
+        r"\setsansfont{IBM Plex Sans}"
+        r"\setmonofont{IBM Plex Mono}"
+        r"\setmathfont{IBM Plex Math}"
+    ),
+}
+
 
 plt = cast(Any, plt)
 cm = cast(Any, cm)
 plots = cast(Any, plots)
 
 Color = Any
+
+THESIS_TEXTWIDTH_CM = 13.1
+FIGURE_WIDTH_IN = THESIS_TEXTWIDTH_CM / 2.54
+FIGURE_HEIGHT_IN = FIGURE_WIDTH_IN * 0.72
+
+LINE_STYLES: list[str] = ["-", "--", "-.", ":"]
+MARKERS: list[str] = ["o", "s", "^", "v", "D", "P", "X", "*"]
 
 # Global cache for loaded samples to avoid redundant loading
 _SAMPLES_CACHE: dict[str, Any] = {}
@@ -33,6 +248,35 @@ MCSamples = cast(Any, MCSamples)
 loadMCSamples = cast(Callable[..., Any], loadMCSamples)
 
 
+def _style_for_chain(index: int) -> tuple[str, str]:
+    """Return (linestyle, marker) for deterministic chain styling."""
+    return (
+        LINE_STYLES[index % len(LINE_STYLES)],
+        MARKERS[index % len(MARKERS)],
+    )
+
+
+def save_strict_plex_figure(
+    fig: Any,
+    pdf_path: str,
+    pgf_path: str | None = None,
+) -> None:
+    """Save a figure with strict IBM Plex Math using lualatex+PGF.
+
+    This function is intended for final thesis figures. It leaves interactive
+    preview rendering untouched, so `plt.show()` continues to work normally.
+    """
+    if shutil.which("lualatex") is None:
+        raise RuntimeError(
+            "Cannot export strict IBM Plex Math figure: lualatex is not available."
+        )
+
+    with mpl.rc_context(STRICT_PLEX_PGF_RC):
+        fig.savefig(pdf_path, format="pdf", backend="pgf", bbox_inches="tight", dpi=300)
+        if pgf_path is not None:
+            fig.savefig(pgf_path, format="pgf", backend="pgf", bbox_inches="tight")
+
+
 def parse_cli_args() -> argparse.Namespace:
     """Parse command-line arguments for the postprocessing script."""
     parser = argparse.ArgumentParser(
@@ -43,10 +287,130 @@ def parse_cli_args() -> argparse.Namespace:
         action="store_true",
         help="Skip all plotting and only generate the tables.",
     )
+    parser.add_argument(
+        "--skip-tables",
+        action="store_true",
+        help="Skip LaTeX table generation and only produce plots.",
+    )
+    parser.add_argument(
+        "--strict-export",
+        action="store_true",
+        help=(
+            "Automatically export final plots with strict IBM Plex Math "
+            "(PDF + PGF via lualatex)."
+        ),
+    )
+    parser.add_argument(
+        "--strict-export-dir",
+        default=".",
+        help=(
+            "Output directory for --strict-export files (default: current working directory)."
+        ),
+    )
+    parser.add_argument(
+        "--show-all-kde-warnings",
+        action="store_true",
+        help=(
+            "Show all repetitive GetDist KDE/binning warnings (default is condensed output)."
+        ),
+    )
     return parser.parse_args()
 
 
 CLI_ARGS = parse_cli_args()
+
+
+class _GetDistWarningLimiter(logging.Filter):
+    """Condense repetitive GetDist KDE warning spam while keeping signal."""
+
+    def __init__(self, max_per_bucket: int = 4):
+        super().__init__()
+        self.max_per_bucket = max_per_bucket
+        self.counts: dict[str, int] = {}
+
+    def _bucket(self, message: str) -> str | None:
+        if "2D kernel density bandwidth optimizer failed" in message:
+            return "kde_2d_optimizer"
+        if "auto bandwidth for" in message and "Using fallback" in message:
+            return "kde_auto_bandwidth_fallback"
+        if "fine_bins not large enough to well sample smoothing scale" in message:
+            return "kde_fine_bins_too_small"
+        return None
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        msg = record.getMessage()
+        bucket = self._bucket(msg)
+        if bucket is None:
+            return True
+        count = self.counts.get(bucket, 0) + 1
+        self.counts[bucket] = count
+        return count <= self.max_per_bucket
+
+
+_KDE_WARNING_LIMITER: _GetDistWarningLimiter | None = None
+
+
+def _install_getdist_warning_limiter() -> None:
+    """Install a logging filter that condenses repetitive GetDist warnings."""
+    global _KDE_WARNING_LIMITER
+    if CLI_ARGS.show_all_kde_warnings:
+        return
+    root_logger = logging.getLogger()
+    limiter = _GetDistWarningLimiter(max_per_bucket=4)
+    root_logger.addFilter(limiter)
+    _KDE_WARNING_LIMITER = limiter
+
+    def _print_summary() -> None:
+        if _KDE_WARNING_LIMITER is None:
+            return
+        suppressed: list[str] = []
+        for bucket, count in _KDE_WARNING_LIMITER.counts.items():
+            extra = count - _KDE_WARNING_LIMITER.max_per_bucket
+            if extra > 0:
+                suppressed.append(f"{bucket}: {extra}")
+        if suppressed:
+            print(
+                "Note: Condensed repetitive GetDist warnings "
+                f"(use --show-all-kde-warnings to disable): {', '.join(suppressed)}"
+            )
+
+    atexit.register(_print_summary)
+
+
+_install_getdist_warning_limiter()
+
+
+def _validate_chain_root_exists(
+    root: str,
+    chain_dir: str,
+) -> tuple[bool, str]:
+    """Check if chain root files exist. Return (valid, reason)."""
+    base_path = _root_base_path(root, chain_dir)
+    required_extensions = [".txt", ".bestfit", ".input.yaml", ".updated.yaml"]
+
+    # Check for at least one required file or numbered chain file
+    has_txt = any(
+        os.path.exists(f"{base_path}{ext}") for ext in required_extensions
+    ) or bool(glob.glob(f"{base_path}.*.txt"))
+
+    if not has_txt:
+        return (False, f"No chain files found for root: {base_path}")
+
+    return (True, base_path)
+
+
+def _suggest_fine_bins(sample_count: int, current_bins: int) -> int:
+    """Return a rounded-up fine_bins target based on sample count.
+
+    We target ~2 samples per fine bin and round to the next multiple of 256
+    for stable bin counts across runs.
+    """
+    max_fine_bins = 8192
+    if sample_count <= 0:
+        return min(current_bins, max_fine_bins)
+    target = max(current_bins, int(math.ceil(sample_count / 2.0)))
+    rounded = int(math.ceil(target / 256.0) * 256)
+    return min(rounded, max_fine_bins)
 
 
 def preload_all_chains(
@@ -70,34 +434,98 @@ def preload_all_chains(
     settings : dict
         Analysis settings (e.g., burn-in).
     verbose : bool
-        If True, print loading progress.
+        If True, print loading progress and validation results.
     """
     if verbose:
-        print(f"Preloading {len(roots)} chain(s) into cache...")
+        print(f"Preflight validation: checking {len(roots)} chain root(s)...")
 
+    # Preflight check: validate all roots exist before attempting loads
+    valid_roots = []
+    skipped_roots = []
     for i, root in enumerate(roots, 1):
         resolved_root = resolve_chain_root(root, chain_dir)
-        cache_key = _cache_key(chain_dir, resolved_root)
-        if cache_key not in _SAMPLES_CACHE:
+        valid, reason = _validate_chain_root_exists(resolved_root, chain_dir)
+        if valid:
+            valid_roots.append((i, root, resolved_root))
+        else:
+            skipped_roots.append((i, root, reason))
+            if verbose:
+                print(f"  [{i}/{len(roots)}] Skipping {root}: {reason}")
+
+    # Build mutable active settings and ensure fine_bins is explicit.
+    active_settings: dict[str, Any] = dict(settings)
+    max_fine_bins = 8192
+    current_fine_bins = min(int(active_settings.get("fine_bins", 1024)), max_fine_bins)
+    active_settings["fine_bins"] = current_fine_bins
+
+    def _load_pass(
+        pass_label: str, pass_settings: Mapping[str, Any]
+    ) -> tuple[int, int]:
+        if verbose and valid_roots:
+            print(
+                f"Preloading {len(valid_roots)}/{len(roots)} valid chain(s) "
+                f"({pass_label}, fine_bins={int(pass_settings.get('fine_bins', 1024))})..."
+            )
+
+        successful_local = 0
+        suggested_fine_bins = int(pass_settings.get("fine_bins", 1024))
+
+        for i_orig, root, resolved_root in valid_roots:
+            cache_key = _cache_key(chain_dir, resolved_root)
             try:
                 if verbose:
-                    print(f"  [{i}/{len(roots)}] Loading {root}...")
+                    print(f"  [{i_orig}/{len(roots)}] Loading {root}...")
                 samples = loadMCSamples(
-                    _root_base_path(resolved_root, chain_dir), settings=settings
+                    _root_base_path(resolved_root, chain_dir), settings=pass_settings
                 )
                 _SAMPLES_CACHE[cache_key] = samples
+                successful_local += 1
+
+                sample_count = len(getattr(samples, "samples", []))
+                suggested_fine_bins = max(
+                    suggested_fine_bins,
+                    _suggest_fine_bins(
+                        sample_count, int(pass_settings.get("fine_bins", 1024))
+                    ),
+                )
             except Exception as e:
                 if verbose:
-                    print(f"  [{i}/{len(roots)}] Failed to load {root}: {e}")
+                    print(f"  [{i_orig}/{len(roots)}] Failed to load {root}: {e}")
                 _SAMPLES_CACHE[cache_key] = None
-        elif verbose:
-            print(f"  [{i}/{len(roots)}] {root} already cached")
+
+        return successful_local, suggested_fine_bins
+
+    successful, suggested = _load_pass("pass 1", active_settings)
+
+    # If probing indicates larger bins are needed, restart from scratch with updated bins.
+    if suggested > current_fine_bins:
+        if verbose:
+            print(
+                f"Adaptive binning: increasing fine_bins from {current_fine_bins} to {suggested}."
+            )
+            print("Clearing cache and restarting chain preload from scratch...")
+
+        _SAMPLES_CACHE.clear()
+        active_settings["fine_bins"] = suggested
+
+        # Persist to caller settings if mutable (e.g. ANALYSIS_SETTINGS dict).
+        if isinstance(settings, dict):
+            settings["fine_bins"] = suggested
+
+        successful, _ = _load_pass("pass 2", active_settings)
 
     if verbose:
-        successful = sum(1 for v in _SAMPLES_CACHE.values() if v is not None)
-        print(
-            f"Cache preload complete: {successful}/{len(roots)} chains loaded successfully.\n"
-        )
+        if skipped_roots:
+            print(
+                f"Cache preload complete: {successful}/{len(valid_roots)} valid chains loaded successfully. "
+                f"({len(skipped_roots)} skipped due to missing files). "
+                f"Using fine_bins={int(active_settings.get('fine_bins', 1024))}.\n"
+            )
+        else:
+            print(
+                f"Cache preload complete: {successful}/{len(roots)} chains loaded successfully. "
+                f"Using fine_bins={int(active_settings.get('fine_bins', 1024))}.\n"
+            )
 
 
 # ============================================================================
@@ -181,24 +609,66 @@ ROOTS: list[str] = [
     # "hyperbolic_PP_S_D_InitCond_MCMC",
     # --- LCDM Archive ---
     "cobaya_mcmc_fast_CMB_LCDM",
+    "cobaya_mcmc_fast_CMB_LCDM.post.PP",
+    "cobaya_mcmc_fast_CMB_LCDM.post.PPS",
     # --- All potentials comparison Planck Data ---
-    "BeanAdS_Planck_InitCond_MCMC",
-    "Bean_Planck_InitCond_MCMC",
-    "cosine_Planck_InitCond_MCMC",
-    "DoubleExp_Planck_InitCond_MCMC",
-    "exponential_Planck_InitCond_MCMC",
-    "hyperbolic_Planck_InitCond_MCMC",
-    "hyperbolic_Planck_tracking_MCMC",
-    "pNG_Planck_InitCond_MCMC",
-    "power-law_Planck_InitCond_MCMC",
-    "SqE_Planck_InitCond_MCMC",
+    # "BeanAdS_Planck_InitCond_MCMC",
+    # "Bean_Planck_InitCond_MCMC",
+    # "cosine_Planck_InitCond_MCMC",
+    # "DoubleExp_Planck_InitCond_MCMC",
+    # "exponential_Planck_InitCond_MCMC",
+    # "hyperbolic_Planck_InitCond_MCMC",
+    "hyperbolic_Planck_InitCond_MCMC.post.Swamp",
+    # "hyperbolic_Planck_InitCond_MCMC.post.PP_DESI",
+    "hyperbolic_Planck_InitCond_MCMC.post.PP_DESI.post.Swamp",
+    # "hyperbolic_Planck_InitCond_MCMC.post.PPS_DESI",
+    "hyperbolic_Planck_InitCond_MCMC.post.PPS_DESI.post.Swamp",
+    # "hyperbolic_Planck_tracking_MCMC",
+    # "pNG_Planck_InitCond_MCMC",
+    # "pNG_Planck_InitCond_MCMC.post.PP_DESI",
+    # "pNG_Planck_InitCond_MCMC.post.PP_DESI.post.Swamp",
+    # "pNG_Planck_InitCond_MCMC.post.PPS_DESI",
+    # "pNG_Planck_InitCond_MCMC.post.PPS_DESI.post.Swamp",
+    # "power-law_Planck_InitCond_MCMC",
+    # "SqE_Planck_InitCond_MCMC",
 ]
 
-# Extract a list of colors from the categorical batlowKS colourmap
-# Reserve indices 0, 1 for observational bands; 2+ for MCMC chains
-ALL_COLOURS: list[Color] = [tuple(c) for c in cm.batlowKS.colors]
-BAND_COLOURS: list[Color] = ALL_COLOURS[:2]  # colours[0] for H0, colours[1] for S8
-CHAIN_COLOURS: list[Color] = ALL_COLOURS[2 : 2 + len(ROOTS)]  # consistent chain colours
+
+# Use Crameri colourmaps directly with evenly spaced sampling to preserve
+# their intended hue progression and avoid collapsing to a few dark tones.
+def _sample_evenly(colours: Sequence[Color], count: int) -> list[Color]:
+    """Sample `count` colours evenly from a colour list, ensuring distinctness.
+
+    Uses evenly-spaced indices to preserve palette hue progression.
+    If not enough colours, cycles through the palette.
+    """
+    if count <= 0:
+        return []
+    if count == 1:
+        return [colours[len(colours) // 2]]
+    if len(colours) >= count:
+        # Evenly space indices across the palette
+        idx = np.linspace(0, len(colours) - 1, num=count, dtype=int)
+        return [colours[int(i)] for i in idx]
+    else:
+        # Cycle through palette if we need more colours than available
+        return [colours[i % len(colours)] for i in range(count)]
+
+
+# Create a permanent colour mapping from ROOTS to colours.
+# This mapping persists across all plots and sorting operations.
+_RAW_CHAIN_COLOURS: list[Color] = [tuple(c) for c in cm.batlowKS.colors]
+ROOT_TO_COLOUR: dict[str, Color] = {
+    root: _RAW_CHAIN_COLOURS[i % len(_RAW_CHAIN_COLOURS)]
+    for i, root in enumerate(ROOTS)
+}
+
+# Pick two distinct band colours from romaO colormap
+_BAND_COLOURS_SOURCE: list[Color] = [tuple(c) for c in cm.romaO.colors]
+BAND_COLOURS: list[Color] = [
+    _BAND_COLOURS_SOURCE[len(_BAND_COLOURS_SOURCE) // 6],
+    _BAND_COLOURS_SOURCE[5 * len(_BAND_COLOURS_SOURCE) // 6],
+]
 
 
 def _root_from_filepath(path: str, chain_dir: str) -> str:
@@ -224,6 +694,55 @@ def _sort_chain_matches(matches: Sequence[str], chain_dir: str) -> list[str]:
         return (penalty, depth, rel)
 
     return sorted(set(matches), key=_match_key)
+
+
+def _unique_roots_from_matches(matches: Sequence[str], chain_dir: str) -> list[str]:
+    """Return sorted unique chain roots extracted from file matches."""
+    unique = sorted({_root_from_filepath(m, chain_dir) for m in matches})
+    return sorted(
+        unique,
+        key=lambda r: (
+            1 if "/initialTesting/" in f"/{r}" else 0,
+            r.count("/"),
+            r,
+        ),
+    )
+
+
+def _prefer_best_root(root: str, unique_roots: Sequence[str]) -> str:
+    """Prefer exact basename matches to avoid resolving into .post variants."""
+    basename_exact = [r for r in unique_roots if os.path.basename(r) == root]
+    if basename_exact:
+        return basename_exact[0]
+
+    # If the request does not include post-processing suffix, prefer non-post roots.
+    if ".post." not in root:
+        non_post = [r for r in unique_roots if ".post." not in os.path.basename(r)]
+        if non_post:
+            return non_post[0]
+
+    return unique_roots[0]
+
+
+def _should_warn_ambiguity(root: str, unique_roots: Sequence[str]) -> bool:
+    """Warn only for meaningful ambiguities that can change scientific selection."""
+    if len(unique_roots) <= 1:
+        return False
+
+    # Multiple locations of the exact same basename (e.g., initialTesting duplicates)
+    # are expected and handled by priority ordering.
+    if all(os.path.basename(r) == root for r in unique_roots):
+        return False
+
+    # If root has no post suffix, suppress warning caused only by .post.* variants.
+    if ".post." not in root:
+        base_names = [os.path.basename(r) for r in unique_roots]
+        if any(b == root for b in base_names):
+            non_exact = [b for b in base_names if b != root]
+            if non_exact and all(b.startswith(f"{root}.post.") for b in non_exact):
+                return False
+
+    return True
 
 
 def _collect_chain_matches(
@@ -282,19 +801,17 @@ def resolve_chain_root(root: str, chain_dir: str = CHAIN_DIR) -> str:
         if not matches:
             return root
 
-        resolved = _root_from_filepath(matches[0], chain_dir)
+        unique_roots = _unique_roots_from_matches(matches, chain_dir)
+        resolved = _prefer_best_root(root, unique_roots)
         _ROOT_PATH_CACHE[root] = resolved
 
         # Only warn if there are multiple distinct chain roots (truly ambiguous)
         # GetDist naturally has multiple files per chain (.1.txt, .2.txt, .bestfit, etc.)
-        if len(matches) > 1:
-            unique_roots = set(_root_from_filepath(m, chain_dir) for m in matches)
-            if len(unique_roots) > 1:
-                rel_roots = sorted(unique_roots)
-                print(
-                    f"Warning: Multiple distinct chains match root '{root}'. "
-                    f"Using '{resolved}'. Found chains: {rel_roots}"
-                )
+        if _should_warn_ambiguity(root, unique_roots):
+            print(
+                f"Warning: Multiple distinct chains match root '{root}'. "
+                f"Using '{resolved}'. Found chains: {unique_roots}"
+            )
 
         return resolved
 
@@ -314,19 +831,17 @@ def resolve_chain_root(root: str, chain_dir: str = CHAIN_DIR) -> str:
         _ROOT_PATH_CACHE[root] = root
         return root
 
-    resolved = _root_from_filepath(matches[0], chain_dir)
+    unique_roots = _unique_roots_from_matches(matches, chain_dir)
+    resolved = _prefer_best_root(root, unique_roots)
     _ROOT_PATH_CACHE[root] = resolved
 
     # Only warn if there are multiple distinct chain roots (truly ambiguous)
     # GetDist naturally has multiple files per chain (.1.txt, .2.txt, .bestfit, etc.)
-    if len(matches) > 1:
-        unique_roots = set(_root_from_filepath(m, chain_dir) for m in matches)
-        if len(unique_roots) > 1:
-            rel_roots = sorted(unique_roots)
-            print(
-                f"Warning: Multiple distinct chains match root '{root}'. "
-                f"Using '{resolved}'. Found chains: {rel_roots}"
-            )
+    if _should_warn_ambiguity(root, unique_roots):
+        print(
+            f"Warning: Multiple distinct chains match root '{root}'. "
+            f"Using '{resolved}'. Found chains: {unique_roots}"
+        )
 
     return resolved
 
@@ -365,6 +880,79 @@ def get_samples_for_root(
     return samples
 
 
+def infer_dataset_flags_from_root(root: str) -> dict[str, bool]:
+    """Infer dataset flags from chain naming conventions.
+
+    PP/PPS chains implicitly include DESI DR2 in this project.
+    """
+    root_lower = root.lower()
+
+    post_suffix = ""
+    post_match = re.search(r"\.post\.(\w+)$", root_lower)
+    if post_match:
+        post_suffix = post_match.group(1)
+    base_lower = re.sub(r"\.post\.\w+$", "", root_lower)
+    is_legacy = base_lower.startswith("cobaya_")
+
+    has_planck = "planck" in base_lower or (
+        is_legacy and ("_cmb_" in base_lower or base_lower.endswith("_cmb"))
+    )
+    has_spa = "spa" in base_lower
+
+    has_pantheon = False
+    has_sh0es = False
+    has_desi = False
+
+    if is_legacy:
+        if "pp" in base_lower or "pantheon" in base_lower:
+            has_pantheon = True
+        if "_s_" in base_lower or "sh0es" in base_lower or "shoes" in base_lower:
+            has_sh0es = True
+        if "desi" in base_lower:
+            has_desi = True
+    else:
+        if "pp_s_d" in base_lower or "pps_d" in base_lower:
+            has_pantheon = True
+            has_sh0es = True
+            has_desi = True
+        elif "pp_d" in base_lower:
+            has_pantheon = True
+            has_desi = True
+        else:
+            if re.search(r"(^|_)pp(s)?(_|$)", base_lower) or "pantheon" in base_lower:
+                has_pantheon = True
+            if (
+                re.search(r"(^|_)s(_|$)", base_lower)
+                or "sh0es" in base_lower
+                or "shoes" in base_lower
+            ):
+                has_sh0es = True
+            if "desi" in base_lower or re.search(r"(^|_)d(_|$)", base_lower):
+                has_desi = True
+
+    if post_suffix == "pps":
+        has_pantheon = True
+        has_sh0es = True
+    elif post_suffix == "pp":
+        has_pantheon = True
+    elif post_suffix == "sn_bao":
+        has_pantheon = True
+        has_sh0es = True
+        has_desi = True
+
+    # Project rule: all Pantheon+ (PP/PPS) chains also include DESI DR2.
+    if has_pantheon:
+        has_desi = True
+
+    return {
+        "has_planck": has_planck,
+        "has_spa": has_spa,
+        "has_pantheon": has_pantheon,
+        "has_sh0es": has_sh0es,
+        "has_desi": has_desi,
+    }
+
+
 def build_legend_label(root: str) -> str:
     """Build a legend label from the chain root name.
 
@@ -374,11 +962,8 @@ def build_legend_label(root: str) -> str:
     root_lower = root.lower()
 
     # Separate base name from .post.* suffix
-    post_suffix = ""
-    post_match = re.search(r"\.post\.(\w+)$", root_lower)
-    if post_match:
-        post_suffix = post_match.group(1)
     base_lower = re.sub(r"\.post\.\w+$", "", root_lower)
+    dataset_flags = infer_dataset_flags_from_root(root)
 
     # --- Detect model/potential ---
     if "lcdm" in base_lower:
@@ -407,54 +992,21 @@ def build_legend_label(root: str) -> str:
         model_label = "Model"
 
     likelihoods: list[str] = []
-    is_legacy = base_lower.startswith("cobaya_")
 
     # --- CMB detection ---
     # Legacy: "planck" or "_cmb_" in name; "fast" alone does NOT imply Planck
     # New: "planck" as a data tag
-    if "planck" in base_lower or (
-        is_legacy and ("_cmb_" in base_lower or base_lower.endswith("_cmb"))
-    ):
+    if dataset_flags["has_planck"]:
         likelihoods.append("Planck 2018")
-    if "spa" in base_lower:
+    if dataset_flags["has_spa"]:
         likelihoods.append("SPA")
 
-    # --- SN / BAO / H0 detection ---
-    if is_legacy:
-        # Legacy convention: check for "pp", "_s_", "desi" substrings
-        if "pp" in base_lower and "Pantheon+" not in likelihoods:
-            likelihoods.append("Pantheon+")
-        if "_s_" in base_lower:
-            likelihoods.append("SH0ES")
-        if "desi" in base_lower:
-            likelihoods.append("DESI DR2")
-    else:
-        # New convention: check PP_S_D before PP_D (substring ordering matters)
-        if "pp_s_d" in base_lower:
-            likelihoods.append("Pantheon+")
-            likelihoods.append("SH0ES")
-            likelihoods.append("DESI DR2")
-        elif "pp_d" in base_lower:
-            likelihoods.append("Pantheon+")
-            likelihoods.append("DESI DR2")
-
-    # --- Handle .post.* suffixes that add likelihoods ---
-    if post_suffix in ("pps",):
-        if "Pantheon+" not in likelihoods:
-            likelihoods.append("Pantheon+")
-        if "SH0ES" not in likelihoods:
-            likelihoods.append("SH0ES")
-    elif post_suffix in ("pp",):
-        if "Pantheon+" not in likelihoods:
-            likelihoods.append("Pantheon+")
-    elif post_suffix in ("sn_bao",):
-        if "Pantheon+" not in likelihoods:
-            likelihoods.append("Pantheon+")
-        if "SH0ES" not in likelihoods:
-            likelihoods.append("SH0ES")
-        if "DESI DR2" not in likelihoods:
-            likelihoods.append("DESI DR2")
-    # .post.swampland, .post.s8 etc. don't add likelihood info
+    if dataset_flags["has_desi"]:
+        likelihoods.append("DESI DR2")
+    if dataset_flags["has_pantheon"]:
+        likelihoods.append("Pantheon+")
+    if dataset_flags["has_sh0es"]:
+        likelihoods.append("SH0ES")
 
     if likelihoods:
         return f"{model_label}: " + " | ".join(likelihoods)
@@ -464,6 +1016,132 @@ def build_legend_label(root: str) -> str:
 # ============================================================================
 # PLOTTING FUNCTIONS
 # ============================================================================
+
+
+def _build_chain_line_args(chain_colors: Sequence[Color]) -> list[dict[str, Any]]:
+    """Build per-chain plotting styles for improved grayscale legibility."""
+    line_args: list[dict[str, Any]] = []
+    for i, color in enumerate(chain_colors):
+        linestyle, marker = _style_for_chain(i)
+        line_args.append(
+            {
+                "color": color,
+                "ls": linestyle,
+                "lw": 1.5,
+                # Apply markers in post-processing where we can distinguish
+                # open 1D lines from closed 2D contour loops.
+                "marker": "None",
+                "markersize": 3.8,
+            }
+        )
+    return line_args
+
+
+def _apply_chain_styles_to_axes(g: Any, used_roots: Sequence[str]) -> None:
+    """Force chain linestyles/markers on rendered axes lines.
+
+    GetDist sometimes draws lines whose style is not fully controlled by `line_args`
+    (especially on diagonal 1D panels). This post-pass keeps legend and plot styles aligned.
+    """
+    style_by_rgb: dict[tuple[float, float, float], tuple[str, str, int]] = {}
+    for i, root in enumerate(used_roots):
+        rgb_arr = mcolors.to_rgb(ROOT_TO_COLOUR[root])
+        rgb = (float(rgb_arr[0]), float(rgb_arr[1]), float(rgb_arr[2]))
+        linestyle, marker = _style_for_chain(i)
+        style_by_rgb[rgb] = (linestyle, marker, i)
+
+    def _nearest_style(line_color: Any) -> tuple[str, str, int] | None:
+        try:
+            rgb_arr = mcolors.to_rgb(line_color)
+            rgb = (float(rgb_arr[0]), float(rgb_arr[1]), float(rgb_arr[2]))
+        except Exception:
+            return None
+        best: tuple[str, str, int] | None = None
+        best_d2 = 1e9
+        for key_rgb, style in style_by_rgb.items():
+            d2 = sum((a - b) ** 2 for a, b in zip(rgb, key_rgb))
+            if d2 < best_d2:
+                best_d2 = d2
+                best = style
+        if best is not None and best_d2 < 1e-4:
+            return best
+        return None
+
+    for ax in g.fig.axes:
+        for line in ax.get_lines():
+            style = _nearest_style(line.get_color())
+            if style is None:
+                continue
+            linestyle, marker, idx = style
+            line.set_linestyle(linestyle)
+            line.set_linewidth(1.5)
+
+            # Keep markers off on closed contour loops; use sparse markers on
+            # open lines so both marker and linestyle remain identifiable.
+            x = np.asarray(line.get_xdata(), dtype=float)
+            y = np.asarray(line.get_ydata(), dtype=float)
+            is_closed_loop = (
+                x.size > 3
+                and y.size > 3
+                and np.isfinite(x[0])
+                and np.isfinite(x[-1])
+                and np.isfinite(y[0])
+                and np.isfinite(y[-1])
+                and abs(float(x[0] - x[-1])) < 1e-12
+                and abs(float(y[0] - y[-1])) < 1e-12
+            )
+
+            if is_closed_loop:
+                line.set_marker("None")
+                continue
+
+            npts = int(x.size)
+            step = max(120, npts // 8)
+            offset = (idx * 19) % step
+            line.set_marker(marker)
+            line.set_markersize(3.6)
+            line.set_markevery((offset, step))
+
+
+def _estimate_h0_s8_1sigma_area(samples: Any) -> float:
+    """Estimate 68% contour area proxy in the H0-S8 plane.
+
+    Uses marginalized 68% widths when available; falls back to 2*std.
+    Returned area is proportional to contour size and is used for draw ordering.
+    """
+    widths: dict[str, float] = {}
+
+    try:
+        marge_stats = samples.getMargeStats()
+    except Exception:
+        marge_stats = None
+
+    for param in ("H0", "S8"):
+        width = None
+        if marge_stats is not None:
+            try:
+                par_marge = marge_stats.parWithName(param)
+                if par_marge is not None and len(par_marge.limits) > 0:
+                    lim_68 = par_marge.limits[0]
+                    lower = float(lim_68.lower)
+                    upper = float(lim_68.upper)
+                    width = upper - lower
+            except Exception:
+                width = None
+
+        if width is None:
+            try:
+                std = float(samples.std(param))
+                width = 2.0 * std
+            except Exception:
+                width = None
+
+        if width is None or not np.isfinite(width) or width <= 0.0:
+            return math.inf
+
+        widths[param] = float(width)
+
+    return float(widths["H0"] * widths["S8"])
 
 
 def make_triangle_plot(
@@ -532,6 +1210,24 @@ def make_triangle_plot(
             "No common parameters found across the selected roots; cannot plot."
         )
 
+    # For H0-S8 plots, sort chains by 68% contour size so that larger
+    # contours are drawn first (background) and tighter contours are on top.
+    if "H0" in available_params and "S8" in available_params:
+        ranked: list[tuple[tuple[str, str, Any], float]] = []
+        for entry in samples_by_root:
+            _, _, samples = entry
+            area = _estimate_h0_s8_1sigma_area(samples)
+            ranked.append((entry, area))
+
+        ranked.sort(key=lambda item: item[1], reverse=True)
+        samples_by_root = [entry for entry, _ in ranked]
+
+        ordered_roots = [entry[0] for entry in samples_by_root]
+        print(
+            "H0-S8 layering order (back -> front, largest -> smallest 68% area): "
+            + " -> ".join(ordered_roots)
+        )
+
     # Apply custom labels if provided
     if param_labels:
         for _, _, samples in samples_by_root:
@@ -542,37 +1238,56 @@ def make_triangle_plot(
 
     used_roots: list[str] = [root for root, _, _ in samples_by_root]
     roots_to_plot: Sequence[Any] = [samples for _, _, samples in samples_by_root]
-    root_to_color: dict[str, Color] = {
-        root: CHAIN_COLOURS[i] for i, root in enumerate(ROOTS) if root in used_roots
-    }
-    chain_colors: list[Color] = [root_to_color[root] for root in used_roots]
+    # Use the permanent ROOT_TO_COLOUR mapping, not the sorted order
+    chain_colors: list[Color] = [ROOT_TO_COLOUR[root] for root in used_roots]
+    # Keep LCDM as contour-only in 2D while filling non-LCDM chains.
+    # GetDist supports a per-root boolean sequence for `filled`.
+    filled_per_root: list[bool] = ["lcdm" not in root.lower() for root in used_roots]
+
+    line_args = _build_chain_line_args(chain_colors)
 
     # Generate the triangle plot
     g.triangle_plot(
         roots_to_plot,
         available_params,
-        filled=True,
+        filled=filled_per_root,
         colors=chain_colors,
+        line_args=line_args,
         diag1d_kwargs={"colors": chain_colors},
-        contour_lws=3,
+        contour_lws=1.8,
         legend_loc="lower left",
         figure_legend_outside=True,
     )
 
+    # Ensure rendered lines use the same style coding as the legend.
+    _apply_chain_styles_to_axes(g, used_roots)
+
     fig: Any = g.fig
+    fig.set_size_inches(FIGURE_WIDTH_IN, FIGURE_HEIGHT_IN)
 
     # Build legend handles for MCMC chains
-    chain_handles: list[Patch] = [
-        Patch(facecolor=root_to_color[root], label=build_legend_label(root))
-        for root in used_roots
-    ]
+    chain_handles: list[Line2D] = []
+    for i, root in enumerate(used_roots):
+        linestyle, marker = _style_for_chain(i)
+        chain_handles.append(
+            Line2D(
+                [0],
+                [0],
+                color=ROOT_TO_COLOUR[root],
+                lw=2.0,
+                ls=linestyle,
+                marker=marker,
+                markersize=4,
+                label=build_legend_label(root),
+            )
+        )
 
     # Apply custom annotations and collect their legend handles
     annotation_handles: list[Patch] = []
     if annotations is not None:
         annotation_handles = annotations(g) or []
 
-    all_handles: list[Patch] = chain_handles + annotation_handles
+    all_handles: list[Any] = chain_handles + annotation_handles
     all_labels: list[str] = [str(h.get_label()) for h in all_handles]
 
     # Remove any existing legends
@@ -584,12 +1299,12 @@ def make_triangle_plot(
             legend.remove()
 
     # Adjust layout: plot on left, make room for legend on right
-    fig.subplots_adjust(left=0.1, right=0.6)
+    fig.subplots_adjust(left=0.1, right=0.68)
 
     # Position legend aligned to top-right of first subplot
     first_ax = g.subplots[0, 0]
     ax_bbox = first_ax.get_position()
-    fig.legend(
+    legend = fig.legend(
         all_handles,
         all_labels,
         loc="upper left",
@@ -618,22 +1333,57 @@ def annotate_H0_S8(g: Any) -> list[Patch]:
     s8_mean = float(OBSERVATIONAL_REFERENCES["S8"]["mean"])
     s8_sigma = float(OBSERVATIONAL_REFERENCES["S8"]["sigma"])
 
+    def _send_new_artists_to_background(
+        ax_index: int, add_band: Callable[..., Any]
+    ) -> None:
+        flat_axes = list(np.ravel(g.subplots))
+        if ax_index < 0 or ax_index >= len(flat_axes):
+            add_band(ax=ax_index)
+            return
+        ax = flat_axes[ax_index]
+        before = {id(artist) for artist in ax.get_children()}
+        add_band(ax=ax_index)
+        for artist in ax.get_children():
+            if id(artist) in before:
+                continue
+            try:
+                artist.set_zorder(-50)
+            except Exception:
+                continue
+
     # SH0ES 2020b default reference (configurable in OBSERVATIONAL_REFERENCES)
-    g.add_x_bands(h0_mean, h0_sigma, ax=0, color=BAND_COLOURS[0])
-    g.add_x_bands(h0_mean, h0_sigma, ax=2, color=BAND_COLOURS[0])
+    _send_new_artists_to_background(
+        0,
+        lambda ax: g.add_x_bands(h0_mean, h0_sigma, ax=ax, color=BAND_COLOURS[0]),
+    )
+    _send_new_artists_to_background(
+        2,
+        lambda ax: g.add_x_bands(h0_mean, h0_sigma, ax=ax, color=BAND_COLOURS[0]),
+    )
 
     # KiDS-1000 2023 default reference (configurable in OBSERVATIONAL_REFERENCES)
-    g.add_x_bands(s8_mean, s8_sigma, ax=3, color=BAND_COLOURS[1])
-    g.add_y_bands(s8_mean, s8_sigma, ax=2, color=BAND_COLOURS[1])
+    _send_new_artists_to_background(
+        3,
+        lambda ax: g.add_x_bands(s8_mean, s8_sigma, ax=ax, color=BAND_COLOURS[1]),
+    )
+    _send_new_artists_to_background(
+        2,
+        lambda ax: g.add_y_bands(s8_mean, s8_sigma, ax=ax, color=BAND_COLOURS[1]),
+    )
 
     return [
         Patch(
             facecolor=BAND_COLOURS[0],
-            alpha=0.5,
+            edgecolor="black",
+            hatch="///",
+            alpha=0.35,
             label=str(OBSERVATIONAL_REFERENCES["H0"]["label"]),
         ),
         Patch(
             facecolor=BAND_COLOURS[1],
+            edgecolor="black",
+            hatch="\\\\",
+            alpha=0.35,
             label=str(OBSERVATIONAL_REFERENCES["S8"]["label"]),
         ),
     ]
@@ -691,6 +1441,10 @@ params_scf = ["cdm_c", "scf_c2", "scf_c3", "scf_c4"]
 if CLI_ARGS.skip_plots:
     print("Skipping plots (--skip-plots); generating tables only.")
 else:
+    strict_export_dir = os.path.abspath(CLI_ARGS.strict_export_dir)
+    if CLI_ARGS.strict_export:
+        os.makedirs(strict_export_dir, exist_ok=True)
+
     # ============================================================================
     # PLOT 1: H0 & S8 with observational bands
     # ============================================================================
@@ -698,8 +1452,30 @@ else:
     params_cosmology = ["H0", "S8"]
     g1 = make_triangle_plot(params_cosmology, annotations=annotate_H0_S8, title=None)
 
-    # Export example:
-    # g1.fig.savefig("plot_H0_S8_PP_S_DESI_LCDM_hyperbolic.png", bbox_inches="tight", dpi=300)
+    # Interactive preview (current backend):
+    # plt.show()
+    # Strict IBM Plex Math export for thesis:
+    # save_strict_plex_figure(
+    #     g1.fig,
+    #     "plot_H0_S8_Planck_LCDM_hyperbolic.pdf",
+    #     "plot_H0_S8_Planck_LCDM_hyperbolic.pgf",
+    # )
+    if CLI_ARGS.strict_export:
+        pdf_path = os.path.join(
+            strict_export_dir, "plot_H0_S8_Planck_LCDM_hyperbolic.pdf"
+        )
+        pgf_path = os.path.join(
+            strict_export_dir, "plot_H0_S8_Planck_LCDM_hyperbolic.pgf"
+        )
+        save_strict_plex_figure(g1.fig, pdf_path, pgf_path)
+        print(f"Strict export saved: {pdf_path}")
+        print(f"Strict export saved: {pgf_path}")
+
+    # Apply legend text style fix only for interactive display
+    if g1.fig.legends:
+        for text in g1.fig.legends[0].get_texts():
+            text.set_style("normal")
+            text.set_weight("normal")
 
     plt.show()
 
@@ -715,8 +1491,28 @@ else:
             title=None,
         )
 
-        # Export example:
-        # g2.fig.savefig("plot_scf_params_PP_S_DESI_hyperbolic.png", bbox_inches="tight", dpi=300)
+        # Strict IBM Plex Math export for thesis:
+        # save_strict_plex_figure(
+        #     g2.fig,
+        #     "plot_scf_params_PP_S_DESI_hyperbolic.pdf",
+        #     "plot_scf_params_PP_S_DESI_hyperbolic.pgf",
+        # )
+        if CLI_ARGS.strict_export:
+            pdf_path = os.path.join(
+                strict_export_dir, "plot_scf_params_PP_S_DESI_hyperbolic.pdf"
+            )
+            pgf_path = os.path.join(
+                strict_export_dir, "plot_scf_params_PP_S_DESI_hyperbolic.pgf"
+            )
+            save_strict_plex_figure(g2.fig, pdf_path, pgf_path)
+            print(f"Strict export saved: {pdf_path}")
+            print(f"Strict export saved: {pgf_path}")
+
+        # Apply legend text style fix only for interactive display
+        if g2.fig.legends:
+            for text in g2.fig.legends[0].get_texts():
+                text.set_style("normal")
+                text.set_weight("normal")
 
         plt.show()
     except ValueError as e:
@@ -890,6 +1686,7 @@ LIKELIHOOD_DATA_POINTS: dict[str, int] = {
 
 def estimate_n_data_from_likelihoods(
     chi_sq_components: Mapping[str, float] | None,
+    root: str | None = None,
 ) -> int | None:
     """
     Estimate the total number of data points from the chi-squared components.
@@ -898,6 +1695,9 @@ def estimate_n_data_from_likelihoods(
     ----------
     chi_sq_components : dict
         Dictionary mapping likelihood names to chi-squared values.
+    root : str, optional
+        Chain root name used to enforce dataset-specific corrections when
+        likelihood components are incomplete.
 
     Returns
     -------
@@ -909,6 +1709,9 @@ def estimate_n_data_from_likelihoods(
 
     total_n_data: int = 0
     unknown_likelihoods: list[str] = []
+    likelihood_keys_lower = [
+        likelihood.lower() for likelihood in chi_sq_components.keys()
+    ]
 
     for likelihood in chi_sq_components.keys():
         # Normalize likelihood name (lowercase, handle variations)
@@ -928,6 +1731,18 @@ def estimate_n_data_from_likelihoods(
 
             if not matched:
                 unknown_likelihoods.append(likelihood)
+
+    # Some post-processed PP/PPS chain names may not explicitly list the BAO
+    # likelihood key in the chi2 components. Enforce: Pantheon+ implies DESI DR2.
+    has_any_desi_like = any("desi" in key for key in likelihood_keys_lower)
+    if root is not None:
+        dataset_flags = infer_dataset_flags_from_root(root)
+        if dataset_flags["has_desi"] and not has_any_desi_like:
+            total_n_data += LIKELIHOOD_DATA_POINTS["bao.desi_dr2"]
+            print(
+                f"Note: Added DESI DR2 data points (13) for {root} "
+                "because PP/PPS chains implicitly include DESI."
+            )
 
     if unknown_likelihoods:
         print(
@@ -999,6 +1814,22 @@ def get_chain_statistics(
             print(f"Warning: Could not read chain data for {root}: {e2}")
             return {param: None for param in params}
 
+    # Compute marginalized stats once to avoid repeated expensive calls and warning spam.
+    marge_stats = None
+    if use_getdist and samples is not None:
+        try:
+            marge_stats = samples.getMargeStats()
+        except Exception as e_marge:
+            print(
+                f"Note: Marginalized stats failed for {root}; using direct weighted samples fallback: {e_marge}"
+            )
+            use_getdist = False
+            try:
+                chain_data = read_chain_data_directly(root, params, chain_dir, settings)
+            except Exception as e2:
+                print(f"Warning: Could not read chain data for {root}: {e2}")
+                return {param: None for param in params}
+
     for param in params:
         if use_getdist and samples is not None:
             # Use GetDist
@@ -1025,10 +1856,10 @@ def get_chain_statistics(
             mean = samples.mean(param)
             std = samples.std(param)
 
-            # Get confidence limits using twoTailLimits (68% = 1sigma, 95% = 2sigma)
-            # twoTailLimits returns (lower, upper) for symmetric tail probability
-            marge = samples.getMargeStats()
-            par_marge = marge.parWithName(param)
+            # Get confidence limits from cached marginalized stats.
+            par_marge = (
+                marge_stats.parWithName(param) if marge_stats is not None else None
+            )
 
             if par_marge is not None:
                 # Get limits from marginalized statistics
@@ -1204,31 +2035,18 @@ def identify_dataset_from_root(root: str) -> tuple[str, str, bool]:
     """
     root_lower = root.lower()
 
-    # Identify dataset components
-    # Check for .post.PPS (PantheonPlus + SH0ES) and .post.PP (PantheonPlus only)
-    has_pps = ".post.pps" in root_lower
-    has_pp = (
-        has_pps
-        or ".post.pp" in root_lower
-        or "pp" in root_lower
-        or "pantheon" in root_lower
-    )
-    has_sh0es = (
-        has_pps or "sh0es" in root_lower or "shoes" in root_lower or "_s_" in root_lower
-    )
-    has_desi = "desi" in root_lower
-    has_planck = "planck" in root_lower
+    dataset_flags = infer_dataset_flags_from_root(root)
 
     # Build dataset key
     parts: list[str] = []
-    if has_planck:
+    if dataset_flags["has_planck"]:
         parts.append("Planck")
-    if has_pp:
-        parts.append("PP")
-    if has_sh0es:
-        parts.append("SH0ES")
-    if has_desi:
+    if dataset_flags["has_desi"]:
         parts.append("DESI")
+    if dataset_flags["has_pantheon"]:
+        parts.append("PP")
+    if dataset_flags["has_sh0es"]:
+        parts.append("SH0ES")
 
     dataset_key = "+".join(parts) if parts else "Unknown"
 
@@ -1310,8 +2128,10 @@ def format_value_with_errors(
     str
         LaTeX formatted string like "67.1^{+2.7}_{-4.0}" (without outer $)
     """
-    err_up = upper - mean
-    err_down = mean - lower
+    lower_bound = min(lower, upper)
+    upper_bound = max(lower, upper)
+    err_up = abs(upper_bound - mean)
+    err_down = abs(mean - lower_bound)
 
     # Use scientific notation for very small numbers (|value| < 0.01)
     if abs(mean) < 0.01 and mean != 0:
@@ -1495,7 +2315,7 @@ def generate_cosmology_table(
         chain_n_data = n_data
         if chain_n_data is None and min_data.get("chi_sq_components"):
             chain_n_data = estimate_n_data_from_likelihoods(
-                min_data["chi_sq_components"]
+                min_data["chi_sq_components"], root=root
             )
             if chain_n_data:
                 print(
@@ -1503,7 +2323,9 @@ def generate_cosmology_table(
                 )
 
         aic, bic = (
-            compute_aic_bic(chi_sq, n_params, chain_n_data) if chi_sq else (None, None)
+            compute_aic_bic(chi_sq, n_params, chain_n_data)
+            if chi_sq is not None
+            else (None, None)
         )
 
         chain_data[root] = {
@@ -1549,7 +2371,11 @@ def generate_cosmology_table(
         lcdm_root = group["lcdm"]
 
         # Get baseline values for ΔAIC and ΔBIC
-        if lcdm_root and lcdm_root in chain_data and chain_data[lcdm_root]["aic"]:
+        if (
+            lcdm_root
+            and lcdm_root in chain_data
+            and chain_data[lcdm_root]["aic"] is not None
+        ):
             baseline_aic = chain_data[lcdm_root]["aic"]
             baseline_bic = chain_data[lcdm_root]["bic"]
         else:
@@ -1597,20 +2423,20 @@ def generate_cosmology_table(
                     row_parts.append("--")
 
             # Chi-squared
-            if data["chi_sq"]:
+            if data["chi_sq"] is not None:
                 row_parts.append(f"{data['chi_sq']:.2f}")
             else:
                 row_parts.append("--")
 
             # ΔAIC
-            if data["aic"] and baseline_aic:
+            if data["aic"] is not None and baseline_aic is not None:
                 delta_aic = data["aic"] - baseline_aic
                 row_parts.append(f"{delta_aic:+.2f}")
             else:
                 row_parts.append("--")
 
             # ΔBIC
-            if data["bic"] and baseline_bic:
+            if data["bic"] is not None and baseline_bic is not None:
                 delta_bic = data["bic"] - baseline_bic
                 row_parts.append(f"{delta_bic:+.2f}")
             else:
@@ -1634,32 +2460,17 @@ def get_dataset_label(root: str) -> str:
 
     Returns a LaTeX-formatted string describing the dataset combination.
     """
-    root_lower = root.lower()
+    dataset_flags = infer_dataset_flags_from_root(root)
 
     parts: list[str] = []
-    if "planck" in root_lower:
+    if dataset_flags["has_planck"]:
         parts.append("Planck")
-    # Check for .post.PPS (PantheonPlus + SH0ES) and .post.PP (PantheonPlus only)
-    has_pps = ".post.pps" in root_lower
-    has_pp = (
-        has_pps
-        or ".post.pp" in root_lower
-        or "pp" in root_lower
-        or "pantheon" in root_lower
-    )
-    if has_pp:
+    if dataset_flags["has_desi"]:
+        parts.append("DESI DR2")
+    if dataset_flags["has_pantheon"]:
         parts.append("PP")
-    if has_pps or "sh0es" in root_lower or "shoes" in root_lower:
+    if dataset_flags["has_sh0es"]:
         parts.append("SH0ES")
-    elif "_s_" in root_lower:  # Check for _S_ pattern (short for SH0ES)
-        parts.append("SH0ES")
-    if "desi" in root_lower:
-        if "dr2" in root_lower:
-            parts.append("DESI DR2")
-        elif "dr1" in root_lower:
-            parts.append("DESI DR1")
-        else:
-            parts.append("DESI")
 
     return " + ".join(parts) if parts else root
 
@@ -1844,9 +2655,15 @@ def read_chain_data_directly(
     resolved_root = resolve_chain_root(root, chain_dir)
     base_path = _root_base_path(resolved_root, chain_dir)
 
-    # Find all chain files matching the root
+    def _is_chain_text_file(path: str) -> bool:
+        """Return True only for raw chain segment files like root.<int>.txt."""
+        basename = os.path.basename(path)
+        return re.match(r"^.+\.\d+\.txt$", basename) is not None
+
+    # Find all chain segment files matching the root.
+    # Exclude text artifacts such as *.bestfit.txt which are not chain streams.
     pattern = f"{base_path}.*.txt"
-    chain_files = sorted(glob.glob(pattern))
+    chain_files = sorted(p for p in glob.glob(pattern) if _is_chain_text_file(p))
 
     if not chain_files:
         # Try without the .* pattern (single file)
@@ -1857,11 +2674,12 @@ def read_chain_data_directly(
             fallback = glob.glob(
                 os.path.join(chain_dir, f"**/{root}.*.txt"), recursive=True
             )
-            chain_files = sorted(fallback)
+            chain_files = sorted(p for p in fallback if _is_chain_text_file(p))
             if not chain_files:
                 raise FileNotFoundError(f"No chain files found for root {root}")
 
     all_data: list[Any] = []
+    reference_col_names: list[str] | None = None
     param_indices: dict[str, int] = {}
     weight_idx: int | None = None
 
@@ -1887,14 +2705,21 @@ def read_chain_data_directly(
             # Parse header to get column names
             col_names = header_line.split()
 
-            # Find column indices for requested parameters (only first time)
-            if not param_indices:
+            # Validate header consistency and build column index map once.
+            if reference_col_names is None:
+                reference_col_names = col_names
                 for param in param_names:
                     if param in col_names:
                         param_indices[param] = col_names.index(param)
 
                 if "weight" in col_names:
                     weight_idx = col_names.index("weight")
+            elif col_names != reference_col_names:
+                print(
+                    "Warning: Skipping file with inconsistent header ordering "
+                    f"for {root}: {chain_file}"
+                )
+                continue
 
             # Read numerical data
             data_lines = lines[data_start_idx:]
@@ -1905,6 +2730,8 @@ def read_chain_data_directly(
                     continue
                 try:
                     values = [float(x) for x in line.split()]
+                    if len(values) != len(col_names):
+                        continue
                     chain_data.append(values)
                 except ValueError:
                     continue
@@ -2220,12 +3047,6 @@ def generate_swampland_table(
         LaTeX table code.
     """
 
-    # Filter for swampland chains
-    swampland_roots = [r for r in roots if "swampland" in r.lower()]
-
-    if not swampland_roots:
-        return "% No swampland constraint chains found."
-
     # Swampland parameters to extract
     swampland_params = [
         "phi_ini_scf_ic",
@@ -2245,6 +3066,22 @@ def generate_swampland_table(
         "combined_dSC_min",
         "conformal_age",
     ]
+
+    # Filter for non-LCDM chains that actually contain swampland parameters.
+    # Do not rely on legacy naming tags such as ".post.swampland".
+    swampland_roots: list[str] = []
+    for root in roots:
+        _, _, is_lcdm = identify_dataset_from_root(root)
+        if is_lcdm:
+            continue
+        samples = get_samples_for_root(root, chain_dir, settings)
+        if samples is None or getattr(samples, "paramNames", None) is None:
+            continue
+        if any(samples.paramNames.parWithName(p) is not None for p in swampland_params):
+            swampland_roots.append(root)
+
+    if not swampland_roots:
+        return "% No swampland constraint chains found."
 
     # Check if phi_ini_scf_ic and phi_prime_scf_ic are always identical
     duplicate_phi = True
@@ -2336,88 +3173,103 @@ def generate_swampland_table(
         "conformal_age": r"t_{\text{conf}}",
     }
 
-    # Column spec: 1 for row label + 1 for each parameter
-    n_params = len(swampland_params)
-    col_spec = "l" + " >{$}c<{$}" * n_params
+    # Pivoted layout: parameters as rows, model configurations as columns.
+    ordered_roots: list[str] = []
+    for dataset_key in sorted(dataset_model_groups.keys()):
+        models_dict = dataset_model_groups[dataset_key]
+        for model_type in ["hyperbolic", "dexp"]:
+            for root in models_dict[model_type]:
+                if root in chain_data:
+                    ordered_roots.append(root)
+
+    if not ordered_roots:
+        return "% No swampland chains with usable data were available."
+
+    n_models = len(ordered_roots)
+    # Use plain centered columns for maximum LaTeX robustness in this table.
+    col_spec = "l" + " c" * n_models
+
+    def _table3_decimals(
+        mean: float, err_up: float, err_down: float, precision: int
+    ) -> int:
+        # Keep enough decimals for small values while staying compact for O(1) scales.
+        magnitudes = [abs(v) for v in (mean, err_up, err_down) if abs(v) > 0]
+        if not magnitudes:
+            return precision
+        if min(magnitudes) < 1e-2:
+            return max(precision, 6)
+        return precision
+
+    def _fmt_table3_value(
+        mean: float, lower: float, upper: float, precision: int = 2
+    ) -> str:
+        lower_bound = min(lower, upper)
+        upper_bound = max(lower, upper)
+        err_up = abs(upper_bound - mean)
+        err_down = abs(mean - lower_bound)
+        mean_str = f"{mean:.{precision}f}"
+        up_str = f"{err_up:.{precision}f}"
+        down_str = f"{err_down:.{precision}f}"
+
+        if abs(err_up - err_down) < 0.05 * max(abs(err_up), abs(err_down), 0.001):
+            avg_err = (err_up + err_down) / 2
+            avg_str = f"{avg_err:.{precision}f}"
+            return rf"${mean_str} \pm {avg_str}$"
+        return rf"${{{mean_str}}}^{{+{up_str}}}_{{-{down_str}}}$"
 
     lines: list[str] = []
-    lines.append(r"\begin{sidewaystable}")
+    lines.append(r"% Requires \\usepackage{graphicx} for \\rotatebox")
+    lines.append(r"\begin{table}[htbp]")
     lines.append(r"\centering")
+    lines.append(r"\small")
     lines.append(r"\caption{Swampland constraint parameters from MCMC analysis.}")
     lines.append(r"\label{tab:swampland_params}")
     lines.append(r"\tagpdfsetup{table/header-rows={1}}")
     lines.append(r"\begin{tabular}{" + col_spec + "}")
     lines.append(r"\toprule")
 
-    # Header row: parameter names
-    header_parts: list[str] = ["Model"]
-    for param in swampland_params:
-        label = param_latex_labels.get(param, param)
-        header_parts.append(r"\text{$" + label + r"$}")
+    # Rotated headers with potential + likelihood information.
+    header_parts: list[str] = ["Parameter"]
+    for root in ordered_roots:
+        header_label = build_legend_label(root)
+        header_parts.append(
+            r"\multicolumn{1}{c}{\rotatebox[origin=c]{90}{\parbox{3.8cm}{\centering "
+            + header_label
+            + r"}}}"
+        )
     lines.append(" & ".join(header_parts) + r" \\")
     lines.append(r"\midrule")
 
-    # Data rows grouped by dataset
-    for dataset_key in sorted(dataset_model_groups.keys()):
-        models_dict = dataset_model_groups[dataset_key]
+    # One row per parameter, one column per model.
+    for param in swampland_params:
+        row_parts: list[str] = [r"$" + param_latex_labels.get(param, param) + r"$"]
+        for root in ordered_roots:
+            data = chain_data[root]
+            if param == "attractor_regime_scf":
+                # Keep integer parameter readable by reporting weighted mean and mode.
+                if root in integer_modes:
+                    mean_val, mode_val = integer_modes[root]
+                    row_parts.append(rf"{mean_val:.2f} (mode:{mode_val})")
+                else:
+                    row_parts.append("--")
+            elif data["stats"] and data["stats"].get(param):
+                s = data["stats"][param]
+                row_parts.append(
+                    _fmt_table3_value(
+                        s["mean"],
+                        s["lower_1sigma"],
+                        s["upper_1sigma"],
+                        precision=2,
+                    )
+                )
+            else:
+                row_parts.append("--")
 
-        # Add dataset sub-header
-        lines.append(
-            r"\multicolumn{"
-            + str(n_params + 1)
-            + r"}{l}{\textbf{"
-            + dataset_key
-            + r"}} \\"
-        )
+        lines.append(" & ".join(row_parts) + r" \\")
 
-        # Add Hyperbolic first, then Double Exponential
-        for model_type in ["hyperbolic", "dexp"]:
-            model_roots = models_dict[model_type]
-
-            model_labels = {
-                "hyperbolic": r"\Nref{pot:tanh}",
-                "dexp": r"\Nref{pot:dexp}",
-            }
-
-            for root in model_roots:
-                if root not in chain_data:
-                    continue
-
-                data = chain_data[root]
-                model_name = model_labels[model_type]
-                row_parts: list[str] = [model_name]
-
-                for param in swampland_params:
-                    if param == "attractor_regime_scf":
-                        # Format as "mean (mode)" for integer parameter
-                        if root in integer_modes:
-                            mean_val, mode_val = integer_modes[root]
-                            row_parts.append(
-                                f"{mean_val:.2f} \\text{{ (mode:{mode_val})}}"
-                            )
-                        else:
-                            row_parts.append("--")
-                    elif data["stats"] and data["stats"].get(param):
-                        s = data["stats"][param]
-                        row_parts.append(
-                            format_value_with_errors(
-                                s["mean"],
-                                s["lower_1sigma"],
-                                s["upper_1sigma"],
-                                precision=2,
-                            )
-                        )
-                    else:
-                        row_parts.append("--")
-
-                lines.append(" & ".join(row_parts) + r" \\")
-
-        lines.append(r"\midrule")
-
-    # Remove last midrule and add bottomrule
-    lines[-1] = r"\bottomrule"
+    lines.append(r"\bottomrule")
     lines.append(r"\end{tabular}")
-    lines.append(r"\end{sidewaystable}")
+    lines.append(r"\end{table}")
 
     return "\n".join(lines)
 
@@ -2431,7 +3283,7 @@ def generate_tension_summary_table(
     Generate a LaTeX table with model-comparison metrics and tensions.
 
     Columns:
-    Potential, accepted steps, Delta chi^2, Delta AIC, Delta BIC,
+    Potential, dataset, Delta chi^2, Delta AIC, Delta BIC,
     best-fit H0, H0 tension, best-fit S8, S8 tension.
     """
     h0_ref = float(OBSERVATIONAL_REFERENCES["H0"]["mean"])
@@ -2463,7 +3315,9 @@ def generate_tension_summary_table(
             continue
 
         chi_sq = min_data.get("chi_sq")
-        n_data = estimate_n_data_from_likelihoods(min_data.get("chi_sq_components"))
+        n_data = estimate_n_data_from_likelihoods(
+            min_data.get("chi_sq_components"), root=root
+        )
         aic, bic = (
             compute_aic_bic(float(chi_sq), n_params, n_data)
             if chi_sq is not None
@@ -2492,13 +3346,13 @@ def generate_tension_summary_table(
         h0_tension = compute_tension(bestfit_h0, h0_sigma_model, h0_ref, h0_ref_sigma)
         s8_tension = compute_tension(bestfit_s8, s8_sigma_model, s8_ref, s8_ref_sigma)
 
-        _, model_name, is_lcdm = identify_dataset_from_root(root)
+        dataset_key, model_name, is_lcdm = identify_dataset_from_root(root)
         row_data.append(
             {
                 "root": root,
+                "dataset_key": dataset_key,
                 "model_name": model_name,
                 "is_lcdm": is_lcdm,
-                "accepted_steps": get_accepted_steps(root, chain_dir, settings),
                 "chi_sq": float(chi_sq) if chi_sq is not None else None,
                 "aic": aic,
                 "bic": bic,
@@ -2514,13 +3368,31 @@ def generate_tension_summary_table(
             "% No chains with usable data were available for the tension summary table."
         )
 
-    lcdm_rows = [r for r in row_data if r["is_lcdm"]]
-    baseline = lcdm_rows[0] if lcdm_rows else None
-    baseline_chi_sq = baseline["chi_sq"] if baseline else None
-    baseline_aic = baseline["aic"] if baseline else None
-    baseline_bic = baseline["bic"] if baseline else None
+    # Build a per-dataset LCDM baseline so deltas are compared within each
+    # observational dataset combination.
+    dataset_baseline: dict[str, dict[str, Any]] = {}
+    for dataset_key in sorted({str(r["dataset_key"]) for r in row_data}):
+        lcdm_candidates = [
+            r for r in row_data if r["is_lcdm"] and str(r["dataset_key"]) == dataset_key
+        ]
+        if not lcdm_candidates:
+            continue
+        # If multiple LCDM chains map to the same dataset, use the best-fit
+        # (minimum chi^2 when available) as baseline.
+        lcdm_candidates.sort(
+            key=lambda r: (
+                float("inf") if r.get("chi_sq") is None else float(r["chi_sq"]),
+                str(r["root"]),
+            )
+        )
+        dataset_baseline[dataset_key] = lcdm_candidates[0]
 
     for row in row_data:
+        baseline = dataset_baseline.get(str(row["dataset_key"]))
+        baseline_chi_sq = baseline["chi_sq"] if baseline else None
+        baseline_aic = baseline["aic"] if baseline else None
+        baseline_bic = baseline["bic"] if baseline else None
+
         row["dchi2"] = (
             row["chi_sq"] - baseline_chi_sq
             if baseline_chi_sq is not None and row["chi_sq"] is not None
@@ -2537,62 +3409,8 @@ def generate_tension_summary_table(
             else None
         )
 
-    n_models = len(row_data)
-
-    def _category_points(
-        rows: Sequence[dict[str, Any]],
-        key_func: Callable[[dict[str, Any]], float | None],
-    ) -> dict[str, int]:
-        points: dict[str, int] = {str(r["root"]): 1 for r in rows}
-        valid: list[tuple[dict[str, Any], float]] = []
-        for r in rows:
-            value = key_func(r)
-            if value is not None:
-                valid.append((r, value))
-
-        valid.sort(key=lambda item: item[1])
-        for rank, (r, _) in enumerate(valid):
-            points[str(r["root"])] = max(n_models - rank, 1)
-        return points
-
-    h0_points = _category_points(
-        row_data,
-        lambda r: (
-            abs(float(r["h0_tension"])) if r.get("h0_tension") is not None else None
-        ),
-    )
-    s8_points = _category_points(
-        row_data,
-        lambda r: (
-            abs(float(r["s8_tension"])) if r.get("s8_tension") is not None else None
-        ),
-    )
-    aic_points = _category_points(
-        row_data,
-        lambda r: float(r["daic"]) if r.get("daic") is not None else None,
-    )
-    bic_points = _category_points(
-        row_data,
-        lambda r: float(r["dbic"]) if r.get("dbic") is not None else None,
-    )
-
-    for row in row_data:
-        root_key = str(row["root"])
-        row["ranking_points"] = (
-            h0_points[root_key]
-            + s8_points[root_key]
-            + aic_points[root_key]
-            + bic_points[root_key]
-        )
-
-    # Toggle this to include/exclude the transparency column in Table 4.
-    # Comment out the next line (or set to False) to remove "Total points".
-    include_total_points_column = True
-
     col_spec = (
-        "l r"
-        + (" r" if include_total_points_column else "")
-        + " >{$}c<{$} >{$}c<{$} >{$}c<{$} >{$}c<{$} >{$}c<{$} >{$}c<{$} >{$}c<{$}"
+        "l l" + " >{$}c<{$} >{$}c<{$} >{$}c<{$} >{$}c<{$} >{$}c<{$} >{$}c<{$} >{$}c<{$}"
     )
     lines: list[str] = []
     lines.append(r"\begin{sidewaystable}")
@@ -2601,15 +3419,14 @@ def generate_tension_summary_table(
         r"\caption{Model comparison metrics and observational tensions. "
         + r"Tensions are computed with references "
         + rf"$H_0={h0_ref:.1f}\pm{h0_ref_sigma:.1f}$ and $S_8={s8_ref:.3f}\pm{s8_ref_sigma:.3f}$."
+        + r" Delta metrics are computed relative to the $\Lambda$CDM chain with the same dataset."
         + r"}"
     )
     lines.append(r"\label{tab:model_tension_summary}")
     lines.append(r"\tagpdfsetup{table/header-rows={1}}")
     lines.append(r"\begin{tabular}{" + col_spec + "}")
     lines.append(r"\toprule")
-    header_parts = ["Potential", "Accepted steps"]
-    if include_total_points_column:
-        header_parts.append("Total points")
+    header_parts = ["Potential", "Dataset"]
     header_parts.extend(
         [
             r"\Delta\chi^2",
@@ -2624,49 +3441,51 @@ def generate_tension_summary_table(
     lines.append(" & ".join(header_parts) + r" \\")
     lines.append(r"\midrule")
 
-    sorted_rows = sorted(
-        row_data,
-        key=lambda r: (
-            -int(r["ranking_points"]),
-            float("inf") if r.get("daic") is None else float(r["daic"]),
-            (
-                float("inf")
-                if r.get("h0_tension") is None
-                else abs(float(r["h0_tension"]))
+    dataset_keys_sorted = sorted({str(r["dataset_key"]) for r in row_data})
+    for dataset_idx, dataset_key in enumerate(dataset_keys_sorted):
+        dataset_rows = [r for r in row_data if str(r["dataset_key"]) == dataset_key]
+        dataset_rows_sorted = sorted(
+            dataset_rows,
+            key=lambda r: (
+                0 if r["is_lcdm"] else 1,
+                float("inf") if r.get("daic") is None else float(r["daic"]),
+                (
+                    float("inf")
+                    if r.get("h0_tension") is None
+                    else abs(float(r["h0_tension"]))
+                ),
+                str(r["model_name"]),
             ),
-            str(r["model_name"]),
-        ),
-    )
-    for row in sorted_rows:
-        dchi2 = row.get("dchi2")
-        daic = row.get("daic")
-        dbic = row.get("dbic")
-
-        steps_str = (
-            str(row["accepted_steps"]) if row["accepted_steps"] is not None else "--"
         )
-        dchi2_str = "--" if dchi2 is None else f"{dchi2:+.2f}"
-        daic_str = "--" if daic is None else f"{daic:+.2f}"
-        dbic_str = "--" if dbic is None else f"{dbic:+.2f}"
 
-        row_parts = [
-            str(row["model_name"]),
-            steps_str,
-        ]
-        if include_total_points_column:
-            row_parts.append(str(row["ranking_points"]))
-        row_parts.extend(
-            [
-                dchi2_str,
-                daic_str,
-                dbic_str,
-                format_plain_number(row["bestfit_h0"], precision=2),
-                format_plain_number(row["h0_tension"], precision=2),
-                format_plain_number(row["bestfit_s8"], precision=3),
-                format_plain_number(row["s8_tension"], precision=2),
+        if dataset_idx > 0:
+            lines.append(r"\midrule")
+
+        for row in dataset_rows_sorted:
+            dchi2 = row.get("dchi2")
+            daic = row.get("daic")
+            dbic = row.get("dbic")
+
+            dchi2_str = "--" if dchi2 is None else f"{dchi2:+.2f}"
+            daic_str = "--" if daic is None else f"{daic:+.2f}"
+            dbic_str = "--" if dbic is None else f"{dbic:+.2f}"
+
+            row_parts = [
+                str(row["model_name"]),
+                str(row["dataset_key"]),
             ]
-        )
-        lines.append(" & ".join(row_parts) + r" \\")
+            row_parts.extend(
+                [
+                    dchi2_str,
+                    daic_str,
+                    dbic_str,
+                    format_plain_number(row["bestfit_h0"], precision=2),
+                    format_plain_number(row["h0_tension"], precision=2),
+                    format_plain_number(row["bestfit_s8"], precision=3),
+                    format_plain_number(row["s8_tension"], precision=2),
+                ]
+            )
+            lines.append(" & ".join(row_parts) + r" \\")
 
     lines.append(r"\bottomrule")
     lines.append(r"\end{tabular}")
@@ -2678,55 +3497,58 @@ def generate_tension_summary_table(
 # ============================================================================
 # Generate tables for the current analysis
 # ============================================================================
-# %%
-# Table 1: H0 and S8 with chi^2, AIC, BIC
-# n_data is automatically estimated from the chi2 components in the .minimum files
-print("=" * 80)
-print("TABLE 1: Cosmological Parameters (H0, S8)")
-print("=" * 80)
-cosmology_table = generate_cosmology_table(
-    ROOTS,
-    params=["H0", "S8"],
-    chain_dir=CHAIN_DIR,
-    settings=ANALYSIS_SETTINGS,
-    # n_data is estimated automatically from likelihoods in .minimum files
-)
-print(cosmology_table)
+if CLI_ARGS.skip_tables:
+    print("Skipping tables (--skip-tables); generating plots only.")
+else:
+    # %%
+    # Table 1: H0 and S8 with chi^2, AIC, BIC
+    # n_data is automatically estimated from the chi2 components in the .minimum files
+    print("=" * 80)
+    print("TABLE 1: Cosmological Parameters (H0, S8)")
+    print("=" * 80)
+    cosmology_table = generate_cosmology_table(
+        ROOTS,
+        params=["H0", "S8"],
+        chain_dir=CHAIN_DIR,
+        settings=ANALYSIS_SETTINGS,
+        # n_data is estimated automatically from likelihoods in .minimum files
+    )
+    print(cosmology_table)
 
-# %%
-# Table 2: Scalar field parameters
-print("\n" + "=" * 80)
-print("TABLE 2: Scalar Field Parameters")
-print("=" * 80)
-scf_table = generate_scf_table(
-    ROOTS,
-    params=["cdm_c", "scf_c2", "scf_c3", "scf_c4"],
-    param_labels=scf_labels,
-    chain_dir=CHAIN_DIR,
-    settings=ANALYSIS_SETTINGS,
-)
-print(scf_table)
+    # %%
+    # Table 2: Scalar field parameters
+    print("\n" + "=" * 80)
+    print("TABLE 2: Scalar Field Parameters")
+    print("=" * 80)
+    scf_table = generate_scf_table(
+        ROOTS,
+        params=["cdm_c", "scf_c2", "scf_c3", "scf_c4"],
+        param_labels=scf_labels,
+        chain_dir=CHAIN_DIR,
+        settings=ANALYSIS_SETTINGS,
+    )
+    print(scf_table)
 
-# %%
-# Table 3: Swampland constraint parameters
-print("\n" + "=" * 80)
-print("TABLE 3: Swampland Parameters")
-print("=" * 80)
-swampland_table = generate_swampland_table(
-    ROOTS,
-    chain_dir=CHAIN_DIR,
-    settings=ANALYSIS_SETTINGS,
-)
-print(swampland_table)
+    # %%
+    # Table 3: Swampland constraint parameters
+    print("\n" + "=" * 80)
+    print("TABLE 3: Swampland Parameters")
+    print("=" * 80)
+    swampland_table = generate_swampland_table(
+        ROOTS,
+        chain_dir=CHAIN_DIR,
+        settings=ANALYSIS_SETTINGS,
+    )
+    print(swampland_table)
 
-# %%
-# Table 4: Model comparison with tensions
-print("\n" + "=" * 80)
-print("TABLE 4: Model Comparison and Tensions")
-print("=" * 80)
-tension_summary_table = generate_tension_summary_table(
-    ROOTS,
-    chain_dir=CHAIN_DIR,
-    settings=ANALYSIS_SETTINGS,
-)
-print(tension_summary_table)
+    # %%
+    # Table 4: Model comparison with tensions
+    print("\n" + "=" * 80)
+    print("TABLE 4: Model Comparison and Tensions")
+    print("=" * 80)
+    tension_summary_table = generate_tension_summary_table(
+        ROOTS,
+        chain_dir=CHAIN_DIR,
+        settings=ANALYSIS_SETTINGS,
+    )
+    print(tension_summary_table)
