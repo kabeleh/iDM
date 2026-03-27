@@ -1,10 +1,26 @@
-# This routine creates the configuration files for the Cobaya runs to assess the iDM model and compare it to LCDM.
-# Output filename convention: <potential>_<likelihoods>_<attractor>_<coupling>_<sampler>.yml
-# For LCDM: <potential>_<likelihoods>_<sampler>.yml (attractor and coupling omitted)
-# Coupling tag is omitted when 'uncoupled', present as 'coupled' when coupled.
-#
-# Likelihood tags:  Planck | SPA | PP_D | PP_S_D  (and combinations: Planck_PP_S_D, SPA_PP_D, etc.)
-# Sampler tags:     MCMC | Polychord | MCMC_minimizer | Polychord_minimizer | MCMC_swamp | Polychord_swamp
+"""Generate Cobaya YAML configs and matching SLURM scripts.
+
+Terminal usage (from repository root):
+
+1) Default generation (uses main() defaults):
+    python3 Cobaya/create_cobaya_yaml.py
+
+2) Custom generation without editing this file:
+    python3 -c "from Cobaya.create_cobaya_yaml import main; main(sampler='mcmc_fast', likelihood='CMB', potential='DoubleExp', attractor='no', coupling='uncoupled')"
+
+3) Example: LCDM run (attractor/coupling ignored for LCDM):
+    python3 -c "from Cobaya.create_cobaya_yaml import main; main(sampler='mcmc_fast', likelihood='CV_PP_DESI', potential='LCDM')"
+
+What gets written:
+- YAML files in Cobaya/MCMC/
+- SLURM test scripts in SLURM/test_*.sh
+- SLURM run scripts in SLURM/run_*.sh
+
+Filename convention:
+- Non-LCDM: <potential>_<likelihoods>_<attractor>_<coupling>_<sampler>.yml
+- LCDM:     <potential>_<likelihoods>_<sampler>.yml
+- Coupling tag is omitted when coupling='uncoupled'.
+"""
 
 from typing import Any
 from ruamel.yaml import YAML
