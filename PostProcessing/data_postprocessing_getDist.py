@@ -50,6 +50,10 @@ from matplotlib.patches import Patch
 from cmcrameri import cm  # type: ignore[import-untyped]
 from getdist import plots  # type: ignore[import-untyped]
 
+# Initialize module logger for debugging exception handling
+_LOGGER = logging.getLogger(__name__)
+_DEBUG_EXCEPTIONS = os.environ.get('GETDIST_DEBUG_EXCEPTIONS', '').lower() in ('1', 'true', 'yes')
+
 
 # Preview font selection: robust detection with fallback and file logging.
 def _find_font_file(font_family: str) -> tuple[bool, str]:
@@ -67,7 +71,10 @@ def _find_font_file(font_family: str) -> tuple[bool, str]:
                 and font_entry.name.strip().lower() == font_family.strip().lower()
             ):
                 return (True, font_entry.fname)
-    except Exception:
+    except (AttributeError, TypeError) as e:
+        # fontManager.ttflist may not exist or behave unexpectedly
+        if _DEBUG_EXCEPTIONS:
+            _LOGGER.debug(f"Font cache check failed for {font_family}: {e}")
         pass
 
     # Method 2: Scan system fonts and match exact FT2 family name.
@@ -82,9 +89,15 @@ def _find_font_file(font_family: str) -> tuple[bool, str]:
                     and family_name.strip().lower() == font_family.strip().lower()
                 ):
                     return (True, font_path)
-            except Exception:
+            except (AttributeError, OSError, RuntimeError) as e:
+                # Font may be corrupted or inaccessible; skip and continue
+                if _DEBUG_EXCEPTIONS:
+                    _LOGGER.debug(f"Could not parse font at {font_path}: {e}")
                 pass
-    except Exception:
+    except (OSError, RuntimeError) as e:
+        # findSystemFonts or font access may fail on system
+        if _DEBUG_EXCEPTIONS:
+            _LOGGER.debug(f"System font scan failed for {font_family}: {e}")
         pass
 
     # Method 3: Last resort - findfont (may return fallback, not our font)
@@ -99,15 +112,19 @@ def _find_font_file(font_family: str) -> tuple[bool, str]:
             return (True, resolved)
         # findfont returned a fallback, not what we want
         return (False, "Not found in system; findfont would use fallback")
-    except Exception as e:
-        return (False, f"Font detection failed: {str(e)}")
+    except (OSError, RuntimeError, AttributeError) as e:
+        # Font resolution API may not be available or fail on system
+        return (False, f"Font detection failed: {type(e).__name__}: {str(e)}")
 
 
 def _register_preview_font(font_name: str, path: str) -> None:
     """Register a discovered font file with matplotlib runtime manager."""
     try:
         font_manager.fontManager.addfont(path)
-    except Exception:
+    except (OSError, RuntimeError, AttributeError) as e:
+        # Font may be corrupted or addfont may not be available on this system
+        if _DEBUG_EXCEPTIONS:
+            _LOGGER.debug(f"Could not register font {font_name} from {path}: {e}")
         pass
 
 
@@ -1348,7 +1365,14 @@ def annotate_H0_S8(g: Any) -> list[Patch]:
                 continue
             try:
                 artist.set_zorder(-50)
-            except Exception:
+            except AttributeError as e:
+                # Some artist types may not support zorder; this is acceptable
+                if _DEBUG_EXCEPTIONS:
+                    _LOGGER.debug(f"Artist {type(artist).__name__} does not support zorder: {e}")
+                continue
+            except (TypeError, ValueError) as e:
+                # Zorder value may be invalid for this artist type
+                _LOGGER.warning(f"Failed to set zorder on {type(artist).__name__}: {e}")
                 continue
 
     # SH0ES 2020b default reference (configurable in OBSERVATIONAL_REFERENCES)
@@ -2216,7 +2240,10 @@ def get_accepted_steps(
                     n_steps = float(parts[0])
                     acceptance_rate = float(parts[2])
                     return int(round(n_steps * acceptance_rate))
-                except ValueError:
+                except ValueError as e:
+                    # Line format may not match expected pattern; log and skip
+                    if _DEBUG_EXCEPTIONS:
+                        _LOGGER.debug(f"Malformed stats line in {root}: {line.strip()}: {e}")
                     continue
 
         chain_data = read_chain_data_directly(root, [], chain_dir, settings)
@@ -2733,7 +2760,10 @@ def read_chain_data_directly(
                     if len(values) != len(col_names):
                         continue
                     chain_data.append(values)
-                except ValueError:
+                except ValueError as e:
+                    # Line contains non-numeric values or format mismatch; log and skip
+                    if _DEBUG_EXCEPTIONS:
+                        _LOGGER.debug(f"Malformed data line in {chain_file}: {line.strip()}: {e}")
                     continue
 
             if chain_data:
