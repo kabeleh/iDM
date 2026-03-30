@@ -2296,7 +2296,10 @@ def generate_cosmology_table(
     n_data: int | None = None,
 ) -> str:
     """
-    Generate a LaTeX table for cosmological parameters (H0, S8) with chi^2, AIC, BIC.
+    Generate a LaTeX table for cosmological parameters (H0, S8) with model metrics.
+
+    Includes per-dataset Delta AIC/Delta BIC relative to the corresponding
+    LCDM baseline and observational tensions for H0 and S8.
     Uses sidewaystable for rotation and booktabs for professional formatting.
 
     Parameters
@@ -2318,6 +2321,11 @@ def generate_cosmology_table(
     str
         LaTeX table code.
     """
+    h0_ref = float(OBSERVATIONAL_REFERENCES["H0"]["mean"])
+    h0_ref_sigma = float(OBSERVATIONAL_REFERENCES["H0"]["sigma"])
+    s8_ref = float(OBSERVATIONAL_REFERENCES["S8"]["mean"])
+    s8_ref_sigma = float(OBSERVATIONAL_REFERENCES["S8"]["sigma"])
+
     # Group chains by dataset to identify LCDM baselines
     dataset_groups: dict[str, dict[str, Any]] = {}
     model_names: dict[str, str] = {}  # Store model names for each root
@@ -2373,6 +2381,28 @@ def generate_cosmology_table(
             else (None, None)
         )
 
+        bestfit_h0 = None
+        bestfit_s8 = None
+        if min_data.get("params"):
+            if "H0" in min_data["params"]:
+                bestfit_h0 = float(min_data["params"]["H0"]["value"])
+            if "S8" in min_data["params"]:
+                bestfit_s8 = float(min_data["params"]["S8"]["value"])
+
+        h0_sigma_model = (
+            float(stats["H0"]["std"])
+            if stats.get("H0") and stats["H0"].get("std") is not None
+            else None
+        )
+        s8_sigma_model = (
+            float(stats["S8"]["std"])
+            if stats.get("S8") and stats["S8"].get("std") is not None
+            else None
+        )
+
+        h0_tension = compute_tension(bestfit_h0, h0_sigma_model, h0_ref, h0_ref_sigma)
+        s8_tension = compute_tension(bestfit_s8, s8_sigma_model, s8_ref, s8_ref_sigma)
+
         chain_data[root] = {
             "minimum": min_data,
             "stats": stats,
@@ -2381,21 +2411,33 @@ def generate_cosmology_table(
             "chi_sq": chi_sq,
             "aic": aic,
             "bic": bic,
+            "h0_tension": h0_tension,
+            "s8_tension": s8_tension,
         }
 
     if not chain_data:
         return "% No chains with usable data were available for the cosmology table."
 
     # Build column spec with math mode columns
-    # Model | param1 (68% limits) | ... | χ² | ΔAIC | ΔBIC
+    # Model | H0 | T(H0) | S8 | T(S8) | χ² | ΔAIC | ΔBIC
     n_param_cols = len(params)
     # Use >{$}c<{$} for automatic math mode in data columns
-    col_spec = "l" + " >{$}c<{$}" * n_param_cols + " >{$}c<{$} >{$}c<{$} >{$}c<{$}"
+    col_spec = (
+        "l"
+        + " >{$}c<{$}" * n_param_cols
+        + " >{$}c<{$} >{$}c<{$} >{$}c<{$} >{$}c<{$} >{$}c<{$}"
+    )
 
     lines: list[str] = []
     lines.append(r"\begin{sidewaystable}")
     lines.append(r"\centering")
-    lines.append(r"\caption{Cosmological parameters from MCMC analysis.}")
+    lines.append(
+        r"\caption{Cosmological parameters from MCMC analysis. "
+        + r"Tensions are computed with references to the best-fit model values and "
+        + rf"$H_0={h0_ref:.2f}\pm{h0_ref_sigma:.2f}$ and $S_8={s8_ref:.3f}\pm{s8_ref_sigma:.3f}$. "
+        + r"Delta metrics are computed relative to the $\Lambda$CDM chain with the same dataset."
+        + r"}"
+    )
     lines.append(r"\label{tab:cosmology}")
     lines.append(r"\tagpdfsetup{table/header-rows={1}}")
     lines.append(r"\begin{tabular}{" + col_spec + "}")
@@ -2406,7 +2448,17 @@ def generate_cosmology_table(
     for param in params:
         label = get_param_latex(param, chain_data)
         header_parts.append(r"\text{$" + label + r"$ (68\% CI)}")
-    header_parts.extend([r"\chi^2", r"\Delta\text{AIC}", r"\Delta\text{BIC}"])
+        if param == "H0":
+            header_parts.append(r"T(H_0)\,[\sigma]")
+        elif param == "S8":
+            header_parts.append(r"T(S_8)\,[\sigma]")
+    header_parts.extend(
+        [
+            r"\chi^2",
+            r"\Delta\text{AIC}",
+            r"\Delta\text{BIC}",
+        ]
+    )
     lines.append(" & ".join(header_parts) + r" \\")
     lines.append(r"\midrule")
 
@@ -2431,7 +2483,7 @@ def generate_cosmology_table(
             continue
 
         # Add dataset separator
-        n_total_cols = n_param_cols + 4
+        n_total_cols = n_param_cols + 6
         lines.append(
             r"\multicolumn{"
             + str(n_total_cols)
@@ -2466,6 +2518,15 @@ def generate_cosmology_table(
                     )
                 else:
                     row_parts.append("--")
+
+                if param == "H0":
+                    row_parts.append(
+                        format_plain_number(data.get("h0_tension"), precision=2)
+                    )
+                elif param == "S8":
+                    row_parts.append(
+                        format_plain_number(data.get("s8_tension"), precision=2)
+                    )
 
             # Chi-squared
             if data["chi_sq"] is not None:
@@ -3222,7 +3283,7 @@ def generate_swampland_table(
         "AdSDC2_max": r"\text{AdSDC}_2",
         "AdSDC4_max": r"\text{AdSDC}_4",
         "combined_dSC_min": r"\text{dSC}_{\min}",
-        "conformal_age": r"t_{\text{conf}}",
+        "conformal_age": r"\tau_{\text{conf}}",
     }
 
     # Pivoted layout: parameters as rows, model configurations as columns.
@@ -3326,226 +3387,6 @@ def generate_swampland_table(
     return "\n".join(lines)
 
 
-def generate_tension_summary_table(
-    roots: Sequence[str],
-    chain_dir: str = CHAIN_DIR,
-    settings: Mapping[str, Any] = ANALYSIS_SETTINGS,
-) -> str:
-    """
-    Generate a LaTeX table with model-comparison metrics and tensions.
-
-    Columns:
-    Potential, dataset, Delta chi^2, Delta AIC, Delta BIC,
-    best-fit H0, H0 tension, best-fit S8, S8 tension.
-    """
-    h0_ref = float(OBSERVATIONAL_REFERENCES["H0"]["mean"])
-    h0_ref_sigma = float(OBSERVATIONAL_REFERENCES["H0"]["sigma"])
-    s8_ref = float(OBSERVATIONAL_REFERENCES["S8"]["mean"])
-    s8_ref_sigma = float(OBSERVATIONAL_REFERENCES["S8"]["sigma"])
-
-    row_data: list[dict[str, Any]] = []
-
-    for root in roots:
-        resolved_root = resolve_chain_root(root, chain_dir)
-        minimum_file = _root_base_path(resolved_root, chain_dir) + ".bestfit"
-        if os.path.exists(minimum_file):
-            min_data: dict[str, Any] = parse_minimum_file(minimum_file)
-        else:
-            min_data = {
-                "neg_log_like": None,
-                "chi_sq": None,
-                "chi_sq_components": {},
-                "params": {},
-            }
-
-        stats = get_chain_statistics(root, ["H0", "S8"], chain_dir, settings)
-        n_params = count_free_parameters(root, chain_dir, settings)
-        if n_params is None:
-            print(
-                f"Note: Skipping {root} in tension summary table because free parameters are unavailable."
-            )
-            continue
-
-        chi_sq = min_data.get("chi_sq")
-        n_data = estimate_n_data_from_likelihoods(
-            min_data.get("chi_sq_components"), root=root
-        )
-        aic, bic = (
-            compute_aic_bic(float(chi_sq), n_params, n_data)
-            if chi_sq is not None
-            else (None, None)
-        )
-
-        bestfit_h0 = None
-        bestfit_s8 = None
-        if min_data.get("params"):
-            if "H0" in min_data["params"]:
-                bestfit_h0 = float(min_data["params"]["H0"]["value"])
-            if "S8" in min_data["params"]:
-                bestfit_s8 = float(min_data["params"]["S8"]["value"])
-
-        h0_sigma_model = (
-            float(stats["H0"]["std"])
-            if stats.get("H0") and stats["H0"].get("std") is not None
-            else None
-        )
-        s8_sigma_model = (
-            float(stats["S8"]["std"])
-            if stats.get("S8") and stats["S8"].get("std") is not None
-            else None
-        )
-
-        h0_tension = compute_tension(bestfit_h0, h0_sigma_model, h0_ref, h0_ref_sigma)
-        s8_tension = compute_tension(bestfit_s8, s8_sigma_model, s8_ref, s8_ref_sigma)
-
-        dataset_key, model_name, is_lcdm = identify_dataset_from_root(root)
-        row_data.append(
-            {
-                "root": root,
-                "dataset_key": dataset_key,
-                "model_name": model_name,
-                "is_lcdm": is_lcdm,
-                "chi_sq": float(chi_sq) if chi_sq is not None else None,
-                "aic": aic,
-                "bic": bic,
-                "bestfit_h0": bestfit_h0,
-                "h0_tension": h0_tension,
-                "bestfit_s8": bestfit_s8,
-                "s8_tension": s8_tension,
-            }
-        )
-
-    if not row_data:
-        return (
-            "% No chains with usable data were available for the tension summary table."
-        )
-
-    # Build a per-dataset LCDM baseline so deltas are compared within each
-    # observational dataset combination.
-    dataset_baseline: dict[str, dict[str, Any]] = {}
-    for dataset_key in sorted({str(r["dataset_key"]) for r in row_data}):
-        lcdm_candidates = [
-            r for r in row_data if r["is_lcdm"] and str(r["dataset_key"]) == dataset_key
-        ]
-        if not lcdm_candidates:
-            continue
-        # If multiple LCDM chains map to the same dataset, use the best-fit
-        # (minimum chi^2 when available) as baseline.
-        lcdm_candidates.sort(
-            key=lambda r: (
-                float("inf") if r.get("chi_sq") is None else float(r["chi_sq"]),
-                str(r["root"]),
-            )
-        )
-        dataset_baseline[dataset_key] = lcdm_candidates[0]
-
-    for row in row_data:
-        baseline = dataset_baseline.get(str(row["dataset_key"]))
-        baseline_chi_sq = baseline["chi_sq"] if baseline else None
-        baseline_aic = baseline["aic"] if baseline else None
-        baseline_bic = baseline["bic"] if baseline else None
-
-        row["dchi2"] = (
-            row["chi_sq"] - baseline_chi_sq
-            if baseline_chi_sq is not None and row["chi_sq"] is not None
-            else None
-        )
-        row["daic"] = (
-            row["aic"] - baseline_aic
-            if baseline_aic is not None and row["aic"] is not None
-            else None
-        )
-        row["dbic"] = (
-            row["bic"] - baseline_bic
-            if baseline_bic is not None and row["bic"] is not None
-            else None
-        )
-
-    col_spec = (
-        "l l" + " >{$}c<{$} >{$}c<{$} >{$}c<{$} >{$}c<{$} >{$}c<{$} >{$}c<{$} >{$}c<{$}"
-    )
-    lines: list[str] = []
-    lines.append(r"\begin{sidewaystable}")
-    lines.append(r"\centering")
-    lines.append(
-        r"\caption{Model comparison metrics and observational tensions. "
-        + r"Tensions are computed with references "
-        + rf"$H_0={h0_ref:.1f}\pm{h0_ref_sigma:.1f}$ and $S_8={s8_ref:.3f}\pm{s8_ref_sigma:.3f}$."
-        + r" Delta metrics are computed relative to the $\Lambda$CDM chain with the same dataset."
-        + r"}"
-    )
-    lines.append(r"\label{tab:model_tension_summary}")
-    lines.append(r"\tagpdfsetup{table/header-rows={1}}")
-    lines.append(r"\begin{tabular}{" + col_spec + "}")
-    lines.append(r"\toprule")
-    header_parts = ["Potential", "Dataset"]
-    header_parts.extend(
-        [
-            r"\Delta\chi^2",
-            r"\Delta\text{AIC}",
-            r"\Delta\text{BIC}",
-            r"H_0^{\mathrm{bf}}",
-            r"T(H_0)\,[\sigma]",
-            r"S_8^{\mathrm{bf}}",
-            r"T(S_8)\,[\sigma]",
-        ]
-    )
-    lines.append(" & ".join(header_parts) + r" \\")
-    lines.append(r"\midrule")
-
-    dataset_keys_sorted = sorted({str(r["dataset_key"]) for r in row_data})
-    for dataset_idx, dataset_key in enumerate(dataset_keys_sorted):
-        dataset_rows = [r for r in row_data if str(r["dataset_key"]) == dataset_key]
-        dataset_rows_sorted = sorted(
-            dataset_rows,
-            key=lambda r: (
-                0 if r["is_lcdm"] else 1,
-                float("inf") if r.get("daic") is None else float(r["daic"]),
-                (
-                    float("inf")
-                    if r.get("h0_tension") is None
-                    else abs(float(r["h0_tension"]))
-                ),
-                str(r["model_name"]),
-            ),
-        )
-
-        if dataset_idx > 0:
-            lines.append(r"\midrule")
-
-        for row in dataset_rows_sorted:
-            dchi2 = row.get("dchi2")
-            daic = row.get("daic")
-            dbic = row.get("dbic")
-
-            dchi2_str = "--" if dchi2 is None else f"{dchi2:+.2f}"
-            daic_str = "--" if daic is None else f"{daic:+.2f}"
-            dbic_str = "--" if dbic is None else f"{dbic:+.2f}"
-
-            row_parts = [
-                str(row["model_name"]),
-                str(row["dataset_key"]),
-            ]
-            row_parts.extend(
-                [
-                    dchi2_str,
-                    daic_str,
-                    dbic_str,
-                    format_plain_number(row["bestfit_h0"], precision=2),
-                    format_plain_number(row["h0_tension"], precision=2),
-                    format_plain_number(row["bestfit_s8"], precision=3),
-                    format_plain_number(row["s8_tension"], precision=2),
-                ]
-            )
-            lines.append(" & ".join(row_parts) + r" \\")
-
-    lines.append(r"\bottomrule")
-    lines.append(r"\end{tabular}")
-    lines.append(r"\end{sidewaystable}")
-
-    return "\n".join(lines)
-
-
 # ============================================================================
 # Generate tables for the current analysis
 # ============================================================================
@@ -3553,10 +3394,10 @@ if CLI_ARGS.skip_tables:
     print("Skipping tables (--skip-tables); generating plots only.")
 else:
     # %%
-    # Table 1: H0 and S8 with chi^2, AIC, BIC
+    # Table 1: H0 and S8 with model-comparison metrics and tensions
     # n_data is automatically estimated from the chi2 components in the .minimum files
     print("=" * 80)
-    print("TABLE 1: Cosmological Parameters (H0, S8)")
+    print("TABLE 1: Cosmological Parameters and Tensions (H0, S8)")
     print("=" * 80)
     cosmology_table = generate_cosmology_table(
         ROOTS,
@@ -3592,15 +3433,3 @@ else:
         settings=ANALYSIS_SETTINGS,
     )
     print(swampland_table)
-
-    # %%
-    # Table 4: Model comparison with tensions
-    print("\n" + "=" * 80)
-    print("TABLE 4: Model Comparison and Tensions")
-    print("=" * 80)
-    tension_summary_table = generate_tension_summary_table(
-        ROOTS,
-        chain_dir=CHAIN_DIR,
-        settings=ANALYSIS_SETTINGS,
-    )
-    print(tension_summary_table)
