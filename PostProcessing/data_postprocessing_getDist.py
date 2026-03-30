@@ -52,7 +52,11 @@ from getdist import plots  # type: ignore[import-untyped]
 
 # Initialize module logger for debugging exception handling
 _LOGGER = logging.getLogger(__name__)
-_DEBUG_EXCEPTIONS = os.environ.get('GETDIST_DEBUG_EXCEPTIONS', '').lower() in ('1', 'true', 'yes')
+_DEBUG_EXCEPTIONS = os.environ.get("GETDIST_DEBUG_EXCEPTIONS", "").lower() in (
+    "1",
+    "true",
+    "yes",
+)
 
 
 # Preview font selection: robust detection with fallback and file logging.
@@ -625,6 +629,9 @@ ROOTS: list[str] = [
     # "DoubleExp_SPA_PP_S_D_InitCond_MCMC",
     # "hyperbolic_PP_S_D_InitCond_MCMC",
     # --- LCDM Archive ---
+    "cobaya_mcmc_CV_CMB_SPA_LCDM.post.S8",
+    "cobaya_polychord_CV_PP_DESI_LCDM.post.S8",
+    "cobaya_mcmc_CV_PP_S_DESI_LCDM.post.S8",
     "cobaya_mcmc_fast_CMB_LCDM",
     "cobaya_mcmc_fast_CMB_LCDM.post.PP",
     "cobaya_mcmc_fast_CMB_LCDM.post.PPS",
@@ -635,11 +642,16 @@ ROOTS: list[str] = [
     # "DoubleExp_Planck_InitCond_MCMC",
     # "exponential_Planck_InitCond_MCMC",
     # "hyperbolic_Planck_InitCond_MCMC",
+    "hyperbolic_SPA_InitCond_MCMC",
+    "hyperbolic_PP_D_InitCond_MCMC",
+    "hyperbolic_PP_S_D_InitCond_MCMC",
     "hyperbolic_Planck_InitCond_MCMC.post.Swamp",
     # "hyperbolic_Planck_InitCond_MCMC.post.PP_DESI",
-    "hyperbolic_Planck_InitCond_MCMC.post.PP_DESI.post.Swamp",
+    # "hyperbolic_Planck_InitCond_MCMC.post.PP_DESI.post.Swamp",
+    "hyperbolic_Planck_PP_DESI_InitCond_Swamp_MCMC",
     # "hyperbolic_Planck_InitCond_MCMC.post.PPS_DESI",
-    "hyperbolic_Planck_InitCond_MCMC.post.PPS_DESI.post.Swamp",
+    # "hyperbolic_Planck_InitCond_MCMC.post.PPS_DESI.post.Swamp",
+    "hyperbolic_Planck_PPS_DESI_InitCond_Swamp_MCMC",
     # "hyperbolic_Planck_tracking_MCMC",
     # "pNG_Planck_InitCond_MCMC",
     # "pNG_Planck_InitCond_MCMC.post.PP_DESI",
@@ -1011,12 +1023,11 @@ def build_legend_label(root: str) -> str:
     likelihoods: list[str] = []
 
     # --- CMB detection ---
-    # Legacy: "planck" or "_cmb_" in name; "fast" alone does NOT imply Planck
-    # New: "planck" as a data tag
-    if dataset_flags["has_planck"]:
-        likelihoods.append("Planck 2018")
+    # If SPA is present, do not duplicate it with a separate Planck tag.
     if dataset_flags["has_spa"]:
         likelihoods.append("SPA")
+    elif dataset_flags["has_planck"]:
+        likelihoods.append("Planck 2018")
 
     if dataset_flags["has_desi"]:
         likelihoods.append("DESI DR2")
@@ -1368,7 +1379,9 @@ def annotate_H0_S8(g: Any) -> list[Patch]:
             except AttributeError as e:
                 # Some artist types may not support zorder; this is acceptable
                 if _DEBUG_EXCEPTIONS:
-                    _LOGGER.debug(f"Artist {type(artist).__name__} does not support zorder: {e}")
+                    _LOGGER.debug(
+                        f"Artist {type(artist).__name__} does not support zorder: {e}"
+                    )
                 continue
             except (TypeError, ValueError) as e:
                 # Zorder value may be invalid for this artist type
@@ -2062,8 +2075,11 @@ def identify_dataset_from_root(root: str) -> tuple[str, str, bool]:
     dataset_flags = infer_dataset_flags_from_root(root)
 
     # Build dataset key
+    # If SPA is present, it subsumes Planck in this naming scheme.
     parts: list[str] = []
-    if dataset_flags["has_planck"]:
+    if dataset_flags["has_spa"]:
+        parts.append("SPA")
+    elif dataset_flags["has_planck"]:
         parts.append("Planck")
     if dataset_flags["has_desi"]:
         parts.append("DESI")
@@ -2243,7 +2259,9 @@ def get_accepted_steps(
                 except ValueError as e:
                     # Line format may not match expected pattern; log and skip
                     if _DEBUG_EXCEPTIONS:
-                        _LOGGER.debug(f"Malformed stats line in {root}: {line.strip()}: {e}")
+                        _LOGGER.debug(
+                            f"Malformed stats line in {root}: {line.strip()}: {e}"
+                        )
                     continue
 
         chain_data = read_chain_data_directly(root, [], chain_dir, settings)
@@ -2490,7 +2508,9 @@ def get_dataset_label(root: str) -> str:
     dataset_flags = infer_dataset_flags_from_root(root)
 
     parts: list[str] = []
-    if dataset_flags["has_planck"]:
+    if dataset_flags["has_spa"]:
+        parts.append("SPA")
+    elif dataset_flags["has_planck"]:
         parts.append("Planck")
     if dataset_flags["has_desi"]:
         parts.append("DESI DR2")
@@ -2763,7 +2783,9 @@ def read_chain_data_directly(
                 except ValueError as e:
                     # Line contains non-numeric values or format mismatch; log and skip
                     if _DEBUG_EXCEPTIONS:
-                        _LOGGER.debug(f"Malformed data line in {chain_file}: {line.strip()}: {e}")
+                        _LOGGER.debug(
+                            f"Malformed data line in {chain_file}: {line.strip()}: {e}"
+                        )
                     continue
 
             if chain_data:
