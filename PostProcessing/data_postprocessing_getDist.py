@@ -2585,7 +2585,7 @@ def get_dataset_label(root: str) -> str:
 
 def generate_scf_table(
     roots: Sequence[str],
-    params: Sequence[str] = ("cdm_c", "scf_c2", "scf_c3", "scf_c4"),
+    params: Sequence[str] = ("cdm_c", "scf_c2"),
     param_labels: Mapping[str, str] | None = None,
     chain_dir: str = CHAIN_DIR,
     settings: Mapping[str, Any] = ANALYSIS_SETTINGS,
@@ -2636,10 +2636,12 @@ def generate_scf_table(
         "dexp": {
             "name": r"\Nref{pot:dexp} potential",
             "label": "tab:scf_dexp",
+            "short_caption": "Scalar field parameters for the double exponential potential.",
         },
         "hyperbolic": {
             "name": r"\Nref{pot:tanh} potential",
             "label": "tab:scf_hyperbolic",
+            "short_caption": "Scalar field parameters for the hyperbolic potential.",
         },
     }
 
@@ -2670,15 +2672,27 @@ def generate_scf_table(
         if not chain_data:
             continue
 
+        def _format_scf_value(mean: float, lower: float, upper: float) -> str:
+            """Format 68% CI values and align positive entries with \\phantom{-}."""
+            formatted = format_value_with_errors(mean, lower, upper, precision=2)
+            if mean > 0:
+                return r"\phantom{-}" + formatted
+            return formatted
+
         # Build table with math mode columns
-        n_param_cols = len(params)
-        col_spec = "l" + " >{$}c<{$}" * n_param_cols
+        if tuple(params) == ("cdm_c", "scf_c2"):
+            col_spec = "l >{$}c<{$} >{$}l<{$}"
+        else:
+            n_param_cols = len(params)
+            col_spec = "l" + " >{$}c<{$}" * n_param_cols
 
         lines: list[str] = []
-        lines.append(r"\begin{sidewaystable}")
+        lines.append(r"\begin{table}")
         lines.append(r"\centering")
         lines.append(
-            r"\caption{Scalar field parameters for the "
+            r"\caption["
+            + model_info[model_key]["short_caption"]
+            + r"]{Scalar field parameters for the "
             + model_info[model_key]["name"]
             + r".}"
         )
@@ -2708,8 +2722,8 @@ def generate_scf_table(
                 if data["stats"] and data["stats"].get(param):
                     s = data["stats"][param]
                     row_parts.append(
-                        format_value_with_errors(
-                            s["mean"], s["lower_1sigma"], s["upper_1sigma"], precision=2
+                        _format_scf_value(
+                            s["mean"], s["lower_1sigma"], s["upper_1sigma"]
                         )
                     )
                 else:
@@ -2719,7 +2733,7 @@ def generate_scf_table(
 
         lines.append(r"\bottomrule")
         lines.append(r"\end{tabular}")
-        lines.append(r"\end{sidewaystable}")
+        lines.append(r"\end{table}")
 
         all_tables.append("\n".join(lines))
 
@@ -3415,7 +3429,7 @@ else:
     print("=" * 80)
     scf_table = generate_scf_table(
         ROOTS,
-        params=["cdm_c", "scf_c2", "scf_c3", "scf_c4"],
+        params=["cdm_c", "scf_c2"],
         param_labels=scf_labels,
         chain_dir=CHAIN_DIR,
         settings=ANALYSIS_SETTINGS,
