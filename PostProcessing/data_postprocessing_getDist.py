@@ -3294,8 +3294,8 @@ def generate_swampland_table(
         "swgc_expr_min": r"\text{SWGC}_{\text{expr,min}}",
         "sswgc_min": r"\text{SSWGC}_{\min}",
         "attractor_regime_scf": r"n_{\text{attr}}",
-        "AdSDC2_max": r"\text{AdSDC}_2",
-        "AdSDC4_max": r"\text{AdSDC}_4",
+        "AdSDC2_max": r"m_{\text{DM,min}}^{\text{SUSY AdS}}",
+        "AdSDC4_max": r"m_{\text{DM,min}}^{\text{scale sep}}",
         "combined_dSC_min": r"\text{dSC}_{\min}",
         "conformal_age": r"\tau_{\text{conf}}",
     }
@@ -3344,6 +3344,21 @@ def generate_swampland_table(
             return rf"${mean_str} \pm {avg_str}$"
         return rf"${{{mean_str}}}^{{+{up_str}}}_{{-{down_str}}}$"
 
+    def _invert_bound_stat(
+        mean: float, lower: float, upper: float
+    ) -> tuple[float, float, float] | None:
+        """Transform x statistics into 1/x statistics for positive bounds."""
+        lower_bound = min(lower, upper)
+        upper_bound = max(lower, upper)
+        if mean <= 0.0 or lower_bound <= 0.0 or upper_bound <= 0.0:
+            return None
+
+        inv_mean = 1.0 / mean
+        # For positive x, y=1/x is monotonically decreasing.
+        inv_lower = 1.0 / upper_bound
+        inv_upper = 1.0 / lower_bound
+        return inv_mean, inv_lower, inv_upper
+
     lines: list[str] = []
     lines.append(r"% Requires \\usepackage{graphicx} for \\rotatebox")
     lines.append(r"\begin{table}[htbp]")
@@ -3381,14 +3396,33 @@ def generate_swampland_table(
                     row_parts.append("--")
             elif data["stats"] and data["stats"].get(param):
                 s = data["stats"][param]
-                row_parts.append(
-                    _fmt_table3_value(
-                        s["mean"],
-                        s["lower_1sigma"],
-                        s["upper_1sigma"],
-                        precision=2,
+                if param in ("AdSDC2_max", "AdSDC4_max"):
+                    inverted = _invert_bound_stat(
+                        float(s["mean"]),
+                        float(s["lower_1sigma"]),
+                        float(s["upper_1sigma"]),
                     )
-                )
+                    if inverted is None:
+                        row_parts.append("--")
+                    else:
+                        inv_mean, inv_lower, inv_upper = inverted
+                        row_parts.append(
+                            _fmt_table3_value(
+                                inv_mean,
+                                inv_lower,
+                                inv_upper,
+                                precision=2,
+                            )
+                        )
+                else:
+                    row_parts.append(
+                        _fmt_table3_value(
+                            s["mean"],
+                            s["lower_1sigma"],
+                            s["upper_1sigma"],
+                            precision=2,
+                        )
+                    )
             else:
                 row_parts.append("--")
 
