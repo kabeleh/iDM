@@ -35,7 +35,7 @@ export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
 CLASS_DIR="/home/users/u103677/iDM"
 cd "$CLASS_DIR"
 
-PROFILE_DIR="${CLASS_DIR}/pgo_profiles"
+# PROFILE_DIR="${CLASS_DIR}/pgo_profiles"
 
 # echo "============================================"
 # echo "PGO Build — Phase 1: Instrumented Build"
