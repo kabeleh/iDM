@@ -95,6 +95,7 @@ I used various little helper scripts to reduce human error, following the credo 
 - `PostProcessing\getNumberOfDataPoints.py`: To compute the Bayesian Information Criterion (BIC) the number of data points per likelihood is required. To get the actual number used at runtime, this script can be interrupted in debugger mode. Different likelihoods store the data points in different ways, which made it necessary to retrieve this number by hand.
 - `Cobaya\cobaya_progress.py`: Reads the *.progress file and creates a little plot with the number of accepted points and the convergence between the different MCMC chains.
 - `Cobaya\create_cobaya_yaml.py`: Creates the [`Cobaya`](https://cobaya.readthedocs.io/en/latest/) configuration files, as well as the SLURM scripts to run them.
+- `PostProcessing\BestFitPlot.py`: Reads the bestfit values and model parameters to obtain it from the `Cobaya` `*.bestfit` file and the corresponding `Cobaya` YAML file, calls `CLASS` with those setting and stores the obtain cosmic evolution of various parameters, and then plots a selection of those parameters over the cosmic history.
 
 ## Thesis
 My PhD thesis can be found on [arXiv](TODO), [MURAL](TODO), as well as in the folder `Thesis`. This folder contains, besides the PDF, the `LaTeX` code. The code acts as a template for similar documents and makes the equations available for typesetting.
