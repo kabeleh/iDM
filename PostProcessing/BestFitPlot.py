@@ -206,7 +206,6 @@ def load_bestfit_file(bestfit_path: str) -> Dict[str, float]:
 
             try:
                 # Extract index, value, and parameter name
-                index = int(parts[0])
                 value = float(parts[1])
                 param_name = parts[2]
 
