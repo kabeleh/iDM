@@ -439,7 +439,7 @@ def preload_all_chains(
     chain_dir: str,
     settings: Mapping[str, Any],
     verbose: bool = True,
-) -> None:
+) -> dict[str, Any]:
     """
     Preload all chains into the cache to minimize redundant loading.
 
@@ -456,6 +456,12 @@ def preload_all_chains(
         Analysis settings (e.g., burn-in).
     verbose : bool
         If True, print loading progress and validation results.
+
+    Returns
+    -------
+    dict
+        Active settings used for downstream analysis (including adaptive updates
+        such as tuned fine_bins).
     """
     if verbose:
         print(f"Preflight validation: checking {len(roots)} chain root(s)...")
@@ -529,10 +535,6 @@ def preload_all_chains(
         _SAMPLES_CACHE.clear()
         active_settings["fine_bins"] = suggested
 
-        # Persist to caller settings if mutable (e.g. ANALYSIS_SETTINGS dict).
-        if isinstance(settings, dict):
-            settings["fine_bins"] = suggested
-
         successful, _ = _load_pass("pass 2", active_settings)
 
     if verbose:
@@ -548,14 +550,14 @@ def preload_all_chains(
                 f"Using fine_bins={int(active_settings.get('fine_bins', 1024))}.\n"
             )
 
+    return active_settings
+
 
 # ============================================================================
 # COMMON CONFIGURATION
 # ============================================================================
 
 # Resolve paths relative to this script so both Linux and macOS layouts work.
-# Expected layout:
-#   <HDM>/class_public/PostProcessing/data_postprocessing_getDist.py
 #   <HDM>/MCMC_archive/
 #   <HDM>/MCMC_chains/
 _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -581,11 +583,26 @@ def _ordered_chain_search_dirs(chain_dir: str) -> list[str]:
     return existing_prioritized
 
 
-ANALYSIS_SETTINGS: dict[str, float] = {
+BASE_ANALYSIS_SETTINGS: dict[str, float] = {
     "ignore_rows": 0.33,
     # "fine_bins": 2048,
     "fine_bins_2D": 2048,
 }
+
+# Runtime analysis settings for the current execution. This is intentionally
+# explicit and can differ from BASE_ANALYSIS_SETTINGS after adaptive tuning.
+ANALYSIS_SETTINGS: dict[str, Any] = dict(BASE_ANALYSIS_SETTINGS)
+
+
+def _resolve_analysis_settings(
+    settings: Mapping[str, Any] | None,
+) -> Mapping[str, Any]:
+    """Return explicit settings for this call.
+
+    None means: use the current runtime ANALYSIS_SETTINGS.
+    """
+    return ANALYSIS_SETTINGS if settings is None else settings
+
 
 # Centralized observational references used by plots and tension calculations.
 # Update these values in one place when new measurements are released.
@@ -891,16 +908,17 @@ def _root_base_path(root: str, chain_dir: str) -> str:
 def get_samples_for_root(
     root: str,
     chain_dir: str = CHAIN_DIR,
-    settings: Mapping[str, Any] = ANALYSIS_SETTINGS,
+    settings: Mapping[str, Any] | None = None,
 ) -> Any | None:
     """Load samples for a root with caching and subfolder resolution."""
+    resolved_settings = _resolve_analysis_settings(settings)
     resolved_root = resolve_chain_root(root, chain_dir)
     cache_key = _cache_key(chain_dir, resolved_root)
     if cache_key in _SAMPLES_CACHE:
         return _SAMPLES_CACHE[cache_key]
     try:
         samples = loadMCSamples(
-            _root_base_path(resolved_root, chain_dir), settings=settings
+            _root_base_path(resolved_root, chain_dir), settings=resolved_settings
         )
     except Exception as e:
         print(f"Note: GetDist failed for {root}: {e}")
@@ -1465,7 +1483,9 @@ def annotate_scf_constraints(g: Any) -> list[Patch]:
 # ============================================================================
 # Preload all chains before any analysis to maximize performance
 # This ensures both plots and tables benefit from cached data
-preload_all_chains(ROOTS, CHAIN_DIR, ANALYSIS_SETTINGS, verbose=True)
+ANALYSIS_SETTINGS = preload_all_chains(
+    ROOTS, CHAIN_DIR, ANALYSIS_SETTINGS, verbose=True
+)
 
 scf_labels = {
     "cdm_c": r"c_\mathrm{DM}",
@@ -1793,7 +1813,7 @@ def get_chain_statistics(
     root: str,
     params: Sequence[str],
     chain_dir: str = CHAIN_DIR,
-    settings: Mapping[str, Any] = ANALYSIS_SETTINGS,
+    settings: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """
     Get mean, std, and confidence limits for parameters from a chain.
@@ -1824,6 +1844,7 @@ def get_chain_statistics(
     stats: dict[str, Any] = {}
     samples: Any = None
     chain_data: dict[str, Any] = {}
+    resolved_settings = _resolve_analysis_settings(settings)
 
     # Try GetDist first (with caching)
     resolved_root = resolve_chain_root(root, chain_dir)
@@ -1834,7 +1855,7 @@ def get_chain_statistics(
     else:
         try:
             samples = loadMCSamples(
-                _root_base_path(resolved_root, chain_dir), settings=settings
+                _root_base_path(resolved_root, chain_dir), settings=resolved_settings
             )
             _SAMPLES_CACHE[cache_key] = samples
             use_getdist = True
@@ -1846,7 +1867,9 @@ def get_chain_statistics(
     if not use_getdist:
         # Read chain data directly
         try:
-            chain_data = read_chain_data_directly(root, params, chain_dir, settings)
+            chain_data = read_chain_data_directly(
+                root, params, chain_dir, resolved_settings
+            )
         except Exception as e2:
             print(f"Warning: Could not read chain data for {root}: {e2}")
             return {param: None for param in params}
@@ -1862,7 +1885,9 @@ def get_chain_statistics(
             )
             use_getdist = False
             try:
-                chain_data = read_chain_data_directly(root, params, chain_dir, settings)
+                chain_data = read_chain_data_directly(
+                    root, params, chain_dir, resolved_settings
+                )
             except Exception as e2:
                 print(f"Warning: Could not read chain data for {root}: {e2}")
                 return {param: None for param in params}
@@ -1875,7 +1900,7 @@ def get_chain_statistics(
                 # Try fallback for this specific parameter
                 try:
                     chain_data_single = read_chain_data_directly(
-                        root, [param], chain_dir, settings
+                        root, [param], chain_dir, resolved_settings
                     )
                     if param in chain_data_single:
                         values = chain_data_single[param]
@@ -1984,7 +2009,7 @@ def calculate_statistics_from_samples(
 def count_free_parameters(
     root: str,
     chain_dir: str = CHAIN_DIR,
-    settings: Mapping[str, Any] = ANALYSIS_SETTINGS,
+    settings: Mapping[str, Any] | None = None,
 ) -> int | None:
     """
     Count the number of free (sampled) parameters in a chain.
@@ -2003,6 +2028,7 @@ def count_free_parameters(
     int
         Number of free parameters.
     """
+    resolved_settings = _resolve_analysis_settings(settings)
     # Use cache if available
     resolved_root = resolve_chain_root(root, chain_dir)
     cache_key = _cache_key(chain_dir, resolved_root)
@@ -2011,7 +2037,7 @@ def count_free_parameters(
     else:
         try:
             samples = loadMCSamples(
-                _root_base_path(resolved_root, chain_dir), settings=settings
+                _root_base_path(resolved_root, chain_dir), settings=resolved_settings
             )
             _SAMPLES_CACHE[cache_key] = samples
         except Exception as e:
@@ -2233,9 +2259,10 @@ def compute_tension(
 def get_accepted_steps(
     root: str,
     chain_dir: str = CHAIN_DIR,
-    settings: Mapping[str, Any] = ANALYSIS_SETTINGS,
+    settings: Mapping[str, Any] | None = None,
 ) -> int | None:
     """Estimate accepted steps from .progress (fallback: chain weights)."""
+    resolved_settings = _resolve_analysis_settings(settings)
     try:
         resolved_root = resolve_chain_root(root, chain_dir)
         progress_file = _root_base_path(resolved_root, chain_dir) + ".progress"
@@ -2264,7 +2291,7 @@ def get_accepted_steps(
                         )
                     continue
 
-        chain_data = read_chain_data_directly(root, [], chain_dir, settings)
+        chain_data = read_chain_data_directly(root, [], chain_dir, resolved_settings)
         weights = chain_data.get("weights")
         if weights is None:
             return None
@@ -2292,7 +2319,7 @@ def generate_cosmology_table(
     roots: Sequence[str],
     params: Sequence[str] = ("H0", "S8"),
     chain_dir: str = CHAIN_DIR,
-    settings: Mapping[str, Any] = ANALYSIS_SETTINGS,
+    settings: Mapping[str, Any] | None = None,
     n_data: int | None = None,
 ) -> str:
     """
@@ -2321,6 +2348,7 @@ def generate_cosmology_table(
     str
         LaTeX table code.
     """
+    resolved_settings = _resolve_analysis_settings(settings)
     h0_ref = float(OBSERVATIONAL_REFERENCES["H0"]["mean"])
     h0_ref_sigma = float(OBSERVATIONAL_REFERENCES["H0"]["sigma"])
     s8_ref = float(OBSERVATIONAL_REFERENCES["S8"]["mean"])
@@ -2354,8 +2382,8 @@ def generate_cosmology_table(
                 "params": {},
             }
 
-        stats = get_chain_statistics(root, params, chain_dir, settings)
-        n_params = count_free_parameters(root, chain_dir, settings)
+        stats = get_chain_statistics(root, params, chain_dir, resolved_settings)
+        n_params = count_free_parameters(root, chain_dir, resolved_settings)
         if n_params is None or not _has_any_valid_stats(stats, params):
             print(
                 f"Note: Skipping {root} in cosmology table because the chain could not be loaded reliably."
@@ -2588,7 +2616,7 @@ def generate_scf_table(
     params: Sequence[str] = ("cdm_c", "scf_c2"),
     param_labels: Mapping[str, str] | None = None,
     chain_dir: str = CHAIN_DIR,
-    settings: Mapping[str, Any] = ANALYSIS_SETTINGS,
+    settings: Mapping[str, Any] | None = None,
 ) -> str:
     """
     Generate LaTeX tables for scalar field parameters, one per model type.
@@ -2614,6 +2642,7 @@ def generate_scf_table(
     str
         LaTeX table code (multiple tables concatenated).
     """
+    resolved_settings = _resolve_analysis_settings(settings)
     # Group roots by model type
     model_groups: dict[str, list[str]] = {
         "dexp": [],
@@ -2661,7 +2690,7 @@ def generate_scf_table(
             else:
                 min_data = {"params": {}}
 
-            stats = get_chain_statistics(root, params, chain_dir, settings)
+            stats = get_chain_statistics(root, params, chain_dir, resolved_settings)
             if not _has_any_valid_stats(stats, params):
                 print(
                     f"Note: Skipping {root} in scalar field table because the chain could not be loaded reliably."
@@ -2747,7 +2776,7 @@ def read_chain_data_directly(
     root: str,
     param_names: Sequence[str],
     chain_dir: str = CHAIN_DIR,
-    settings: Mapping[str, Any] = ANALYSIS_SETTINGS,
+    settings: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """
     Read chain data directly from text files as a fallback when GetDist fails.
@@ -2774,6 +2803,7 @@ def read_chain_data_directly(
     """
     import glob
 
+    resolved_settings = _resolve_analysis_settings(settings)
     resolved_root = resolve_chain_root(root, chain_dir)
     base_path = _root_base_path(resolved_root, chain_dir)
 
@@ -2877,7 +2907,7 @@ def read_chain_data_directly(
     combined_data: Any = np.vstack(all_data)  # type: ignore[no-untyped-call]
 
     # Apply burn-in if specified
-    ignore_rows = settings.get("ignore_rows", 0.0)
+    ignore_rows = resolved_settings.get("ignore_rows", 0.0)
     if ignore_rows > 0:
         if ignore_rows < 1:  # Fraction
             n_ignore = int(len(combined_data) * ignore_rows)  # type: ignore[arg-type]
@@ -2903,7 +2933,7 @@ def get_integer_parameter_mode(
     root: str,
     param_name: str,
     chain_dir: str = CHAIN_DIR,
-    settings: Mapping[str, Any] = ANALYSIS_SETTINGS,
+    settings: Mapping[str, Any] | None = None,
 ) -> tuple[float | None, int | None]:
     """
     Extract mean and mode for an integer parameter from raw samples.
@@ -2927,6 +2957,7 @@ def get_integer_parameter_mode(
     tuple
         (mean_value, mode_value) where mode_value is an integer, or (None, None) on error.
     """
+    resolved_settings = _resolve_analysis_settings(settings)
     try:
         # First try GetDist (with caching)
         resolved_root = resolve_chain_root(root, chain_dir)
@@ -2935,7 +2966,7 @@ def get_integer_parameter_mode(
             samples: Any = _SAMPLES_CACHE[cache_key]
         else:
             samples = loadMCSamples(
-                _root_base_path(resolved_root, chain_dir), settings=settings
+                _root_base_path(resolved_root, chain_dir), settings=resolved_settings
             )
             _SAMPLES_CACHE[cache_key] = samples
         param_values = samples[param_name]
@@ -2944,7 +2975,7 @@ def get_integer_parameter_mode(
         # Fallback: read directly from chain files
         try:
             chain_data = read_chain_data_directly(
-                root, [param_name], chain_dir, settings
+                root, [param_name], chain_dir, resolved_settings
             )
             param_values = chain_data[param_name]
             weights = chain_data["weights"]
@@ -2977,7 +3008,7 @@ def check_parameter_identity(
     param1: str,
     param2: str,
     chain_dir: str = CHAIN_DIR,
-    settings: Mapping[str, Any] = ANALYSIS_SETTINGS,
+    settings: Mapping[str, Any] | None = None,
     tolerance: float = 1e-10,
 ) -> bool:
     """
@@ -3001,6 +3032,7 @@ def check_parameter_identity(
     bool
         True if the parameters are identical within tolerance across all samples.
     """
+    resolved_settings = _resolve_analysis_settings(settings)
     try:
         # First try GetDist (with caching)
         resolved_root = resolve_chain_root(root, chain_dir)
@@ -3009,7 +3041,7 @@ def check_parameter_identity(
             samples: Any = _SAMPLES_CACHE[cache_key]
         else:
             samples = loadMCSamples(
-                _root_base_path(resolved_root, chain_dir), settings=settings
+                _root_base_path(resolved_root, chain_dir), settings=resolved_settings
             )
             _SAMPLES_CACHE[cache_key] = samples
         values1 = samples[param1]
@@ -3018,7 +3050,7 @@ def check_parameter_identity(
         # Fallback: read directly from chain files
         try:
             chain_data = read_chain_data_directly(
-                root, [param1, param2], chain_dir, settings
+                root, [param1, param2], chain_dir, resolved_settings
             )
             values1 = chain_data[param1]
             values2 = chain_data[param2]
@@ -3038,7 +3070,7 @@ def generate_detailed_table(
     params: Sequence[str],
     param_labels: Mapping[str, str] | None = None,
     chain_dir: str = CHAIN_DIR,
-    settings: Mapping[str, Any] = ANALYSIS_SETTINGS,
+    settings: Mapping[str, Any] | None = None,
     caption: str = "Parameter constraints from MCMC analysis.",
     label: str = "tab:params",
 ) -> str:
@@ -3068,6 +3100,7 @@ def generate_detailed_table(
     str
         LaTeX table code.
     """
+    resolved_settings = _resolve_analysis_settings(settings)
     # Collect data and model names
     chain_data: dict[str, Any] = {}
     model_names: dict[str, str] = {}
@@ -3082,7 +3115,7 @@ def generate_detailed_table(
         else:
             min_data = {"params": {}}
 
-        stats = get_chain_statistics(root, params, chain_dir, settings)
+        stats = get_chain_statistics(root, params, chain_dir, resolved_settings)
         chain_data[root] = {"minimum": min_data, "stats": stats}
 
     # Build table: rows are parameters, columns are chains
@@ -3150,7 +3183,7 @@ def generate_detailed_table(
 def generate_swampland_table(
     roots: Sequence[str],
     chain_dir: str = CHAIN_DIR,
-    settings: Mapping[str, Any] = ANALYSIS_SETTINGS,
+    settings: Mapping[str, Any] | None = None,
 ) -> str:
     """
     Generate a LaTeX table for swampland constraint parameters.
@@ -3173,6 +3206,7 @@ def generate_swampland_table(
     str
         LaTeX table code.
     """
+    resolved_settings = _resolve_analysis_settings(settings)
 
     # Swampland parameters to extract
     swampland_params = [
@@ -3201,7 +3235,7 @@ def generate_swampland_table(
         _, _, is_lcdm = identify_dataset_from_root(root)
         if is_lcdm:
             continue
-        samples = get_samples_for_root(root, chain_dir, settings)
+        samples = get_samples_for_root(root, chain_dir, resolved_settings)
         if samples is None or getattr(samples, "paramNames", None) is None:
             continue
         if any(samples.paramNames.parWithName(p) is not None for p in swampland_params):
@@ -3214,7 +3248,11 @@ def generate_swampland_table(
     duplicate_phi = True
     for root in swampland_roots:
         if not check_parameter_identity(
-            root, "phi_ini_scf_ic", "phi_prime_scf_ic", chain_dir, settings
+            root,
+            "phi_ini_scf_ic",
+            "phi_prime_scf_ic",
+            chain_dir,
+            resolved_settings,
         ):
             duplicate_phi = False
             break
@@ -3257,7 +3295,9 @@ def generate_swampland_table(
         else:
             min_data = {"params": {}}
 
-        stats = get_chain_statistics(root, swampland_params, chain_dir, settings)
+        stats = get_chain_statistics(
+            root, swampland_params, chain_dir, resolved_settings
+        )
         if not _has_any_valid_stats(stats, swampland_params):
             print(
                 f"Note: Skipping {root} in swampland table because the chain could not be loaded reliably."
@@ -3267,7 +3307,7 @@ def generate_swampland_table(
         # Extract mode for integer parameter
         if "attractor_regime_scf" in swampland_params:
             mean_val, mode_val = get_integer_parameter_mode(
-                root, "attractor_regime_scf", chain_dir, settings
+                root, "attractor_regime_scf", chain_dir, resolved_settings
             )
             if mean_val is not None and mode_val is not None:
                 integer_modes[root] = (mean_val, mode_val)
