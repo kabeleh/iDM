@@ -87,6 +87,8 @@ The Mathematica notebooks contain the derivation of the governing equations, equ
 - `xPert.nb` uses the [xAct](https://xact.es) package [xPert](https://xact.es/xPert/index.html) to derive metric-independent equations of motions from the Lagrangian and the stress–energy tensor. It includes first-order perturbations.
 - `xPand.nb` takes those equations and expresses them with respect to a metric and simplifies the equations using the Newtonian gauge. This notebook uses the [xPand](https://www2.iap.fr/users/pitrou/xpand.htm) plugin.
 - `rho_cdm.nb` computes the derivatives of the interacting dark matter mass $m\left(\phi\right)=1-\tanh\left(c\phi\right)$ and expresses them in trigonometric functions.
+- `Attractor_Solution.nb` assesses the small- and large-field attractor solutions / scaling solutions / tracking conditions.
+- `TCC.nb` evaluates the trans-Planckian Censorship Conjecture condition $|V^\prime|/V$ for $\phi\rightarrow\infty$ for all potentials.
 
 ## Python Helper
 I used various little helper scripts to reduce human error, following the credo 'automate everything':
