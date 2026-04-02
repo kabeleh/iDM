@@ -30,6 +30,7 @@ Examples:
 # - getdist.plots for MCMC chain plotting
 from typing import Any, Callable, Mapping, Sequence, cast
 import argparse
+import gc
 import os
 import re
 import glob
@@ -37,6 +38,10 @@ import shutil
 import math
 import atexit
 import logging
+import sys
+import subprocess
+import threading
+import time
 import numpy as np  # type: ignore[import-untyped]
 from cycler import cycler
 
@@ -132,44 +137,65 @@ def _register_preview_font(font_name: str, path: str) -> None:
         pass
 
 
-# Check each required font and collect results, then register explicit files.
+# Font discovery is deferred until the first plot/export request so that
+# table-only runs do not pay the system-font scan cost at import time.
 _FONT_CHECK_RESULTS: dict[str, tuple[bool, str]] = {}
-for font_name in ("IBM Plex Serif", "IBM Plex Sans", "IBM Plex Mono"):
-    found, info = _find_font_file(font_name)
-    _FONT_CHECK_RESULTS[font_name] = (found, info)
-    if found:
-        _register_preview_font(font_name, info)
+_PREVIEW_FONTS_INITIALIZED = False
+_PREVIEW_SERIF = "DejaVu Serif"
+_PREVIEW_SANS = "DejaVu Sans"
+_PREVIEW_MONO = "DejaVu Sans Mono"
 
-_HAS_PLEX_PREVIEW = all(found for found, _ in _FONT_CHECK_RESULTS.values())
 
-if _HAS_PLEX_PREVIEW:
-    _PREVIEW_SERIF = "IBM Plex Serif"
-    _PREVIEW_SANS = "IBM Plex Sans"
-    _PREVIEW_MONO = "IBM Plex Mono"
-    print("Using IBM Plex fonts for preview:")
-    for font_name, (found, path) in _FONT_CHECK_RESULTS.items():
+def _ensure_preview_fonts() -> None:
+    """Detect and register IBM Plex preview fonts once, on demand."""
+    global _PREVIEW_FONTS_INITIALIZED
+    global _PREVIEW_SERIF, _PREVIEW_SANS, _PREVIEW_MONO
+
+    if _PREVIEW_FONTS_INITIALIZED:
+        return
+
+    _FONT_CHECK_RESULTS.clear()
+    for font_name in ("IBM Plex Serif", "IBM Plex Sans", "IBM Plex Mono"):
+        found, info = _find_font_file(font_name)
+        _FONT_CHECK_RESULTS[font_name] = (found, info)
         if found:
-            print(f"  {font_name}: {path}")
-else:
-    _PREVIEW_SERIF = "DejaVu Serif"
-    _PREVIEW_SANS = "DejaVu Sans"
-    _PREVIEW_MONO = "DejaVu Sans Mono"
-    print(
-        "Warning: Not all IBM Plex fonts found for interactive preview. "
-        "Using DejaVu fallback. Strict --strict-export remains IBM Plex Math via lualatex."
+            _register_preview_font(font_name, info)
+
+    has_plex_preview = all(found for found, _ in _FONT_CHECK_RESULTS.values())
+    if has_plex_preview:
+        _PREVIEW_SERIF = "IBM Plex Serif"
+        _PREVIEW_SANS = "IBM Plex Sans"
+        _PREVIEW_MONO = "IBM Plex Mono"
+        print("Using IBM Plex fonts for preview:")
+        for font_name, (found, path) in _FONT_CHECK_RESULTS.items():
+            if found:
+                print(f"  {font_name}: {path}")
+    else:
+        _PREVIEW_SERIF = "DejaVu Serif"
+        _PREVIEW_SANS = "DejaVu Sans"
+        _PREVIEW_MONO = "DejaVu Sans Mono"
+        print(
+            "Warning: Not all IBM Plex fonts found for interactive preview. "
+            "Using DejaVu fallback. Strict --strict-export remains IBM Plex Math via lualatex."
+        )
+        for font_name, (found, reason) in _FONT_CHECK_RESULTS.items():
+            if not found:
+                print(f"  {font_name}: {reason}")
+
+    mpl.rcParams.update(
+        {
+            "font.family": [_PREVIEW_SERIF],
+            "font.sans-serif": [_PREVIEW_SANS, "DejaVu Sans", "sans-serif"],
+            "font.monospace": [_PREVIEW_MONO, "DejaVu Sans Mono", "monospace"],
+            "font.serif": [_PREVIEW_SERIF, "DejaVu Serif", "serif"],
+        }
     )
-    for font_name, (found, reason) in _FONT_CHECK_RESULTS.items():
-        if not found:
-            print(f"  {font_name}: {reason}")
+    _PREVIEW_FONTS_INITIALIZED = True
 
 
 # Plot Configuration
 mpl.rcParams.update(
     {
-        "font.family": [_PREVIEW_SERIF],
-        "font.sans-serif": [_PREVIEW_SANS, "DejaVu Sans", "sans-serif"],
-        "font.monospace": [_PREVIEW_MONO, "DejaVu Sans Mono", "monospace"],
-        "font.serif": [_PREVIEW_SERIF, "DejaVu Serif", "serif"],
         "font.size": 10,  # body text size (most journals use 10 pt)
         "axes.labelsize": 10,  # axis-label size matches body text
         "xtick.labelsize": 9,  # tick labels one point smaller
@@ -261,6 +287,9 @@ MARKERS: list[str] = ["o", "s", "^", "v", "D", "P", "X", "*"]
 # Global cache for loaded samples to avoid redundant loading
 _SAMPLES_CACHE: dict[str, Any] = {}
 _ROOT_PATH_CACHE: dict[str, str] = {}
+_CHAIN_SUMMARY_CACHE: dict[str, dict[str, Any]] = {}
+_BESTFIT_CACHE: dict[str, dict[str, Any]] = {}
+_GUI_EVENT_COUNTER = 0
 
 # GetDist imports for MCMC analysis
 from getdist import MCSamples, loadMCSamples  # type: ignore[import-untyped]
@@ -277,6 +306,239 @@ def _style_for_chain(index: int) -> tuple[str, str]:
     )
 
 
+def _sample_param_names(samples: Any) -> set[str]:
+    """Return all parameter names available in a GetDist sample.
+
+    This includes both sampled and derived parameters. Several tables rely on
+    derived quantities (e.g. S8 and swampland diagnostics), so filtering to
+    sampled-only names would incorrectly drop scientifically relevant columns.
+    """
+    param_names = set()
+    names = getattr(getattr(samples, "paramNames", None), "names", [])
+    for param in names:
+        name = getattr(param, "name", None)
+        if isinstance(name, str):
+            param_names.add(name)
+    return param_names
+
+
+def _build_chain_summary(
+    samples: Any,
+    root: str,
+    resolved_root: str,
+    chain_dir: str,
+    settings: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Extract reusable summary statistics from a loaded GetDist chain."""
+    summary: dict[str, Any] = {
+        "root": root,
+        "resolved_root": resolved_root,
+        "sample_param_names": _sample_param_names(samples),
+        "n_params": len(
+            [
+                p
+                for p in getattr(samples.paramNames, "names", [])
+                if not getattr(p, "isDerived", False)
+            ]
+        ),
+        "stats": {},
+        "integer_modes": {},
+        "phi_identity": None,
+    }
+
+    try:
+        marge_stats = samples.getMargeStats()
+    except Exception:
+        marge_stats = None
+
+    stats: dict[str, dict[str, float]] = {}
+    for param in sorted(summary["sample_param_names"]):
+        try:
+            mean = float(samples.mean(param))
+            std = float(samples.std(param))
+        except Exception:
+            continue
+
+        lower_1 = mean - std
+        upper_1 = mean + std
+        lower_2 = mean - 2.0 * std
+        upper_2 = mean + 2.0 * std
+
+        if marge_stats is not None:
+            try:
+                par_marge = marge_stats.parWithName(param)
+                if par_marge is not None and len(par_marge.limits) > 1:
+                    lim_68 = par_marge.limits[0]
+                    lim_95 = par_marge.limits[1]
+                    lower_1 = float(lim_68.lower)
+                    upper_1 = float(lim_68.upper)
+                    lower_2 = float(lim_95.lower)
+                    upper_2 = float(lim_95.upper)
+            except Exception:
+                pass
+
+        stats[param] = {
+            "mean": mean,
+            "std": std,
+            "lower_1sigma": lower_1,
+            "upper_1sigma": upper_1,
+            "lower_2sigma": lower_2,
+            "upper_2sigma": upper_2,
+        }
+
+    if "attractor_regime_scf" in summary["sample_param_names"]:
+        try:
+            param_values = samples["attractor_regime_scf"]
+            weights = samples.weights
+            mean_value = float(np.average(param_values, weights=weights))  # type: ignore[no-untyped-call]
+            discrete_values = np.round(param_values).astype(int)  # type: ignore[no-untyped-call]
+            unique_vals, indices = np.unique(discrete_values, return_inverse=True)  # type: ignore[no-untyped-call]
+            weighted_counts = np.bincount(indices, weights=weights)  # type: ignore[no-untyped-call]
+            mode_value = int(unique_vals[int(np.argmax(weighted_counts))])  # type: ignore[no-untyped-call]
+            summary["integer_modes"]["attractor_regime_scf"] = (mean_value, mode_value)
+        except Exception:
+            pass
+
+    if (
+        "phi_ini_scf_ic" in summary["sample_param_names"]
+        and "phi_prime_scf_ic" in summary["sample_param_names"]
+    ):
+        try:
+            values1 = samples["phi_ini_scf_ic"]
+            values2 = samples["phi_prime_scf_ic"]
+            summary["phi_identity"] = bool(
+                np.allclose(values1, values2, atol=1e-10)  # type: ignore[no-untyped-call]
+            )
+        except Exception:
+            summary["phi_identity"] = None
+
+    summary["stats"] = stats
+    return summary
+
+
+def _store_chain_summary(
+    root: str,
+    chain_dir: str,
+    resolved_root: str,
+    samples: Any,
+    settings: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Build and cache summary stats for a chain."""
+    cache_key = _cache_key(chain_dir, resolved_root)
+    summary = _build_chain_summary(samples, root, resolved_root, chain_dir, settings)
+    _CHAIN_SUMMARY_CACHE[cache_key] = summary
+    return summary
+
+
+def _get_chain_summary(
+    root: str,
+    chain_dir: str | None = None,
+    settings: Mapping[str, Any] | None = None,
+) -> dict[str, Any] | None:
+    """Return cached chain summary, loading the chain if needed."""
+    if chain_dir is None:
+        chain_dir = CHAIN_DIR
+    resolved_root = resolve_chain_root(root, chain_dir)
+    cache_key = _cache_key(chain_dir, resolved_root)
+    if cache_key in _CHAIN_SUMMARY_CACHE:
+        return _CHAIN_SUMMARY_CACHE[cache_key]
+
+    resolved_settings = _resolve_analysis_settings(settings)
+    samples = get_samples_for_root(root, chain_dir, resolved_settings)
+    if samples is None:
+        return None
+    return _store_chain_summary(
+        root, chain_dir, resolved_root, samples, resolved_settings
+    )
+
+
+def _get_bestfit_data(
+    root: str,
+    chain_dir: str | None = None,
+) -> dict[str, Any]:
+    """Parse and cache a chain's .bestfit file."""
+    if chain_dir is None:
+        chain_dir = CHAIN_DIR
+    resolved_root = resolve_chain_root(root, chain_dir)
+    cache_key = _cache_key(chain_dir, resolved_root)
+    if cache_key in _BESTFIT_CACHE:
+        return _BESTFIT_CACHE[cache_key]
+
+    minimum_file = _root_base_path(resolved_root, chain_dir) + ".bestfit"
+    if os.path.exists(minimum_file):
+        bestfit = parse_minimum_file(minimum_file)
+    else:
+        bestfit = {
+            "neg_log_like": None,
+            "chi_sq": None,
+            "chi_sq_components": {},
+            "params": {},
+        }
+    _BESTFIT_CACHE[cache_key] = bestfit
+    return bestfit
+
+
+def _clear_sample_cache() -> None:
+    """Release loaded GetDist samples once only cached summaries are needed."""
+    _SAMPLES_CACHE.clear()
+
+
+def _process_gui_events(force: bool = False) -> None:
+    """Keep interactive figure windows responsive during long computations."""
+    global _GUI_EVENT_COUNTER
+    if threading.current_thread() is not threading.main_thread():
+        return
+    if not plt.isinteractive():
+        return
+    if not plt.get_fignums():
+        return
+    _GUI_EVENT_COUNTER += 1
+    if not force and (_GUI_EVENT_COUNTER % 20) != 0:
+        return
+    try:
+        plt.pause(0.001)
+    except Exception:
+        pass
+
+
+def _print_text_with_gui_pump(text: str, chunk_size: int = 8192) -> None:
+    """Print large text in chunks while keeping interactive figures responsive."""
+    if not text:
+        return
+    for start in range(0, len(text), chunk_size):
+        sys.stdout.write(text[start : start + chunk_size])
+        sys.stdout.flush()
+        _process_gui_events(force=True)
+
+
+def _log_prefixed(prefix: str, message: str) -> None:
+    """Print a short message with a worker/context prefix."""
+    print(f"[{prefix}] {message}")
+
+
+def _spawn_plot_worker(plot_id: int) -> subprocess.Popen[Any]:
+    """Launch an independent process that renders exactly one interactive plot."""
+    script_path = os.path.abspath(__file__)
+    cmd: list[str] = [
+        sys.executable,
+        script_path,
+        "--skip-tables",
+        "--only-plot",
+        str(plot_id),
+        "--fine-bins",
+        str(CLI_ARGS.fine_bins),
+    ]
+    if CLI_ARGS.strict_export:
+        cmd.extend(
+            ["--strict-export", "--strict-export-dir", CLI_ARGS.strict_export_dir]
+        )
+    if CLI_ARGS.show_all_kde_warnings:
+        cmd.append("--show-all-kde-warnings")
+    if CLI_ARGS.auto_close_figures:
+        cmd.append("--auto-close-figures")
+    return subprocess.Popen(cmd, start_new_session=True)
+
+
 def save_strict_plex_figure(
     fig: Any,
     pdf_path: str,
@@ -287,6 +549,7 @@ def save_strict_plex_figure(
     This function is intended for final thesis figures. It leaves interactive
     preview rendering untouched, so `plt.show()` continues to work normally.
     """
+    _ensure_preview_fonts()
     if shutil.which("lualatex") is None:
         raise RuntimeError(
             "Cannot export strict IBM Plex Math figure: lualatex is not available."
@@ -335,7 +598,47 @@ def parse_cli_args() -> argparse.Namespace:
             "Show all repetitive GetDist KDE/binning warnings (default is condensed output)."
         ),
     )
-    return parser.parse_args()
+    parser.add_argument(
+        "--fine-bins",
+        type=int,
+        default=2048,
+        help=(
+            "Fixed fine_bins value for GetDist smoothing (default: 2048). "
+            "Lower values speed up plotting/table generation at some smoothing cost."
+        ),
+    )
+    parser.add_argument(
+        "--max-fine-bins",
+        type=int,
+        default=None,
+        help=argparse.SUPPRESS,
+    )
+    parser.add_argument(
+        "--disable-adaptive-binning",
+        action="store_true",
+        help=argparse.SUPPRESS,
+    )
+    parser.add_argument(
+        "--auto-close-figures",
+        action="store_true",
+        help=(
+            "Exit immediately after outputs are produced. "
+            "By default, interactive figure windows remain open until closed by the user."
+        ),
+    )
+    parser.add_argument(
+        "--only-plot",
+        type=int,
+        choices=[1, 2],
+        default=None,
+        help=(
+            "Internal/advanced mode: render only one plot (1=H0/S8, 2=scalar-field)."
+        ),
+    )
+    args = parser.parse_args()
+    if args.max_fine_bins is not None:
+        args.fine_bins = args.max_fine_bins
+    return args
 
 
 CLI_ARGS = parse_cli_args()
@@ -379,6 +682,10 @@ def _install_getdist_warning_limiter() -> None:
     root_logger = logging.getLogger()
     limiter = _GetDistWarningLimiter(max_per_bucket=4)
     root_logger.addFilter(limiter)
+    for handler in root_logger.handlers:
+        handler.addFilter(limiter)
+    logging.getLogger("getdist").addFilter(limiter)
+    logging.captureWarnings(True)
     _KDE_WARNING_LIMITER = limiter
 
     def _print_summary() -> None:
@@ -418,20 +725,6 @@ def _validate_chain_root_exists(
         return (False, f"No chain files found for root: {base_path}")
 
     return (True, base_path)
-
-
-def _suggest_fine_bins(sample_count: int, current_bins: int) -> int:
-    """Return a rounded-up fine_bins target based on sample count.
-
-    We target ~2 samples per fine bin and round to the next multiple of 256
-    for stable bin counts across runs.
-    """
-    max_fine_bins = 8192
-    if sample_count <= 0:
-        return min(current_bins, max_fine_bins)
-    target = max(current_bins, int(math.ceil(sample_count / 2.0)))
-    rounded = int(math.ceil(target / 256.0) * 256)
-    return min(rounded, max_fine_bins)
 
 
 def preload_all_chains(
@@ -479,63 +772,36 @@ def preload_all_chains(
             if verbose:
                 print(f"  [{i}/{len(roots)}] Skipping {root}: {reason}")
 
-    # Build mutable active settings and ensure fine_bins is explicit.
+    # Build mutable active settings and enforce explicit fine_bins from CLI.
     active_settings: dict[str, Any] = dict(settings)
-    max_fine_bins = 8192
-    current_fine_bins = min(int(active_settings.get("fine_bins", 1024)), max_fine_bins)
+    current_fine_bins = max(64, int(CLI_ARGS.fine_bins))
     active_settings["fine_bins"] = current_fine_bins
 
-    def _load_pass(
-        pass_label: str, pass_settings: Mapping[str, Any]
-    ) -> tuple[int, int]:
-        if verbose and valid_roots:
-            print(
-                f"Preloading {len(valid_roots)}/{len(roots)} valid chain(s) "
-                f"({pass_label}, fine_bins={int(pass_settings.get('fine_bins', 1024))})..."
+    if verbose and valid_roots:
+        print(
+            f"Preloading {len(valid_roots)}/{len(roots)} valid chain(s) "
+            f"(fine_bins={int(active_settings.get('fine_bins', 2048))})..."
+        )
+
+    successful = 0
+    for i_orig, root, resolved_root in valid_roots:
+        cache_key = _cache_key(chain_dir, resolved_root)
+        try:
+            if verbose:
+                print(f"  [{i_orig}/{len(roots)}] Loading {root}...")
+            samples = loadMCSamples(
+                _root_base_path(resolved_root, chain_dir), settings=active_settings
             )
-
-        successful_local = 0
-        suggested_fine_bins = int(pass_settings.get("fine_bins", 1024))
-
-        for i_orig, root, resolved_root in valid_roots:
-            cache_key = _cache_key(chain_dir, resolved_root)
-            try:
-                if verbose:
-                    print(f"  [{i_orig}/{len(roots)}] Loading {root}...")
-                samples = loadMCSamples(
-                    _root_base_path(resolved_root, chain_dir), settings=pass_settings
-                )
-                _SAMPLES_CACHE[cache_key] = samples
-                successful_local += 1
-
-                sample_count = len(getattr(samples, "samples", []))
-                suggested_fine_bins = max(
-                    suggested_fine_bins,
-                    _suggest_fine_bins(
-                        sample_count, int(pass_settings.get("fine_bins", 1024))
-                    ),
-                )
-            except Exception as e:
-                if verbose:
-                    print(f"  [{i_orig}/{len(roots)}] Failed to load {root}: {e}")
-                _SAMPLES_CACHE[cache_key] = None
-
-        return successful_local, suggested_fine_bins
-
-    successful, suggested = _load_pass("pass 1", active_settings)
-
-    # If probing indicates larger bins are needed, restart from scratch with updated bins.
-    if suggested > current_fine_bins:
-        if verbose:
-            print(
-                f"Adaptive binning: increasing fine_bins from {current_fine_bins} to {suggested}."
+            _SAMPLES_CACHE[cache_key] = samples
+            _store_chain_summary(
+                root, chain_dir, resolved_root, samples, active_settings
             )
-            print("Clearing cache and restarting chain preload from scratch...")
-
-        _SAMPLES_CACHE.clear()
-        active_settings["fine_bins"] = suggested
-
-        successful, _ = _load_pass("pass 2", active_settings)
+            successful += 1
+        except Exception as e:
+            if verbose:
+                print(f"  [{i_orig}/{len(roots)}] Failed to load {root}: {e}")
+            _SAMPLES_CACHE[cache_key] = None
+        _process_gui_events()
 
     if verbose:
         if skipped_roots:
@@ -585,7 +851,7 @@ def _ordered_chain_search_dirs(chain_dir: str) -> list[str]:
 
 BASE_ANALYSIS_SETTINGS: dict[str, float] = {
     "ignore_rows": 0.33,
-    # "fine_bins": 2048,
+    "fine_bins": 2048,
     "fine_bins_2D": 2048,
 }
 
@@ -1149,6 +1415,35 @@ def _apply_chain_styles_to_axes(g: Any, used_roots: Sequence[str]) -> None:
             line.set_markevery((offset, step))
 
 
+def _show_figure_nonblocking(fig: Any, label: str) -> None:
+    """Display a figure immediately without blocking script execution."""
+    try:
+        plt.ion()
+    except Exception:
+        pass
+
+    shown = False
+    try:
+        plt.figure(fig.number)
+        plt.show(block=False)
+        shown = True
+    except Exception:
+        pass
+
+    try:
+        fig.canvas.draw_idle()
+        fig.canvas.flush_events()
+    except Exception:
+        pass
+
+    _process_gui_events(force=True)
+
+    if shown:
+        print(f"{label} ready: displayed in non-blocking mode.")
+    else:
+        print(f"{label} ready: backend does not support interactive display.")
+
+
 def _estimate_h0_s8_1sigma_area(samples: Any) -> float:
     """Estimate 68% contour area proxy in the H0-S8 plane.
 
@@ -1195,6 +1490,7 @@ def make_triangle_plot(
     annotations: Callable[[Any], list[Patch]] | None = None,
     param_labels: Mapping[str, str] | None = None,
     title: str | None = None,
+    fill_2d: bool = True,
 ) -> Any:
     """
     Create a triangle plot for the given parameters.
@@ -1221,6 +1517,7 @@ def make_triangle_plot(
     g : getdist.plots.GetDistPlotter
         The plotter object.
     """
+    _ensure_preview_fonts()
     g: Any = plots.get_subplot_plotter(  # type: ignore[misc]
         chain_dir=CHAIN_DIR,
         analysis_settings=ANALYSIS_SETTINGS,
@@ -1288,7 +1585,12 @@ def make_triangle_plot(
     chain_colors: list[Color] = [ROOT_TO_COLOUR[root] for root in used_roots]
     # Keep LCDM as contour-only in 2D while filling non-LCDM chains.
     # GetDist supports a per-root boolean sequence for `filled`.
-    filled_per_root: list[bool] = ["lcdm" not in root.lower() for root in used_roots]
+    if fill_2d:
+        filled_per_root: list[bool] = [
+            "lcdm" not in root.lower() for root in used_roots
+        ]
+    else:
+        filled_per_root = [False for _ in used_roots]
 
     line_args = _build_chain_line_args(chain_colors)
 
@@ -1483,9 +1785,24 @@ def annotate_scf_constraints(g: Any) -> list[Patch]:
 # ============================================================================
 # Preload all chains before any analysis to maximize performance
 # This ensures both plots and tables benefit from cached data
-ANALYSIS_SETTINGS = preload_all_chains(
-    ROOTS, CHAIN_DIR, ANALYSIS_SETTINGS, verbose=True
-)
+_PLOT_ONLY_WORKER = CLI_ARGS.only_plot is not None and CLI_ARGS.skip_tables
+_SKIP_BOTH = CLI_ARGS.skip_plots and CLI_ARGS.skip_tables
+
+if _PLOT_ONLY_WORKER:
+    worker_label = (
+        f"plot{CLI_ARGS.only_plot}" if CLI_ARGS.only_plot is not None else "plot"
+    )
+    _log_prefixed(
+        worker_label,
+        "Worker mode: using lazy chain loading (skipping global preload for faster plot startup).",
+    )
+elif _SKIP_BOTH:
+    # Nothing to do; skip preload entirely
+    pass
+else:
+    ANALYSIS_SETTINGS = preload_all_chains(
+        ROOTS, CHAIN_DIR, ANALYSIS_SETTINGS, verbose=True
+    )
 
 scf_labels = {
     "cdm_c": r"c_\mathrm{DM}",
@@ -1496,84 +1813,117 @@ scf_labels = {
 params_scf = ["cdm_c", "scf_c2", "scf_c3", "scf_c4"]
 
 if CLI_ARGS.skip_plots:
-    print("Skipping plots (--skip-plots); generating tables only.")
+    if CLI_ARGS.only_plot is None and not CLI_ARGS.skip_tables:
+        _log_prefixed("main", "Skipping plots (--skip-plots); generating tables only.")
+    _clear_sample_cache()
+    gc.collect()
 else:
+    generate_plot1 = CLI_ARGS.only_plot in (None, 1)
+    generate_plot2 = CLI_ARGS.only_plot in (None, 2)
+    plot_workers: list[subprocess.Popen[Any]] = []
+
     strict_export_dir = os.path.abspath(CLI_ARGS.strict_export_dir)
     if CLI_ARGS.strict_export:
         os.makedirs(strict_export_dir, exist_ok=True)
 
-    # ============================================================================
-    # PLOT 1: H0 & S8 with observational bands
-    # ============================================================================
-    # %%
-    params_cosmology = ["H0", "S8"]
-    g1 = make_triangle_plot(params_cosmology, annotations=annotate_H0_S8, title=None)
-
-    # Interactive preview (current backend):
-    # plt.show()
-    # Strict IBM Plex Math export for thesis:
-    # save_strict_plex_figure(
-    #     g1.fig,
-    #     "plot_H0_S8_Planck_LCDM_hyperbolic.pdf",
-    #     "plot_H0_S8_Planck_LCDM_hyperbolic.pgf",
-    # )
-    if CLI_ARGS.strict_export:
-        pdf_path = os.path.join(
-            strict_export_dir, "plot_H0_S8_Planck_LCDM_hyperbolic.pdf"
-        )
-        pgf_path = os.path.join(
-            strict_export_dir, "plot_H0_S8_Planck_LCDM_hyperbolic.pgf"
-        )
-        save_strict_plex_figure(g1.fig, pdf_path, pgf_path)
-        print(f"Strict export saved: {pdf_path}")
-        print(f"Strict export saved: {pgf_path}")
-
-    # Apply legend text style fix only for interactive display
-    if g1.fig.legends:
-        for text in g1.fig.legends[0].get_texts():
-            text.set_style("normal")
-            text.set_weight("normal")
-
-    plt.show()
-
-    # ============================================================================
-    # PLOT 2: Scalar field parameters with constraints
-    # ============================================================================
-    # %%
-    try:
-        g2 = make_triangle_plot(
-            params_scf,
-            annotations=annotate_scf_constraints,
-            param_labels=scf_labels,
-            title=None,
+    if CLI_ARGS.only_plot is None:
+        if generate_plot1:
+            _log_prefixed("main", "Launching plot 1 in a parallel worker process.")
+            plot_workers.append(_spawn_plot_worker(1))
+        if generate_plot2:
+            _log_prefixed("main", "Launching plot 2 in a parallel worker process.")
+            plot_workers.append(_spawn_plot_worker(2))
+        if plot_workers:
+            pids = ", ".join(str(p.pid) for p in plot_workers)
+            _log_prefixed(
+                "main",
+                "Plot workers started (PID(s): "
+                f"{pids}). Main process will wait for worker completion before exiting.",
+            )
+    elif generate_plot1:
+        # ============================================================================
+        # PLOT 1: H0 & S8 with observational bands
+        # ============================================================================
+        # %%
+        _log_prefixed("plot1", "Generating H0-S8 triangle plot...")
+        params_cosmology = ["H0", "S8"]
+        g1 = make_triangle_plot(
+            params_cosmology, annotations=annotate_H0_S8, title=None
         )
 
+        # Interactive preview (current backend):
+        # plt.show()
         # Strict IBM Plex Math export for thesis:
         # save_strict_plex_figure(
-        #     g2.fig,
-        #     "plot_scf_params_PP_S_DESI_hyperbolic.pdf",
-        #     "plot_scf_params_PP_S_DESI_hyperbolic.pgf",
+        #     g1.fig,
+        #     "plot_H0_S8_Planck_LCDM_hyperbolic.pdf",
+        #     "plot_H0_S8_Planck_LCDM_hyperbolic.pgf",
         # )
         if CLI_ARGS.strict_export:
             pdf_path = os.path.join(
-                strict_export_dir, "plot_scf_params_PP_S_DESI_hyperbolic.pdf"
+                strict_export_dir, "plot_H0_S8_Planck_LCDM_hyperbolic.pdf"
             )
             pgf_path = os.path.join(
-                strict_export_dir, "plot_scf_params_PP_S_DESI_hyperbolic.pgf"
+                strict_export_dir, "plot_H0_S8_Planck_LCDM_hyperbolic.pgf"
             )
-            save_strict_plex_figure(g2.fig, pdf_path, pgf_path)
+            save_strict_plex_figure(g1.fig, pdf_path, pgf_path)
             print(f"Strict export saved: {pdf_path}")
             print(f"Strict export saved: {pgf_path}")
 
         # Apply legend text style fix only for interactive display
-        if g2.fig.legends:
-            for text in g2.fig.legends[0].get_texts():
+        if g1.fig.legends:
+            for text in g1.fig.legends[0].get_texts():
                 text.set_style("normal")
                 text.set_weight("normal")
 
-        plt.show()
-    except ValueError as e:
-        print(f"Skipping scalar field parameters plot: {e}")
+        _show_figure_nonblocking(g1.fig, "Plot 1")
+
+    if CLI_ARGS.only_plot is not None and generate_plot2:
+        # ============================================================================
+        # PLOT 2: Scalar field parameters with constraints
+        # ============================================================================
+        # %%
+        try:
+            _log_prefixed("plot2", "Generating scalar-field parameter triangle plot...")
+            g2 = make_triangle_plot(
+                params_scf,
+                annotations=annotate_scf_constraints,
+                param_labels=scf_labels,
+                title=None,
+                fill_2d=True,
+            )
+
+            # Strict IBM Plex Math export for thesis:
+            # save_strict_plex_figure(
+            #     g2.fig,
+            #     "plot_scf_params_PP_S_DESI_hyperbolic.pdf",
+            #     "plot_scf_params_PP_S_DESI_hyperbolic.pgf",
+            # )
+            if CLI_ARGS.strict_export:
+                pdf_path = os.path.join(
+                    strict_export_dir, "plot_scf_params_PP_S_DESI_hyperbolic.pdf"
+                )
+                pgf_path = os.path.join(
+                    strict_export_dir, "plot_scf_params_PP_S_DESI_hyperbolic.pgf"
+                )
+                save_strict_plex_figure(g2.fig, pdf_path, pgf_path)
+                print(f"Strict export saved: {pdf_path}")
+                print(f"Strict export saved: {pgf_path}")
+
+            # Apply legend text style fix only for interactive display
+            if g2.fig.legends:
+                for text in g2.fig.legends[0].get_texts():
+                    text.set_style("normal")
+                    text.set_weight("normal")
+
+            _show_figure_nonblocking(g2.fig, "Plot 2")
+        except ValueError as e:
+            _log_prefixed("plot2", f"Skipping scalar field parameters plot: {e}")
+
+    # Tables only need cached summaries and parsed best-fit data at this point.
+    # Releasing the full sample cache cuts peak memory substantially.
+    _clear_sample_cache()
+    gc.collect()
 
 # ============================================================================
 # TABLE GENERATION: Extract data from chains and create LaTeX tables
@@ -1841,116 +2191,35 @@ def get_chain_statistics(
             'upper_2sigma': float
         }
     """
-    stats: dict[str, Any] = {}
-    samples: Any = None
-    chain_data: dict[str, Any] = {}
     resolved_settings = _resolve_analysis_settings(settings)
-
-    # Try GetDist first (with caching)
-    resolved_root = resolve_chain_root(root, chain_dir)
-    cache_key = _cache_key(chain_dir, resolved_root)
-    if cache_key in _SAMPLES_CACHE:
-        samples = _SAMPLES_CACHE[cache_key]
-        use_getdist = samples is not None
-    else:
-        try:
-            samples = loadMCSamples(
-                _root_base_path(resolved_root, chain_dir), settings=resolved_settings
-            )
-            _SAMPLES_CACHE[cache_key] = samples
-            use_getdist = True
-        except Exception as e:
-            print(f"Note: GetDist failed for {root}, using direct chain reading: {e}")
-            _SAMPLES_CACHE[cache_key] = None
-            use_getdist = False
-
-    if not use_getdist:
-        # Read chain data directly
-        try:
-            chain_data = read_chain_data_directly(
-                root, params, chain_dir, resolved_settings
-            )
-        except Exception as e2:
-            print(f"Warning: Could not read chain data for {root}: {e2}")
-            return {param: None for param in params}
-
-    # Compute marginalized stats once to avoid repeated expensive calls and warning spam.
-    marge_stats = None
-    if use_getdist and samples is not None:
-        try:
-            marge_stats = samples.getMargeStats()
-        except Exception as e_marge:
-            print(
-                f"Note: Marginalized stats failed for {root}; using direct weighted samples fallback: {e_marge}"
-            )
-            use_getdist = False
-            try:
-                chain_data = read_chain_data_directly(
-                    root, params, chain_dir, resolved_settings
-                )
-            except Exception as e2:
-                print(f"Warning: Could not read chain data for {root}: {e2}")
-                return {param: None for param in params}
-
-    for param in params:
-        if use_getdist and samples is not None:
-            # Use GetDist
-            p = samples.paramNames.parWithName(param)
-            if p is None:
-                # Try fallback for this specific parameter
-                try:
-                    chain_data_single = read_chain_data_directly(
-                        root, [param], chain_dir, resolved_settings
-                    )
-                    if param in chain_data_single:
-                        values = chain_data_single[param]
-                        weights = chain_data_single["weights"]
-                        stats[param] = calculate_statistics_from_samples(
-                            values, weights
-                        )
-                    else:
-                        stats[param] = None
-                except Exception:
-                    stats[param] = None
-                continue
-
-            # Get 1D marginalized statistics
-            mean = samples.mean(param)
-            std = samples.std(param)
-
-            # Get confidence limits from cached marginalized stats.
-            par_marge = (
-                marge_stats.parWithName(param) if marge_stats is not None else None
-            )
-
-            if par_marge is not None:
-                # Get limits from marginalized statistics
-                lim_68 = par_marge.limits[0]  # 68% limits (index 0)
-                lim_95 = par_marge.limits[1]  # 95% limits (index 1)
-                lower_1, upper_1 = lim_68.lower, lim_68.upper
-                lower_2, upper_2 = lim_95.lower, lim_95.upper
-            else:
-                # Fallback: approximate from mean ± n*sigma
-                lower_1, upper_1 = mean - std, mean + std
-                lower_2, upper_2 = mean - 2 * std, mean + 2 * std
-
-            stats[param] = {
-                "mean": mean,
-                "std": std,
-                "lower_1sigma": lower_1,
-                "upper_1sigma": upper_1,
-                "lower_2sigma": lower_2,
-                "upper_2sigma": upper_2,
-            }
-        else:
-            # Use direct reading fallback
-            if param in chain_data:
-                values = chain_data[param]
-                weights = chain_data["weights"]
-                stats[param] = calculate_statistics_from_samples(values, weights)
+    summary = _get_chain_summary(root, chain_dir, resolved_settings)
+    if summary is not None:
+        stats: dict[str, Any] = {}
+        summary_stats = summary.get("stats", {})
+        for param in params:
+            if param in summary_stats:
+                stats[param] = summary_stats[param]
             else:
                 stats[param] = None
+        return stats
 
+    # Fallback: direct chain read only when no cached summary is available.
+    try:
+        chain_data = read_chain_data_directly(
+            root, params, chain_dir, resolved_settings
+        )
+    except Exception as e2:
+        print(f"Warning: Could not read chain data for {root}: {e2}")
+        return {param: None for param in params}
+
+    stats: dict[str, Any] = {}
+    for param in params:
+        if param in chain_data:
+            values = chain_data[param]
+            weights = chain_data["weights"]
+            stats[param] = calculate_statistics_from_samples(values, weights)
+        else:
+            stats[param] = None
     return stats
 
 
@@ -2028,8 +2297,13 @@ def count_free_parameters(
     int
         Number of free parameters.
     """
+    summary = _get_chain_summary(root, chain_dir, settings)
+    if summary is not None:
+        n_params = summary.get("n_params")
+        if isinstance(n_params, int):
+            return n_params
+
     resolved_settings = _resolve_analysis_settings(settings)
-    # Use cache if available
     resolved_root = resolve_chain_root(root, chain_dir)
     cache_key = _cache_key(chain_dir, resolved_root)
     if cache_key in _SAMPLES_CACHE and _SAMPLES_CACHE[cache_key] is not None:
@@ -2052,8 +2326,6 @@ def count_free_parameters(
             f"Note: Skipping {root} in tables because parameter names are unavailable."
         )
         return None
-    # paramNames.names includes all parameters; we want only sampled ones
-    # The .paramNames.list() returns sampled params, .paramNames.numberOfName() for derived
     return len([p for p in samples.paramNames.names if not p.isDerived])
 
 
@@ -2370,17 +2642,7 @@ def generate_cosmology_table(
     # Collect data for all chains
     chain_data: dict[str, Any] = {}
     for root in roots:
-        resolved_root = resolve_chain_root(root, chain_dir)
-        minimum_file = _root_base_path(resolved_root, chain_dir) + ".bestfit"
-        if os.path.exists(minimum_file):
-            min_data: dict[str, Any] = parse_minimum_file(minimum_file)
-        else:
-            min_data = {
-                "neg_log_like": None,
-                "chi_sq": None,
-                "chi_sq_components": {},
-                "params": {},
-            }
+        min_data = _get_bestfit_data(root, chain_dir)
 
         stats = get_chain_statistics(root, params, chain_dir, resolved_settings)
         n_params = count_free_parameters(root, chain_dir, resolved_settings)
@@ -2442,6 +2704,7 @@ def generate_cosmology_table(
             "h0_tension": h0_tension,
             "s8_tension": s8_tension,
         }
+        _process_gui_events()
 
     if not chain_data:
         return "% No chains with usable data were available for the cosmology table."
@@ -2683,12 +2946,7 @@ def generate_scf_table(
         # Collect data for this model's chains
         chain_data: dict[str, Any] = {}
         for root in model_roots:
-            resolved_root = resolve_chain_root(root, chain_dir)
-            minimum_file = _root_base_path(resolved_root, chain_dir) + ".bestfit"
-            if os.path.exists(minimum_file):
-                min_data: dict[str, Any] = parse_minimum_file(minimum_file)
-            else:
-                min_data = {"params": {}}
+            min_data = _get_bestfit_data(root, chain_dir)
 
             stats = get_chain_statistics(root, params, chain_dir, resolved_settings)
             if not _has_any_valid_stats(stats, params):
@@ -2697,6 +2955,7 @@ def generate_scf_table(
                 )
                 continue
             chain_data[root] = {"minimum": min_data, "stats": stats}
+            _process_gui_events()
 
         if not chain_data:
             continue
@@ -2837,18 +3096,18 @@ def read_chain_data_directly(
 
     for chain_file in chain_files:
         try:
-            # Read the file, looking for header line
-            with open(chain_file, "r") as f:
-                lines = f.readlines()
-
-            # Find header line (starts with #)
+            # Read the file lazily and keep only parsed rows in memory.
             header_line = None
-            data_start_idx = 0
-            for i, line in enumerate(lines):
-                if line.strip().startswith("#"):
-                    header_line = line.strip()[1:].strip()  # Remove # and whitespace
-                    data_start_idx = i + 1
-                    break
+            data_lines: list[str] = []
+            with open(chain_file, "r") as f:
+                for raw_line in f:
+                    line = raw_line.strip()
+                    if header_line is None and line.startswith("#"):
+                        header_line = line[1:].strip()
+                        continue
+                    if header_line is None:
+                        continue
+                    data_lines.append(line)
 
             if header_line is None:
                 print(f"Warning: No header found in {chain_file}")
@@ -2874,10 +3133,8 @@ def read_chain_data_directly(
                 continue
 
             # Read numerical data
-            data_lines = lines[data_start_idx:]
             chain_data: list[Any] = []
             for line in data_lines:
-                line = line.strip()
                 if not line or line.startswith("#"):
                     continue
                 try:
@@ -2957,6 +3214,13 @@ def get_integer_parameter_mode(
     tuple
         (mean_value, mode_value) where mode_value is an integer, or (None, None) on error.
     """
+    summary = _get_chain_summary(root, chain_dir, settings)
+    if summary is not None:
+        integer_modes = summary.get("integer_modes", {})
+        if param_name in integer_modes:
+            mean_value, mode_value = integer_modes[param_name]
+            return float(mean_value), int(mode_value)
+
     resolved_settings = _resolve_analysis_settings(settings)
     try:
         # First try GetDist (with caching)
@@ -3032,6 +3296,13 @@ def check_parameter_identity(
     bool
         True if the parameters are identical within tolerance across all samples.
     """
+    summary = _get_chain_summary(root, chain_dir, settings)
+    if summary is not None:
+        if param1 == "phi_ini_scf_ic" and param2 == "phi_prime_scf_ic":
+            phi_identity = summary.get("phi_identity")
+            if isinstance(phi_identity, bool):
+                return phi_identity
+
     resolved_settings = _resolve_analysis_settings(settings)
     try:
         # First try GetDist (with caching)
@@ -3235,11 +3506,13 @@ def generate_swampland_table(
         _, _, is_lcdm = identify_dataset_from_root(root)
         if is_lcdm:
             continue
-        samples = get_samples_for_root(root, chain_dir, resolved_settings)
-        if samples is None or getattr(samples, "paramNames", None) is None:
+        summary = _get_chain_summary(root, chain_dir, resolved_settings)
+        if summary is None:
             continue
-        if any(samples.paramNames.parWithName(p) is not None for p in swampland_params):
+        param_names = summary.get("sample_param_names", set())
+        if any(p in param_names for p in swampland_params):
             swampland_roots.append(root)
+        _process_gui_events()
 
     if not swampland_roots:
         return "% No swampland constraint chains found."
@@ -3247,15 +3520,15 @@ def generate_swampland_table(
     # Check if phi_ini_scf_ic and phi_prime_scf_ic are always identical
     duplicate_phi = True
     for root in swampland_roots:
-        if not check_parameter_identity(
-            root,
-            "phi_ini_scf_ic",
-            "phi_prime_scf_ic",
-            chain_dir,
-            resolved_settings,
-        ):
+        summary = _get_chain_summary(root, chain_dir, resolved_settings)
+        if summary is None:
             duplicate_phi = False
             break
+        phi_identity = summary.get("phi_identity")
+        if not isinstance(phi_identity, bool) or not phi_identity:
+            duplicate_phi = False
+            break
+        _process_gui_events()
 
     if duplicate_phi:
         print(
@@ -3313,6 +3586,7 @@ def generate_swampland_table(
                 integer_modes[root] = (mean_val, mode_val)
 
         chain_data[root] = {"minimum": min_data, "stats": stats}
+        _process_gui_events()
 
     if not chain_data:
         return "% No swampland chains with usable data were available."
@@ -3475,49 +3749,119 @@ def generate_swampland_table(
     return "\n".join(lines)
 
 
-# ============================================================================
-# Generate tables for the current analysis
-# ============================================================================
-if CLI_ARGS.skip_tables:
-    print("Skipping tables (--skip-tables); generating plots only.")
-else:
-    # %%
-    # Table 1: H0 and S8 with model-comparison metrics and tensions
-    # n_data is automatically estimated from the chi2 components in the .minimum files
-    print("=" * 80)
-    print("TABLE 1: Cosmological Parameters and Tensions (H0, S8)")
-    print("=" * 80)
-    cosmology_table = generate_cosmology_table(
+def _compute_all_tables() -> dict[str, str]:
+    """Compute every requested table without touching matplotlib GUI state."""
+    tables: dict[str, str] = {}
+    _log_prefixed("tables", "Computing table 1 (cosmology)...")
+    tables["cosmology"] = generate_cosmology_table(
         ROOTS,
         params=["H0", "S8"],
         chain_dir=CHAIN_DIR,
         settings=ANALYSIS_SETTINGS,
-        # n_data is estimated automatically from likelihoods in .minimum files
     )
-    print(cosmology_table)
 
-    # %%
-    # Table 2: Scalar field parameters
-    print("\n" + "=" * 80)
-    print("TABLE 2: Scalar Field Parameters")
-    print("=" * 80)
-    scf_table = generate_scf_table(
+    _log_prefixed("tables", "Computing table 2 (scalar field)...")
+    tables["scf"] = generate_scf_table(
         ROOTS,
         params=["cdm_c", "scf_c2"],
         param_labels=scf_labels,
         chain_dir=CHAIN_DIR,
         settings=ANALYSIS_SETTINGS,
     )
-    print(scf_table)
 
-    # %%
-    # Table 3: Swampland constraint parameters
-    print("\n" + "=" * 80)
-    print("TABLE 3: Swampland Parameters")
-    print("=" * 80)
-    swampland_table = generate_swampland_table(
+    _log_prefixed("tables", "Computing table 3 (swampland)...")
+    tables["swampland"] = generate_swampland_table(
         ROOTS,
         chain_dir=CHAIN_DIR,
         settings=ANALYSIS_SETTINGS,
     )
-    print(swampland_table)
+
+    return tables
+
+
+# ============================================================================
+# Generate tables for the current analysis
+# ============================================================================
+if CLI_ARGS.skip_tables:
+    if CLI_ARGS.only_plot is None and not CLI_ARGS.skip_plots:
+        _log_prefixed("main", "Skipping tables (--skip-tables); generating plots only.")
+else:
+    table_results: dict[str, str] = {}
+    table_error: list[BaseException] = []
+
+    def _table_worker() -> None:
+        try:
+            table_results.update(_compute_all_tables())
+        except BaseException as exc:  # noqa: BLE001
+            table_error.append(exc)
+
+    _log_prefixed(
+        "tables",
+        "Starting table generation in background while keeping figures responsive.",
+    )
+    table_thread = threading.Thread(
+        target=_table_worker, name="table-worker", daemon=True
+    )
+    table_thread.start()
+
+    while table_thread.is_alive():
+        _process_gui_events(force=True)
+        time.sleep(0.05)
+
+    table_thread.join()
+    if table_error:
+        raise table_error[0]
+
+    print("\n" + "=" * 80)
+    _log_prefixed("tables", "TABLE 1: Cosmological Parameters and Tensions (H0, S8)")
+    print("=" * 80)
+    _print_text_with_gui_pump(
+        table_results.get("cosmology", "% No cosmology table generated.") + "\n"
+    )
+
+    print("\n" + "=" * 80)
+    _log_prefixed("tables", "TABLE 2: Scalar Field Parameters")
+    print("=" * 80)
+    _print_text_with_gui_pump(
+        table_results.get("scf", "% No scalar field table generated.") + "\n"
+    )
+
+    print("\n" + "=" * 80)
+    _log_prefixed("tables", "TABLE 3: Swampland Parameters")
+    print("=" * 80)
+    _print_text_with_gui_pump(
+        table_results.get("swampland", "% No swampland table generated.") + "\n"
+    )
+
+    # Tables complete; release summary and bestfit caches to reduce peak memory.
+    _CHAIN_SUMMARY_CACHE.clear()
+    _BESTFIT_CACHE.clear()
+    gc.collect()
+
+
+if CLI_ARGS.only_plot is None and (not CLI_ARGS.skip_plots):
+    if plot_workers:
+        _log_prefixed(
+            "main",
+            "Waiting for plot workers to finish (close each figure window to end its worker).",
+        )
+    for worker in plot_workers:
+        worker.wait()
+
+
+if (
+    (not CLI_ARGS.skip_plots)
+    and (not CLI_ARGS.auto_close_figures)
+    and (CLI_ARGS.only_plot is not None or CLI_ARGS.skip_tables)
+):
+    if plt.get_fignums():
+        print(
+            "Computation complete. Figures remain open for interactive inspection; "
+            "close them to exit."
+        )
+        try:
+            plt.ioff()
+            while plt.get_fignums():
+                plt.pause(0.05)
+        except Exception:
+            pass
