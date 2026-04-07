@@ -1,6 +1,8 @@
 """Generate all YAML configs for mcmc_fast / CMB / uncoupled across potentials."""
 
-import sys, os, re
+import sys
+import os
+import re
 
 sys.path.insert(0, os.path.dirname(__file__))
 

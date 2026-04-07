@@ -55,6 +55,9 @@ from matplotlib.patches import Patch
 from cmcrameri import cm  # type: ignore[import-untyped]
 from getdist import plots  # type: ignore[import-untyped]
 
+# GetDist imports for MCMC analysis
+from getdist import MCSamples, loadMCSamples  # type: ignore[import-untyped]
+
 # Initialize module logger for debugging exception handling
 _LOGGER = logging.getLogger(__name__)
 _DEBUG_EXCEPTIONS = os.environ.get("GETDIST_DEBUG_EXCEPTIONS", "").lower() in (
@@ -290,9 +293,6 @@ _ROOT_PATH_CACHE: dict[str, str] = {}
 _CHAIN_SUMMARY_CACHE: dict[str, dict[str, Any]] = {}
 _BESTFIT_CACHE: dict[str, dict[str, Any]] = {}
 _GUI_EVENT_COUNTER = 0
-
-# GetDist imports for MCMC analysis
-from getdist import MCSamples, loadMCSamples  # type: ignore[import-untyped]
 
 MCSamples = cast(Any, MCSamples)
 loadMCSamples = cast(Callable[..., Any], loadMCSamples)
@@ -1988,7 +1988,7 @@ def parse_minimum_file(filepath: str) -> dict[str, Any]:
             result["params"][param_name] = {"value": value, "latex": latex_label}
 
             # Track chi2 components (e.g., chi2__bao.desi_dr2, chi2__sn.pantheonplusshoes)
-            if param_name.startswith("chi2__") and not param_name in [
+            if param_name.startswith("chi2__") and param_name not in [
                 "chi2__BAO",
                 "chi2__SN",
                 "chi2__CMB",

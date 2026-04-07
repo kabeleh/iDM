@@ -97,13 +97,19 @@ Output Files:
 
 import argparse
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
 from typing import Dict, Any, Tuple, List, Optional
+
+import matplotlib as mpl
+import matplotlib.pyplot as plt
 import numpy as np
 import yaml
-import re
+from matplotlib.axes import Axes
+from matplotlib.figure import Figure
+from matplotlib.ticker import FixedFormatter, FixedLocator, NullFormatter
 
 _LCDM_BASELINE_INPUT_KEYS = (
     "n_s",
@@ -1631,12 +1637,6 @@ if __name__ == "__main__":
 
 
 # 3. Plot the results
-import matplotlib as mpl
-import matplotlib.pyplot as plt
-from matplotlib.axes import Axes
-from matplotlib.figure import Figure
-from matplotlib.ticker import FixedFormatter, FixedLocator, NullFormatter
-
 _HIGH_CONTRAST_PALETTE: Dict[str, str] = {
     "black": "#000000",
     "blue": "#004488",
