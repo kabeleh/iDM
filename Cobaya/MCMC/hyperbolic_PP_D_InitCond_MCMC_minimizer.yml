@@ -1,6 +1,6 @@
 sampler:
   minimize:
-    best_of: 10
+    best_of: 4
     ignore_prior: true
     method: scipy
 likelihood:

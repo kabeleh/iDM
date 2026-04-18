@@ -1,8 +1,8 @@
 sampler:
   minimize:
-    best_of: 10
+    best_of: 4
     ignore_prior: true
-    method: scipy
+    method: iminuit
 likelihood:
   planck_2018_lowl.TT:
   act_dr6_cmbonly.PlanckActCut:
