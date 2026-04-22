@@ -484,9 +484,14 @@ def _construct_scf_parameters(
     The scf_parameters string is a comma-separated list of CLASS scalar field parameters
     in the order: c1, c2, c3, c4, q1, q2, q3, q4, exp1, exp2, phi_ini, phi_prime_ini
 
-    All values are taken directly from the .bestfit file, which contains the actual
-    best-fit values computed by Cobaya. Even parameters marked as 'derived' in the
-    YAML have their computed values in the bestfit file.
+        Values are resolved with the following precedence:
+            1. Explicit value present in the .bestfit file (preferred)
+            2. Value captured in dropped_scf_params
+            3. Literal YAML default value (if provided)
+            4. Fallback to 0.0
+
+        This precedence is important because some chains provide derived scf_* entries
+        (e.g. scf_c1, scf_phi_ini) in the .bestfit file without a literal YAML value.
 
     Args:
         dropped_scf_params: Individual scalar field parameters from .bestfit
@@ -515,21 +520,28 @@ def _construct_scf_parameters(
     scf_values = []
 
     for scf_param in scf_param_order:
-        # Try to get the value from dropped_scf_params (all scf params are dropped in YAML)
+        # Prefer the actual best-fit number when available.
+        if scf_param in bestfit_values:
+            scf_values.append(str(bestfit_values[scf_param]))
+            continue
+
+        # Fall back to collected dropped entries.
         if scf_param in dropped_scf_params:
             scf_values.append(str(dropped_scf_params[scf_param]))
-        else:
-            # Use default values from YAML if available
-            if (
-                "params" in yaml_config
-                and scf_param in yaml_config["params"]
-                and isinstance(yaml_config["params"][scf_param], dict)
-                and "value" in yaml_config["params"][scf_param]
-            ):
-                scf_values.append(str(yaml_config["params"][scf_param]["value"]))
-            else:
-                # Default fallback (typically 0.0 for most scalar field parameters)
-                scf_values.append("0.0")
+            continue
+
+        # Fall back to literal YAML defaults when provided.
+        if (
+            "params" in yaml_config
+            and scf_param in yaml_config["params"]
+            and isinstance(yaml_config["params"][scf_param], dict)
+            and "value" in yaml_config["params"][scf_param]
+        ):
+            scf_values.append(str(yaml_config["params"][scf_param]["value"]))
+            continue
+
+        # Last resort fallback.
+        scf_values.append("0.0")
 
     return ",".join(scf_values)
 
@@ -1814,9 +1826,9 @@ def _style_redshift_axis(ax: Axes, z: np.ndarray) -> None:
 
 def _save_figure_bundle(fig: Figure, base_path: Path) -> None:
     """Save each figure as PNG/PDF/PGF for quick view and publication workflows."""
-    fig.savefig(str(base_path.with_suffix(".png")))
-    fig.savefig(str(base_path.with_suffix(".pdf")))
-    fig.savefig(str(base_path.with_suffix(".pgf")))
+    fig.savefig(str(base_path.parent / f"{base_path.name}.png"))
+    fig.savefig(str(base_path.parent / f"{base_path.name}.pdf"))
+    fig.savefig(str(base_path.parent / f"{base_path.name}.pgf"))
 
 
 def _apply_tight_ylims(
@@ -2062,15 +2074,15 @@ def make_three_plots(
     plt.close(fig3)
 
     return {
-        "plot1_png": str(p1.with_suffix(".png")),
-        "plot1_pdf": str(p1.with_suffix(".pdf")),
-        "plot1_pgf": str(p1.with_suffix(".pgf")),
-        "plot2_png": str(p2.with_suffix(".png")),
-        "plot2_pdf": str(p2.with_suffix(".pdf")),
-        "plot2_pgf": str(p2.with_suffix(".pgf")),
-        "plot3_png": str(p3.with_suffix(".png")),
-        "plot3_pdf": str(p3.with_suffix(".pdf")),
-        "plot3_pgf": str(p3.with_suffix(".pgf")),
+        "plot1_png": str(p1.parent / f"{p1.name}.png"),
+        "plot1_pdf": str(p1.parent / f"{p1.name}.pdf"),
+        "plot1_pgf": str(p1.parent / f"{p1.name}.pgf"),
+        "plot2_png": str(p2.parent / f"{p2.name}.png"),
+        "plot2_pdf": str(p2.parent / f"{p2.name}.pdf"),
+        "plot2_pgf": str(p2.parent / f"{p2.name}.pgf"),
+        "plot3_png": str(p3.parent / f"{p3.name}.png"),
+        "plot3_pdf": str(p3.parent / f"{p3.name}.pdf"),
+        "plot3_pgf": str(p3.parent / f"{p3.name}.pgf"),
     }
 
 
@@ -2120,9 +2132,9 @@ def make_pk_plot(
     plt.close(fig)
 
     return {
-        "plot4_png": str(p_pk.with_suffix(".png")),
-        "plot4_pdf": str(p_pk.with_suffix(".pdf")),
-        "plot4_pgf": str(p_pk.with_suffix(".pgf")),
+        "plot4_png": str(p_pk.parent / f"{p_pk.name}.png"),
+        "plot4_pdf": str(p_pk.parent / f"{p_pk.name}.pdf"),
+        "plot4_pgf": str(p_pk.parent / f"{p_pk.name}.pgf"),
     }
 
 
@@ -2208,9 +2220,9 @@ def make_cl_plot(
     plt.close(fig)
 
     return {
-        "plot5_png": str(p_cl.with_suffix(".png")),
-        "plot5_pdf": str(p_cl.with_suffix(".pdf")),
-        "plot5_pgf": str(p_cl.with_suffix(".pgf")),
+        "plot5_png": str(p_cl.parent / f"{p_cl.name}.png"),
+        "plot5_pdf": str(p_cl.parent / f"{p_cl.name}.pdf"),
+        "plot5_pgf": str(p_cl.parent / f"{p_cl.name}.pgf"),
     }
 
 
