@@ -912,9 +912,9 @@ ROOTS: list[str] = [
     # "DoubleExp_SPA_PP_S_D_InitCond_MCMC",
     # "hyperbolic_PP_S_D_InitCond_MCMC",
     # --- LCDM Archive ---
-    "cobaya_mcmc_CV_CMB_SPA_LCDM.post.S8",
-    "cobaya_polychord_CV_PP_DESI_LCDM.post.S8",
-    "cobaya_mcmc_CV_PP_S_DESI_LCDM.post.S8",
+    # "cobaya_mcmc_CV_CMB_SPA_LCDM.post.S8",
+    # "cobaya_polychord_CV_PP_DESI_LCDM.post.S8",
+    # "cobaya_mcmc_CV_PP_S_DESI_LCDM.post.S8",
     "cobaya_mcmc_fast_CMB_LCDM",
     "cobaya_mcmc_fast_CMB_LCDM.post.PP",
     "cobaya_mcmc_fast_CMB_LCDM.post.PPS",
@@ -925,16 +925,10 @@ ROOTS: list[str] = [
     # "DoubleExp_Planck_InitCond_MCMC",
     # "exponential_Planck_InitCond_MCMC",
     # "hyperbolic_Planck_InitCond_MCMC",
-    "hyperbolic_SPA_InitCond_MCMC",
-    "hyperbolic_PP_D_InitCond_MCMC",
-    "hyperbolic_PP_S_D_InitCond_MCMC",
-    "hyperbolic_Planck_InitCond_MCMC.post.Swamp",
     # "hyperbolic_Planck_InitCond_MCMC.post.PP_DESI",
     # "hyperbolic_Planck_InitCond_MCMC.post.PP_DESI.post.Swamp",
-    "hyperbolic_Planck_PP_DESI_InitCond_Swamp_MCMC",
     # "hyperbolic_Planck_InitCond_MCMC.post.PPS_DESI",
     # "hyperbolic_Planck_InitCond_MCMC.post.PPS_DESI.post.Swamp",
-    "hyperbolic_Planck_PPS_DESI_InitCond_Swamp_MCMC",
     # "hyperbolic_Planck_tracking_MCMC",
     # "pNG_Planck_InitCond_MCMC",
     # "pNG_Planck_InitCond_MCMC.post.PP_DESI",
@@ -943,6 +937,13 @@ ROOTS: list[str] = [
     # "pNG_Planck_InitCond_MCMC.post.PPS_DESI.post.Swamp",
     # "power-law_Planck_InitCond_MCMC",
     # "SqE_Planck_InitCond_MCMC",
+    # Hyperbolic Model:
+    # "hyperbolic_SPA_InitCond_MCMC",
+    # "hyperbolic_PP_D_InitCond_MCMC",
+    # "hyperbolic_PP_S_D_InitCond_MCMC",
+    "hyperbolic_Planck_InitCond_MCMC.post.Swamp",
+    "hyperbolic_Planck_PP_DESI_InitCond_Swamp_MCMC",
+    "hyperbolic_Planck_PPS_DESI_InitCond_Swamp_MCMC",
 ]
 
 
@@ -1491,6 +1492,7 @@ def make_triangle_plot(
     param_labels: Mapping[str, str] | None = None,
     title: str | None = None,
     fill_2d: bool = True,
+    size_scale: float = 1.0,
 ) -> Any:
     """
     Create a triangle plot for the given parameters.
@@ -1611,7 +1613,7 @@ def make_triangle_plot(
     _apply_chain_styles_to_axes(g, used_roots)
 
     fig: Any = g.fig
-    fig.set_size_inches(FIGURE_WIDTH_IN, FIGURE_HEIGHT_IN)
+    fig.set_size_inches(FIGURE_WIDTH_IN * size_scale, FIGURE_HEIGHT_IN * size_scale)
 
     # Build legend handles for MCMC chains
     chain_handles: list[Line2D] = []
@@ -1646,19 +1648,103 @@ def make_triangle_plot(
         if legend:
             legend.remove()
 
-    # Adjust layout: plot on left, make room for legend on right
-    fig.subplots_adjust(left=0.1, right=0.68)
+    # For 2-parameter triangles, reserve the empty upper-right quadrant for legend
+    # to avoid overlap with the lower-right contour panel in exports.
+    if len(available_params) == 2:
+        fig.subplots_adjust(left=0.1, right=0.96)
+        top_left_ax = g.subplots[0, 0]
+        lower_right_ax = g.subplots[1, 1]
+        if top_left_ax is not None and lower_right_ax is not None:
+            legend_margin_x = 0.008
+            legend_margin_y = 0.004
+            top_left_bbox = top_left_ax.get_position()
+            lower_right_bbox = lower_right_ax.get_position()
+            legend_anchor = (
+                lower_right_bbox.x0 + legend_margin_x,
+                top_left_bbox.y1,
+            )
+            legend = fig.legend(
+                all_handles,
+                all_labels,
+                loc="upper left",
+                bbox_to_anchor=legend_anchor,
+                bbox_transform=fig.transFigure,
+                frameon=True,
+                ncol=1,
+                fontsize=12.0,
+                borderaxespad=0.0,
+                labelspacing=0.4,
+                handlelength=2.4,
+            )
 
-    # Position legend aligned to top-right of first subplot
-    first_ax = g.subplots[0, 0]
-    ax_bbox = first_ax.get_position()
-    legend = fig.legend(
-        all_handles,
-        all_labels,
-        loc="upper left",
-        bbox_to_anchor=(ax_bbox.x1, ax_bbox.y1 + 0.017),
-        frameon=True,
-    )
+            # Enlarge the figure until the one-column legend fits in the empty
+            # upper-right quadrant, matching the manual interactive resize behavior.
+            for _ in range(4):
+                fig.canvas.draw()
+                renderer = fig.canvas.get_renderer()
+                top_left_bbox = top_left_ax.get_position()
+                lower_right_bbox = lower_right_ax.get_position()
+                legend_anchor = (
+                    lower_right_bbox.x0 + legend_margin_x,
+                    top_left_bbox.y1,
+                )
+                legend.set_bbox_to_anchor(legend_anchor, transform=fig.transFigure)
+                legend_bbox = legend.get_window_extent(renderer=renderer).transformed(
+                    fig.transFigure.inverted()
+                )
+
+                available_height = max(
+                    0.0,
+                    top_left_bbox.y1 - top_left_bbox.y0 - legend_margin_y,
+                )
+                height_ratio = (
+                    legend_bbox.height / available_height
+                    if available_height > 0.0
+                    else 1.0
+                )
+                required_growth = height_ratio
+                if required_growth <= 1.0:
+                    break
+
+                growth_factor = max(1.05, required_growth * 1.04)
+                current_size = fig.get_size_inches()
+                fig.set_size_inches(
+                    current_size[0] * growth_factor,
+                    current_size[1] * growth_factor,
+                    forward=True,
+                )
+
+            # Keep text readable when the figure grows to fit the legend.
+            for ax in fig.axes:
+                try:
+                    ax.xaxis.label.set_size(12.5)
+                    ax.yaxis.label.set_size(12.5)
+                    ax.tick_params(axis="both", which="major", labelsize=11.5)
+                    ax.tick_params(axis="both", which="minor", labelsize=11.0)
+                except Exception:
+                    continue
+        else:
+            # Fallback if GetDist layout differs unexpectedly.
+            legend = fig.legend(
+                all_handles,
+                all_labels,
+                loc="upper right",
+                frameon=True,
+                ncol=1,
+                fontsize=12.0,
+            )
+    else:
+        # Generic layout: keep dedicated space on the right for legend.
+        fig.subplots_adjust(left=0.1, right=0.68)
+        first_ax = g.subplots[0, 0]
+        ax_bbox = first_ax.get_position()
+        legend = fig.legend(
+            all_handles,
+            all_labels,
+            loc="upper left",
+            bbox_to_anchor=(ax_bbox.x1, ax_bbox.y1 + 0.017),
+            frameon=True,
+        )
 
     if title:
         fig.suptitle(title, y=1.02)
@@ -1848,7 +1934,10 @@ else:
         _log_prefixed("plot1", "Generating H0-S8 triangle plot...")
         params_cosmology = ["H0", "S8"]
         g1 = make_triangle_plot(
-            params_cosmology, annotations=annotate_H0_S8, title=None
+            params_cosmology,
+            annotations=annotate_H0_S8,
+            title=None,
+            size_scale=1.22,
         )
 
         # Interactive preview (current backend):
@@ -1896,16 +1985,12 @@ else:
             # Strict IBM Plex Math export for thesis:
             # save_strict_plex_figure(
             #     g2.fig,
-            #     "plot_scf_params_PP_S_DESI_hyperbolic.pdf",
-            #     "plot_scf_params_PP_S_DESI_hyperbolic.pgf",
+            #     "plot_scf_params.pdf",
+            #     "plot_scf_params.pgf",
             # )
             if CLI_ARGS.strict_export:
-                pdf_path = os.path.join(
-                    strict_export_dir, "plot_scf_params_PP_S_DESI_hyperbolic.pdf"
-                )
-                pgf_path = os.path.join(
-                    strict_export_dir, "plot_scf_params_PP_S_DESI_hyperbolic.pgf"
-                )
+                pdf_path = os.path.join(strict_export_dir, "plot_scf_params.pdf")
+                pgf_path = os.path.join(strict_export_dir, "plot_scf_params.pgf")
                 save_strict_plex_figure(g2.fig, pdf_path, pgf_path)
                 print(f"Strict export saved: {pdf_path}")
                 print(f"Strict export saved: {pgf_path}")
@@ -2514,18 +2599,18 @@ def format_plain_number(value: float | None, precision: int = 2) -> str:
 
 
 def compute_tension(
-    model_value: float | None,
+    model_mean: float | None,
     model_sigma: float | None,
     reference_value: float,
     reference_sigma: float,
 ) -> float | None:
-    """Compute Gaussian tension in sigma units."""
-    if model_value is None or model_sigma is None:
+    """Compute Gaussian tension in sigma units using posterior means."""
+    if model_mean is None or model_sigma is None:
         return None
     denom = float(np.sqrt(model_sigma**2 + reference_sigma**2))  # type: ignore[no-untyped-call]
     if denom <= 0:
         return None
-    return (model_value - reference_value) / denom
+    return (model_mean - reference_value) / denom
 
 
 def get_accepted_steps(
@@ -2671,13 +2756,16 @@ def generate_cosmology_table(
             else (None, None)
         )
 
-        bestfit_h0 = None
-        bestfit_s8 = None
-        if min_data.get("params"):
-            if "H0" in min_data["params"]:
-                bestfit_h0 = float(min_data["params"]["H0"]["value"])
-            if "S8" in min_data["params"]:
-                bestfit_s8 = float(min_data["params"]["S8"]["value"])
+        mean_h0 = (
+            float(stats["H0"]["mean"])
+            if stats.get("H0") and stats["H0"].get("mean") is not None
+            else None
+        )
+        mean_s8 = (
+            float(stats["S8"]["mean"])
+            if stats.get("S8") and stats["S8"].get("mean") is not None
+            else None
+        )
 
         h0_sigma_model = (
             float(stats["H0"]["std"])
@@ -2690,8 +2778,8 @@ def generate_cosmology_table(
             else None
         )
 
-        h0_tension = compute_tension(bestfit_h0, h0_sigma_model, h0_ref, h0_ref_sigma)
-        s8_tension = compute_tension(bestfit_s8, s8_sigma_model, s8_ref, s8_ref_sigma)
+        h0_tension = compute_tension(mean_h0, h0_sigma_model, h0_ref, h0_ref_sigma)
+        s8_tension = compute_tension(mean_s8, s8_sigma_model, s8_ref, s8_ref_sigma)
 
         chain_data[root] = {
             "minimum": min_data,
@@ -2724,9 +2812,9 @@ def generate_cosmology_table(
     lines.append(r"\centering")
     lines.append(
         r"\caption{Cosmological parameters from MCMC analysis. "
-        + r"Tensions are computed with references to the best-fit model values and "
+        + r"Tensions are computed from posterior means and "
         + rf"$H_0={h0_ref:.2f}\pm{h0_ref_sigma:.2f}$ and $S_8={s8_ref:.3f}\pm{s8_ref_sigma:.3f}$. "
-        + r"Delta metrics are computed relative to the $\Lambda$CDM chain with the same dataset."
+        + r"Delta metrics are computed relative to the \gls{lcdm} chain with the same dataset."
         + r"}"
     )
     lines.append(r"\label{tab:cosmology}")
@@ -2746,8 +2834,8 @@ def generate_cosmology_table(
     header_parts.extend(
         [
             r"\chi^2",
-            r"\Delta\text{AIC}",
-            r"\Delta\text{BIC}",
+            r"\Delta\text{\gls{aic}}",
+            r"\Delta\text{\gls{bic}}",
         ]
     )
     lines.append(" & ".join(header_parts) + r" \\")
@@ -2779,7 +2867,7 @@ def generate_cosmology_table(
             r"\multicolumn{"
             + str(n_total_cols)
             + r"}{l}{\textbf{"
-            + dataset_key
+            + _table_glossary_label(dataset_key)
             + r"}} \\"
         )
 
@@ -2861,17 +2949,27 @@ def get_dataset_label(root: str) -> str:
 
     parts: list[str] = []
     if dataset_flags["has_spa"]:
-        parts.append("SPA")
+        parts.append(r"\gls{spa}")
     elif dataset_flags["has_planck"]:
         parts.append("Planck")
     if dataset_flags["has_desi"]:
-        parts.append("DESI DR2")
+        parts.append(r"\gls{desi} DR2")
     if dataset_flags["has_pantheon"]:
         parts.append("PP")
     if dataset_flags["has_sh0es"]:
-        parts.append("SH0ES")
+        parts.append(r"\gls{shoes}")
 
     return " + ".join(parts) if parts else root
+
+
+def _table_glossary_label(text: str) -> str:
+    """Apply glossary macros to dataset labels used in LaTeX tables only."""
+    return (
+        text.replace(r"$\Lambda$CDM", r"\gls{lcdm}")
+        .replace("SPA", r"\gls{spa}")
+        .replace("DESI", r"\gls{desi}")
+        .replace("SH0ES", r"\gls{shoes}")
+    )
 
 
 def generate_scf_table(
@@ -3164,7 +3262,7 @@ def read_chain_data_directly(
     combined_data: Any = np.vstack(all_data)  # type: ignore[no-untyped-call]
 
     # Apply burn-in if specified
-    ignore_rows = resolved_settings.get("ignore_rows", 0.0)
+    ignore_rows = resolved_settings.get("ignore_rows", 0.33)
     if ignore_rows > 0:
         if ignore_rows < 1:  # Fraction
             n_ignore = int(len(combined_data) * ignore_rows)  # type: ignore[arg-type]
@@ -3687,7 +3785,7 @@ def generate_swampland_table(
     # Rotated headers with potential + likelihood information.
     header_parts: list[str] = ["Parameter"]
     for root in ordered_roots:
-        header_label = build_legend_label(root)
+        header_label = _table_glossary_label(build_legend_label(root))
         header_parts.append(
             r"\multicolumn{1}{c}{\rotatebox[origin=c]{90}{\parbox{3.8cm}{\centering "
             + header_label
