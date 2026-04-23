@@ -100,6 +100,7 @@ import os
 import re
 import subprocess
 import sys
+from zipfile import BadZipFile
 from pathlib import Path
 from typing import Dict, Any, Tuple, List, Optional
 
@@ -901,6 +902,37 @@ def _find_column_index(labels: List[str], required_label: str) -> int:
         ) from exc
 
 
+def _compute_background_derived(
+    *,
+    z: np.ndarray,
+    rho_cdm: np.ndarray,
+    rho_scf: np.ndarray,
+    rho_crit: np.ndarray,
+    p_scf: np.ndarray,
+    V: np.ndarray,
+    dV: np.ndarray,
+    d2V: np.ndarray,
+) -> Dict[str, np.ndarray]:
+    """Compute derived background quantities from primitive arrays."""
+    with np.errstate(divide="ignore", invalid="ignore"):
+        a = 1.0 / (1.0 + z)
+        w = np.where(rho_scf != 0.0, p_scf / rho_scf, np.nan)
+        s1 = np.where(V != 0.0, np.abs(dV) / V, np.nan)
+        minus_s2 = np.where(V != 0.0, d2V / V, np.nan)
+        Omega_cdm = np.where(rho_crit != 0.0, rho_cdm / rho_crit, np.nan)
+        Omega_scf = np.where(rho_crit != 0.0, rho_scf / rho_crit, np.nan)
+
+    return {
+        "a": a,
+        "w": w,
+        "s1": s1,
+        "minus_s2": minus_s2,
+        "swampland_expr": 1.0 + w - 0.15 * np.square(s1),
+        "Omega_cdm": Omega_cdm,
+        "Omega_scf": Omega_scf,
+    }
+
+
 def load_background_dataset(background_file: str) -> Dict[str, Any]:
     """Load CLASS background file, extract required columns, and compute derived quantities.
 
@@ -949,14 +981,16 @@ def load_background_dataset(background_file: str) -> Dict[str, Any]:
     dV = data[:, idx["dV"]]
     d2V = data[:, idx["d2V"]]
 
-    with np.errstate(divide="ignore", invalid="ignore"):
-        a = 1.0 / (1.0 + z)
-        w = np.where(rho_scf != 0.0, p_scf / rho_scf, np.nan)
-        s1 = np.where(V != 0.0, np.abs(dV) / V, np.nan)
-        minus_s2 = np.where(V != 0.0, d2V / V, np.nan)
-        swampland_expr = np.subtract(1.0 + w, np.multiply(0.15, np.square(s1)))
-        Omega_cdm = np.where(rho_crit != 0.0, rho_cdm / rho_crit, np.nan)
-        Omega_scf = np.where(rho_crit != 0.0, rho_scf / rho_crit, np.nan)
+    derived = _compute_background_derived(
+        z=z,
+        rho_cdm=rho_cdm,
+        rho_scf=rho_scf,
+        rho_crit=rho_crit,
+        p_scf=p_scf,
+        V=V,
+        dV=dV,
+        d2V=d2V,
+    )
 
     return {
         "background_file": background_file,
@@ -964,7 +998,6 @@ def load_background_dataset(background_file: str) -> Dict[str, Any]:
         "column_indices": idx,
         "raw_table": data,
         "z": z,
-        "a": a,
         "rho_cdm": rho_cdm,
         "rho_scf": rho_scf,
         "rho_crit": rho_crit,
@@ -972,13 +1005,36 @@ def load_background_dataset(background_file: str) -> Dict[str, Any]:
         "V": V,
         "dV": dV,
         "d2V": d2V,
-        "w": w,
-        "s1": s1,
-        "minus_s2": minus_s2,
-        "swampland_expr": swampland_expr,
-        "Omega_cdm": Omega_cdm,
-        "Omega_scf": Omega_scf,
+        **derived,
     }
+
+
+def _background_cache_needs_rewrite(
+    schema_version: int,
+    cached: Any,
+    derived: Dict[str, np.ndarray],
+) -> bool:
+    """Return whether a loaded background cache should be rewritten.
+
+    Older cache files can contain stale derived arrays even when their
+    primitive columns are still correct. Rewriting normalizes them to the
+    current schema and avoids repeatedly carrying forward inconsistent values.
+    """
+    if schema_version < 2:
+        return True
+
+    for key, derived_array in derived.items():
+        if key not in cached.files:
+            return True
+
+        cached_array = cached[key]
+        if cached_array.shape != derived_array.shape:
+            return True
+
+        if not np.allclose(cached_array, derived_array, equal_nan=True):
+            return True
+
+    return False
 
 
 def save_background_dataset_cache(dataset: Dict[str, Any], cache_file: str) -> None:
@@ -994,7 +1050,7 @@ def save_background_dataset_cache(dataset: Dict[str, Any], cache_file: str) -> N
 
     np.savez_compressed(
         str(path),
-        schema_version=np.array([1], dtype=np.int64),
+        schema_version=np.array([2], dtype=np.int64),
         background_file=np.array([str(dataset["background_file"])], dtype=str),
         column_labels=column_label_array,
         column_index_keys=column_index_keys,
@@ -1022,36 +1078,79 @@ def load_background_dataset_cache(cache_file: str) -> Dict[str, Any]:
     """Load processed background dataset from a compressed NPZ cache file."""
     with np.load(cache_file, allow_pickle=False) as cached:
         schema_version = int(cached["schema_version"][0])
-        if schema_version != 1:
+        if schema_version not in (1, 2):
             raise ValueError(
                 f"Unsupported background cache schema version: {schema_version}"
             )
 
-        column_labels = [str(x) for x in cached["column_labels"].tolist()]
-        column_index_keys = [str(x) for x in cached["column_index_keys"].tolist()]
-        column_index_values = [int(x) for x in cached["column_index_values"].tolist()]
-        column_indices = dict(zip(column_index_keys, column_index_values))
+        background_file = str(cached["background_file"][0])
+        cached_column_labels = [str(x) for x in cached["column_labels"].tolist()]
+        cached_column_index_keys = [
+            str(x) for x in cached["column_index_keys"].tolist()
+        ]
+        cached_column_index_values = [
+            int(x) for x in cached["column_index_values"].tolist()
+        ]
+        cached_column_indices = dict(
+            zip(cached_column_index_keys, cached_column_index_values)
+        )
+
+        raw_table = cached["raw_table"]
+        if os.path.exists(background_file):
+            column_labels = _parse_background_column_labels(background_file)
+            column_indices = {
+                "z": _find_column_index(column_labels, "z"),
+                "rho_cdm": _find_column_index(column_labels, "(.)rho_cdm"),
+                "rho_scf": _find_column_index(column_labels, "(.)rho_scf"),
+                "rho_crit": _find_column_index(column_labels, "(.)rho_crit"),
+                "p_scf": _find_column_index(column_labels, "(.)p_scf"),
+                "V": _find_column_index(column_labels, "V_scf"),
+                "dV": _find_column_index(column_labels, "V'_scf"),
+                "d2V": _find_column_index(column_labels, "V''_scf"),
+            }
+        else:
+            column_labels = cached_column_labels
+            column_indices = cached_column_indices
+
+        z = raw_table[:, column_indices["z"]]
+        rho_cdm = raw_table[:, column_indices["rho_cdm"]]
+        rho_scf = raw_table[:, column_indices["rho_scf"]]
+        rho_crit = raw_table[:, column_indices["rho_crit"]]
+        p_scf = raw_table[:, column_indices["p_scf"]]
+        V = raw_table[:, column_indices["V"]]
+        dV = raw_table[:, column_indices["dV"]]
+        d2V = raw_table[:, column_indices["d2V"]]
+        derived = _compute_background_derived(
+            z=z,
+            rho_cdm=rho_cdm,
+            rho_scf=rho_scf,
+            rho_crit=rho_crit,
+            p_scf=p_scf,
+            V=V,
+            dV=dV,
+            d2V=d2V,
+        )
+        cache_needs_rewrite = (
+            _background_cache_needs_rewrite(schema_version, cached, derived)
+            or column_labels != cached_column_labels
+            or column_indices != cached_column_indices
+        )
 
         return {
-            "background_file": str(cached["background_file"][0]),
+            "background_file": background_file,
             "column_labels": column_labels,
             "column_indices": column_indices,
-            "raw_table": cached["raw_table"],
-            "z": cached["z"],
-            "a": cached["a"],
-            "rho_cdm": cached["rho_cdm"],
-            "rho_scf": cached["rho_scf"],
-            "rho_crit": cached["rho_crit"],
-            "p_scf": cached["p_scf"],
-            "V": cached["V"],
-            "dV": cached["dV"],
-            "d2V": cached["d2V"],
-            "w": cached["w"],
-            "s1": cached["s1"],
-            "minus_s2": cached["minus_s2"],
-            "swampland_expr": cached["swampland_expr"],
-            "Omega_cdm": cached["Omega_cdm"],
-            "Omega_scf": cached["Omega_scf"],
+            "raw_table": raw_table,
+            "z": z,
+            "rho_cdm": rho_cdm,
+            "rho_scf": rho_scf,
+            "rho_crit": rho_crit,
+            "p_scf": p_scf,
+            "V": V,
+            "dV": dV,
+            "d2V": d2V,
+            "_cache_needs_rewrite": cache_needs_rewrite,
+            **derived,
         }
 
 
@@ -1071,8 +1170,14 @@ def load_or_compute_background_dataset(
     cache_path = Path(cache_file)
 
     if cache_path.exists() and cache_path.stat().st_mtime >= bg_path.stat().st_mtime:
-        dataset = load_background_dataset_cache(str(cache_path))
-        return dataset, "cache"
+        try:
+            dataset = load_background_dataset_cache(str(cache_path))
+            cache_needs_rewrite = bool(dataset.pop("_cache_needs_rewrite", False))
+            if cache_needs_rewrite:
+                save_background_dataset_cache(dataset, str(cache_path))
+            return dataset, "cache"
+        except (KeyError, ValueError, OSError, EOFError, BadZipFile):
+            pass
 
     dataset = load_background_dataset(background_file)
     save_background_dataset_cache(dataset, str(cache_path))
@@ -1358,10 +1463,15 @@ def save_cl_dataset_cache(dataset: Dict[str, Any], cache_file: str) -> None:
     path = Path(cache_file)
     path.parent.mkdir(parents=True, exist_ok=True)
 
+    requested_lmax = dataset.get("requested_lmax")
+    if requested_lmax is None:
+        raise ValueError("C_ℓ cache save requires 'requested_lmax' in dataset")
+
     np.savez_compressed(
         str(path),
-        schema_version=np.array([1], dtype=np.int64),
+        schema_version=np.array([2], dtype=np.int64),
         cl_lensed_file=np.array([str(dataset["cl_lensed_file"])], dtype=str),
+        requested_lmax=np.array([int(requested_lmax)], dtype=np.int64),
         ell=dataset["ell"],
         ell_times_ell_plus_1_over_2pi=dataset["ell_times_ell_plus_1_over_2pi"],
         Cl_TT_scaled=dataset["Cl_TT_scaled"],
@@ -1370,20 +1480,37 @@ def save_cl_dataset_cache(dataset: Dict[str, Any], cache_file: str) -> None:
     )
 
 
-def load_cl_dataset_cache(cache_file: str) -> Dict[str, Any]:
+def load_cl_dataset_cache(
+    cache_file: str,
+    requested_lmax: Optional[int] = None,
+) -> Dict[str, Any]:
     """Load processed C_ℓ dataset from a compressed NPZ cache file."""
     with np.load(cache_file, allow_pickle=False) as cached:
         schema_version = int(cached["schema_version"][0])
-        if schema_version != 1:
+        if schema_version not in (1, 2):
             raise ValueError(f"Unsupported C_ℓ cache schema version: {schema_version}")
+
+        if schema_version == 2:
+            cache_lmax = int(cached["requested_lmax"][0])
+        else:
+            # Legacy schema has no explicit lmax metadata; infer from stored ell grid.
+            cache_lmax = int(np.max(cached["ell"])) if cached["ell"].size else -1
+
+        cache_needs_rewrite = schema_version < 2
+        if requested_lmax is not None and cache_lmax != int(requested_lmax):
+            raise ValueError(
+                f"C_ℓ cache lmax mismatch: cache={cache_lmax}, requested={requested_lmax}"
+            )
 
         return {
             "cl_lensed_file": str(cached["cl_lensed_file"][0]),
+            "requested_lmax": cache_lmax,
             "ell": cached["ell"],
             "ell_times_ell_plus_1_over_2pi": cached["ell_times_ell_plus_1_over_2pi"],
             "Cl_TT_scaled": cached["Cl_TT_scaled"],
             "Cl_EE_scaled": cached["Cl_EE_scaled"],
             "Cl_TE_scaled": cached["Cl_TE_scaled"],
+            "_cache_needs_rewrite": cache_needs_rewrite,
         }
 
 
@@ -1404,10 +1531,20 @@ def load_or_compute_cl_dataset(
     cache_path = Path(cache_file)
 
     if cache_path.exists() and cache_path.stat().st_mtime >= cl_path.stat().st_mtime:
-        dataset = load_cl_dataset_cache(str(cache_path))
-        return dataset, "cache"
+        try:
+            dataset = load_cl_dataset_cache(
+                str(cache_path),
+                requested_lmax=lmax,
+            )
+            cache_needs_rewrite = bool(dataset.pop("_cache_needs_rewrite", False))
+            if cache_needs_rewrite:
+                save_cl_dataset_cache(dataset, str(cache_path))
+            return dataset, "cache"
+        except (KeyError, ValueError, OSError, EOFError, BadZipFile):
+            pass
 
     dataset = load_cl_dataset(cl_lensed_file, lmax=lmax)
+    dataset["requested_lmax"] = int(lmax)
     save_cl_dataset_cache(dataset, str(cache_path))
     return dataset, "computed"
 
