@@ -96,13 +96,14 @@ Output Files:
 """
 
 import argparse
+import hashlib
 import os
 import re
 import subprocess
 import sys
 from zipfile import BadZipFile
 from pathlib import Path
-from typing import Dict, Any, Tuple, List, Optional
+from typing import Dict, Any, Tuple, List, Optional, Sequence
 
 import matplotlib as mpl
 import matplotlib.pyplot as plt
@@ -133,6 +134,30 @@ _DISALLOWED_LCDM_KEYS = {
     "model_cdm",
     "cdm_c",
 }
+
+_SCF_PARAM_ORDER: Tuple[str, ...] = (
+    "scf_c1",
+    "scf_c2",
+    "scf_c3",
+    "scf_c4",
+    "scf_q1",
+    "scf_q2",
+    "scf_q3",
+    "scf_q4",
+    "scf_exp1",
+    "scf_exp2",
+    "scf_phi_ini",
+    "scf_phi_prime_ini",
+)
+
+_MIN_BACKGROUND_ROWS = 20000
+_MIN_PK_ROWS = 500
+_MIN_CL_ROWS = 2400
+_MIN_BACKGROUND_FINITE_FRACTION = 1.0
+_MIN_PK_FINITE_FRACTION = 1.0
+_MIN_CL_FINITE_FRACTION = 1.0
+_INTERP_MIN_VALID_FRACTION = 0.98
+_PLOT_CL_LMAX = 9000
 
 
 def parse_arguments() -> argparse.Namespace:
@@ -174,6 +199,155 @@ def parse_arguments() -> argparse.Namespace:
         ),
     )
     return parser.parse_args()
+
+
+def _record_warning(warnings: List[str], message: str) -> None:
+    """Append warning messages in a single place for consistent reporting."""
+    warnings.append(message)
+
+
+def _compute_file_head_hash(path: Path, max_bytes: int = 65536) -> str:
+    """Compute a stable SHA256 digest of the file head for fast provenance checks."""
+    hasher = hashlib.sha256()
+    with open(path, "rb") as f:
+        hasher.update(f.read(max_bytes))
+    return hasher.hexdigest()
+
+
+def _build_source_provenance(path: str) -> Dict[str, Any]:
+    """Build provenance metadata for a source file used by cache validation."""
+    p = Path(path)
+    if not p.exists():
+        raise FileNotFoundError(f"Source file missing for provenance: {path}")
+
+    st = p.stat()
+    return {
+        "source_file": str(p.resolve()),
+        "source_mtime_ns": int(st.st_mtime_ns),
+        "source_size_bytes": int(st.st_size),
+        "source_head_hash": _compute_file_head_hash(p),
+    }
+
+
+def _cache_matches_source_provenance(
+    cached: Any,
+    source_path: str,
+) -> bool:
+    """Return True when cached provenance matches the current source file."""
+    p = Path(source_path)
+    if not p.exists():
+        return False
+
+    required = {
+        "source_file",
+        "source_mtime_ns",
+        "source_size_bytes",
+        "source_head_hash",
+    }
+    if not required.issubset(set(cached.files)):
+        return False
+
+    try:
+        expected = _build_source_provenance(str(p))
+        cached_file = str(cached["source_file"][0])
+        cached_mtime_ns = int(cached["source_mtime_ns"][0])
+        cached_size = int(cached["source_size_bytes"][0])
+        cached_hash = str(cached["source_head_hash"][0])
+    except Exception:
+        return False
+
+    return (
+        os.path.abspath(cached_file) == os.path.abspath(expected["source_file"])
+        and cached_mtime_ns == expected["source_mtime_ns"]
+        and cached_size == expected["source_size_bytes"]
+        and cached_hash == expected["source_head_hash"]
+    )
+
+
+def _ensure_min_rows(name: str, data: np.ndarray, minimum: int) -> None:
+    """Fail fast for unexpectedly small tables that usually signal truncation."""
+    if data.shape[0] < minimum:
+        raise ValueError(
+            f"{name} has too few rows ({data.shape[0]} < {minimum}); "
+            "this often indicates a truncated or incomplete CLASS output."
+        )
+
+
+def _validate_finite_fraction(
+    name: str,
+    arr: np.ndarray,
+    *,
+    min_fraction: float,
+) -> None:
+    """Require a minimum finite-value fraction in arrays used for plotting/physics."""
+    finite_fraction = float(np.mean(np.isfinite(arr))) if arr.size else 0.0
+    if finite_fraction < min_fraction:
+        raise ValueError(
+            f"{name} finite fraction too low ({finite_fraction:.3f} < {min_fraction:.3f})"
+        )
+
+
+def _validate_monotonic_increasing(
+    name: str, arr: np.ndarray, *, strict: bool = True
+) -> None:
+    """Validate monotonicity to catch malformed or partially written tables."""
+    if arr.size < 2:
+        return
+    diffs = np.diff(arr)
+    ok = np.all(diffs > 0) if strict else np.all(diffs >= 0)
+    if not ok:
+        raise ValueError(f"{name} is not monotonic increasing")
+
+
+def _validate_non_negative(
+    name: str, arr: np.ndarray, *, finite_only: bool = True
+) -> None:
+    """Validate arrays expected to be non-negative in physically meaningful outputs."""
+    check = arr[np.isfinite(arr)] if finite_only else arr
+    if check.size and np.any(check < 0):
+        raise ValueError(f"{name} contains negative values")
+
+
+def _lock_path_for_output_root(output_root: Path) -> Path:
+    """Derive lock file path for a CLASS run root."""
+    return output_root.parent / f"{output_root.name}.class_run.lock"
+
+
+def _acquire_class_run_lock(output_root: Path) -> Path:
+    """Create an exclusive lock file to prevent concurrent writes to same outputs."""
+    lock_path = _lock_path_for_output_root(output_root)
+    try:
+        fd = os.open(str(lock_path), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+        with os.fdopen(fd, "w") as f:
+            f.write(f"pid={os.getpid()}\n")
+            f.write(f"output_root={output_root}\n")
+        return lock_path
+    except FileExistsError as exc:
+        raise RuntimeError(
+            f"Detected concurrent CLASS run lock: {lock_path}. "
+            "Wait for the other run to finish or remove stale lock if safe."
+        ) from exc
+
+
+def _release_class_run_lock(lock_path: Optional[Path]) -> None:
+    """Best-effort lock cleanup."""
+    if lock_path is None:
+        return
+    try:
+        lock_path.unlink(missing_ok=True)
+    except OSError:
+        pass
+
+
+def _has_active_class_run_lock(source_file: str) -> bool:
+    """Check whether a sibling CLASS run lock exists for the source stem."""
+    p = Path(source_file)
+    # source is typically <root>_background.dat / _pk.dat / _cl_lensed.dat
+    for suffix in ("_background.dat", "_pk.dat", "_cl_lensed.dat"):
+        if p.name.endswith(suffix):
+            root = p.parent / p.name[: -len(suffix)]
+            return _lock_path_for_output_root(root).exists()
+    return False
 
 
 def load_bestfit_file(bestfit_path: str) -> Dict[str, float]:
@@ -376,7 +550,9 @@ _NON_INPUT_PARAMETERS = {
 
 
 def extract_class_parameters(
-    bestfit_values: Dict[str, float], yaml_config: Dict[str, Any]
+    bestfit_values: Dict[str, float],
+    yaml_config: Dict[str, Any],
+    warnings: Optional[List[str]] = None,
 ) -> Dict[str, Any]:
     """Map Cobaya MCMC parameters to CLASS input parameters.
 
@@ -459,13 +635,28 @@ def extract_class_parameters(
             if isinstance(param_spec, dict) and "value" in param_spec:
                 class_params[param_name] = param_spec["value"]
 
+    extraction_warnings = warnings if warnings is not None else []
+
     # 3. Reconstruct scf_parameters from individual components
     if dropped_scf_params and "chi_ini" in bestfit_values:
-        class_params["scf_parameters"] = _construct_scf_parameters(
+        scf_parameters_str, scf_sources = _construct_scf_parameters(
             dropped_scf_params=dropped_scf_params,
             bestfit_values=bestfit_values,
             yaml_config=yaml_config,
         )
+        class_params["scf_parameters"] = scf_parameters_str
+
+        fallback_sources = [
+            f"{name}:{source}"
+            for name, source in scf_sources.items()
+            if source != "bestfit"
+        ]
+        if fallback_sources:
+            _record_warning(
+                extraction_warnings,
+                "SCF reconstruction used fallback sources -> "
+                + ", ".join(fallback_sources),
+            )
 
     # 4. CLASS expects yes/no strings for boolean-like flags.
     for key, value in list(class_params.items()):
@@ -479,7 +670,7 @@ def _construct_scf_parameters(
     dropped_scf_params: Dict[str, float],
     bestfit_values: Dict[str, float],
     yaml_config: Dict[str, Any],
-) -> str:
+) -> Tuple[str, Dict[str, str]]:
     """Construct the scf_parameters string from individual scalar field parameters.
 
     The scf_parameters string is a comma-separated list of CLASS scalar field parameters
@@ -502,33 +693,20 @@ def _construct_scf_parameters(
     Returns:
         A comma-separated string of scalar field parameters for CLASS
     """
-    # Define the expected order of parameters in scf_parameters
-    scf_param_order = [
-        "scf_c1",
-        "scf_c2",
-        "scf_c3",
-        "scf_c4",
-        "scf_q1",
-        "scf_q2",
-        "scf_q3",
-        "scf_q4",
-        "scf_exp1",
-        "scf_exp2",
-        "scf_phi_ini",
-        "scf_phi_prime_ini",
-    ]
-
     scf_values = []
+    sources: Dict[str, str] = {}
 
-    for scf_param in scf_param_order:
+    for scf_param in _SCF_PARAM_ORDER:
         # Prefer the actual best-fit number when available.
         if scf_param in bestfit_values:
             scf_values.append(str(bestfit_values[scf_param]))
+            sources[scf_param] = "bestfit"
             continue
 
         # Fall back to collected dropped entries.
         if scf_param in dropped_scf_params:
             scf_values.append(str(dropped_scf_params[scf_param]))
+            sources[scf_param] = "dropped"
             continue
 
         # Fall back to literal YAML defaults when provided.
@@ -539,12 +717,16 @@ def _construct_scf_parameters(
             and "value" in yaml_config["params"][scf_param]
         ):
             scf_values.append(str(yaml_config["params"][scf_param]["value"]))
+            sources[scf_param] = "yaml"
             continue
 
-        # Last resort fallback.
-        scf_values.append("0.0")
+        # Missing a scalar-field component is too risky to silently coerce.
+        raise ValueError(
+            f"Cannot reconstruct scf_parameters: missing required component '{scf_param}' "
+            "in bestfit/dropped/yaml tiers."
+        )
 
-    return ",".join(scf_values)
+    return ",".join(scf_values), sources
 
 
 def extract_parameters_from_bestfit(
@@ -582,15 +764,21 @@ def extract_parameters_from_bestfit(
     bestfit_values = load_bestfit_file(bestfit_path)
     yaml_config = load_input_yaml(yaml_path)
 
+    extraction_warnings: List[str] = []
+
     # Extract CLASS parameters
-    class_params = extract_class_parameters(bestfit_values, yaml_config)
+    class_params = extract_class_parameters(
+        bestfit_values,
+        yaml_config,
+        warnings=extraction_warnings,
+    )
 
     # Prepare metadata
     metadata = {
         "bestfit_file": os.path.abspath(bestfit_path),
         "yaml_file": os.path.abspath(yaml_path),
         "parameters_extracted": len(class_params),
-        "warnings": [],
+        "warnings": extraction_warnings,
     }
 
     return class_params, metadata
@@ -607,6 +795,7 @@ def extract_lcdm_baseline_parameters(
     yaml_config = load_input_yaml(yaml_path)
 
     class_params: Dict[str, Any] = {}
+    warnings: List[str] = []
 
     if "theory" in yaml_config and "classy" in yaml_config["theory"]:
         classy_config = yaml_config["theory"]["classy"]
@@ -622,9 +811,38 @@ def extract_lcdm_baseline_parameters(
     # Recover A_s when only logA is present.
     if "A_s" not in class_params and "logA" in bestfit_values:
         class_params["A_s"] = 1e-10 * np.exp(bestfit_values["logA"])
+        _record_warning(
+            warnings,
+            "Computed A_s from logA for LCDM baseline (A_s = 1e-10 * exp(logA)).",
+        )
 
     for forbidden in _DISALLOWED_LCDM_KEYS:
         class_params.pop(forbidden, None)
+
+    family_forbidden_patterns: Sequence[str] = (
+        "scf_",
+        "Omega_scf",
+        "Omega_fld",
+        "w0_fld",
+        "wa_fld",
+        "cs2_fld",
+        "model_cdm",
+        "cdm_c",
+        "DM_annihilation",
+        "DM_decay",
+    )
+    removed_keys: List[str] = []
+    for key in list(class_params.keys()):
+        if any(pat in key for pat in family_forbidden_patterns):
+            removed_keys.append(key)
+            class_params.pop(key, None)
+
+    if removed_keys:
+        _record_warning(
+            warnings,
+            "Removed model-specific keys from LCDM baseline: "
+            + ", ".join(sorted(removed_keys)),
+        )
 
     for key, value in list(class_params.items()):
         if isinstance(value, bool):
@@ -634,7 +852,7 @@ def extract_lcdm_baseline_parameters(
         "bestfit_file": os.path.abspath(bestfit_path),
         "yaml_file": os.path.abspath(yaml_path),
         "parameters_extracted": len(class_params),
-        "warnings": [],
+        "warnings": warnings,
     }
 
     return class_params, metadata
@@ -762,6 +980,7 @@ def run_class_background(
     run_label = Path(bestfit_path).name.replace(".bestfit", "")
     output_root = out_dir / run_label
     ini_path = out_dir / f"{run_label}_autogen.ini"
+    lock_path: Optional[Path] = None
 
     # Request background, P(k), and lensed C_ℓ outputs with deterministic overwrite.
     run_params = dict(class_params)
@@ -788,18 +1007,23 @@ def run_class_background(
         elif sbbn_value.startswith("bbn/"):
             run_params[sbbn_key] = f"/external/{sbbn_value}"
 
-    with open(ini_path, "w") as f:
-        f.write("# Auto-generated by BestFitPlot.py\n")
-        f.write(f"# Source bestfit: {bestfit_path}\n\n")
-        for key in sorted(run_params.keys()):
-            f.write(f"{key} = {_serialize_class_value(run_params[key])}\n")
+    try:
+        lock_path = _acquire_class_run_lock(output_root)
 
-    run_result = subprocess.run(
-        [str(class_executable), str(ini_path)],
-        cwd=str(repo_root),
-        capture_output=True,
-        text=True,
-    )
+        with open(ini_path, "w") as f:
+            f.write("# Auto-generated by BestFitPlot.py\n")
+            f.write(f"# Source bestfit: {bestfit_path}\n\n")
+            for key in sorted(run_params.keys()):
+                f.write(f"{key} = {_serialize_class_value(run_params[key])}\n")
+
+        run_result = subprocess.run(
+            [str(class_executable), str(ini_path)],
+            cwd=str(repo_root),
+            capture_output=True,
+            text=True,
+        )
+    finally:
+        _release_class_run_lock(lock_path)
 
     background_file = Path(f"{output_root}_background.dat")
     pk_file = Path(f"{output_root}_pk.dat")
@@ -961,6 +1185,8 @@ def load_background_dataset(background_file: str) -> Dict[str, Any]:
     if data.ndim == 1:
         data = data[np.newaxis, :]
 
+    _ensure_min_rows("Background file", data, _MIN_BACKGROUND_ROWS)
+
     idx = {
         "z": _find_column_index(labels, "z"),
         "rho_cdm": _find_column_index(labels, "(.)rho_cdm"),
@@ -981,6 +1207,17 @@ def load_background_dataset(background_file: str) -> Dict[str, Any]:
     dV = data[:, idx["dV"]]
     d2V = data[:, idx["d2V"]]
 
+    _validate_monotonic_increasing("background z (ascending)", np.sort(z), strict=False)
+    _validate_finite_fraction(
+        "background z", z, min_fraction=_MIN_BACKGROUND_FINITE_FRACTION
+    )
+    _validate_finite_fraction(
+        "background rho_crit",
+        rho_crit,
+        min_fraction=_MIN_BACKGROUND_FINITE_FRACTION,
+    )
+    _validate_non_negative("background rho_crit", rho_crit)
+
     derived = _compute_background_derived(
         z=z,
         rho_cdm=rho_cdm,
@@ -992,8 +1229,37 @@ def load_background_dataset(background_file: str) -> Dict[str, Any]:
         d2V=d2V,
     )
 
+    warnings: List[str] = []
+    w = derived["w"]
+    finite_w = np.isfinite(w)
+    if np.count_nonzero(finite_w) > 1:
+        crossing_mask = (w[:-1] + 1.0) * (w[1:] + 1.0) < 0
+        if np.any(crossing_mask):
+            crossing_z = z[:-1][crossing_mask]
+            _record_warning(
+                warnings,
+                "Detected phantom-crossing candidates at z="
+                + ", ".join(f"{val:.6g}" for val in crossing_z[:5]),
+            )
+
+    s1 = derived["s1"]
+    if np.any(np.isfinite(s1) & (np.abs(s1) > 10.0)):
+        _record_warning(
+            warnings,
+            "Large |s1| values detected (>10); verify model regime and numerical stability.",
+        )
+
+    sw_expr = derived["swampland_expr"]
+    if np.any(np.isfinite(sw_expr) & (np.abs(sw_expr) > 10.0)):
+        _record_warning(
+            warnings,
+            "Large swampland expression magnitude detected (|1+w-0.15 s1^2|>10).",
+        )
+
     return {
         "background_file": background_file,
+        "provenance": _build_source_provenance(background_file),
+        "warnings": warnings,
         "column_labels": labels,
         "column_indices": idx,
         "raw_table": data,
@@ -1041,6 +1307,9 @@ def save_background_dataset_cache(dataset: Dict[str, Any], cache_file: str) -> N
     """Save processed background dataset to a compressed NPZ cache file."""
     path = Path(cache_file)
     path.parent.mkdir(parents=True, exist_ok=True)
+    provenance = dataset.get("provenance") or _build_source_provenance(
+        str(dataset["background_file"])
+    )
 
     column_label_array = np.array(dataset["column_labels"], dtype=str)
     column_index_keys = np.array(list(dataset["column_indices"].keys()), dtype=str)
@@ -1050,8 +1319,13 @@ def save_background_dataset_cache(dataset: Dict[str, Any], cache_file: str) -> N
 
     np.savez_compressed(
         str(path),
-        schema_version=np.array([2], dtype=np.int64),
+        schema_version=np.array([3], dtype=np.int64),
         background_file=np.array([str(dataset["background_file"])], dtype=str),
+        source_file=np.array([provenance["source_file"]], dtype=str),
+        source_mtime_ns=np.array([provenance["source_mtime_ns"]], dtype=np.int64),
+        source_size_bytes=np.array([provenance["source_size_bytes"]], dtype=np.int64),
+        source_head_hash=np.array([provenance["source_head_hash"]], dtype=str),
+        warnings=np.array(dataset.get("warnings", []), dtype=str),
         column_labels=column_label_array,
         column_index_keys=column_index_keys,
         column_index_values=column_index_values,
@@ -1078,12 +1352,18 @@ def load_background_dataset_cache(cache_file: str) -> Dict[str, Any]:
     """Load processed background dataset from a compressed NPZ cache file."""
     with np.load(cache_file, allow_pickle=False) as cached:
         schema_version = int(cached["schema_version"][0])
-        if schema_version not in (1, 2):
+        if schema_version not in (1, 2, 3):
             raise ValueError(
                 f"Unsupported background cache schema version: {schema_version}"
             )
 
         background_file = str(cached["background_file"][0])
+        if schema_version >= 3 and not _cache_matches_source_provenance(
+            cached,
+            background_file,
+        ):
+            raise ValueError("Background cache provenance mismatch with source file")
+
         cached_column_labels = [str(x) for x in cached["column_labels"].tolist()]
         cached_column_index_keys = [
             str(x) for x in cached["column_index_keys"].tolist()
@@ -1096,6 +1376,7 @@ def load_background_dataset_cache(cache_file: str) -> Dict[str, Any]:
         )
 
         raw_table = cached["raw_table"]
+        _ensure_min_rows("Background cache table", raw_table, _MIN_BACKGROUND_ROWS)
         if os.path.exists(background_file):
             column_labels = _parse_background_column_labels(background_file)
             column_indices = {
@@ -1136,8 +1417,29 @@ def load_background_dataset_cache(cache_file: str) -> Dict[str, Any]:
             or column_indices != cached_column_indices
         )
 
+        if schema_version < 3:
+            cache_needs_rewrite = True
+
+        provenance = _build_source_provenance(background_file)
+
+        _validate_finite_fraction(
+            "background z", z, min_fraction=_MIN_BACKGROUND_FINITE_FRACTION
+        )
+        _validate_finite_fraction(
+            "background rho_crit",
+            rho_crit,
+            min_fraction=_MIN_BACKGROUND_FINITE_FRACTION,
+        )
+        _validate_non_negative("background rho_crit", rho_crit)
+
         return {
             "background_file": background_file,
+            "provenance": provenance,
+            "warnings": (
+                [str(x) for x in cached["warnings"].tolist()]
+                if "warnings" in cached.files
+                else []
+            ),
             "column_labels": column_labels,
             "column_indices": column_indices,
             "raw_table": raw_table,
@@ -1169,6 +1471,12 @@ def load_or_compute_background_dataset(
     bg_path = Path(background_file)
     cache_path = Path(cache_file)
 
+    if _has_active_class_run_lock(background_file):
+        dataset = load_background_dataset(background_file)
+        dataset["provenance"] = _build_source_provenance(background_file)
+        save_background_dataset_cache(dataset, str(cache_path))
+        return dataset, "computed"
+
     if cache_path.exists() and cache_path.stat().st_mtime >= bg_path.stat().st_mtime:
         try:
             dataset = load_background_dataset_cache(str(cache_path))
@@ -1180,6 +1488,7 @@ def load_or_compute_background_dataset(
             pass
 
     dataset = load_background_dataset(background_file)
+    dataset["provenance"] = _build_source_provenance(background_file)
     save_background_dataset_cache(dataset, str(cache_path))
     return dataset, "computed"
 
@@ -1191,6 +1500,8 @@ def load_lcdm_background_omegas_dataset(background_file: str) -> Dict[str, Any]:
 
     if data.ndim == 1:
         data = data[np.newaxis, :]
+
+    _ensure_min_rows("LCDM background file", data, _MIN_BACKGROUND_ROWS)
 
     idx = {
         "z": _find_column_index(labels, "z"),
@@ -1204,12 +1515,21 @@ def load_lcdm_background_omegas_dataset(background_file: str) -> Dict[str, Any]:
     rho_lambda = data[:, idx["rho_lambda"]]
     rho_crit = data[:, idx["rho_crit"]]
 
+    _validate_finite_fraction("LCDM z", z, min_fraction=_MIN_BACKGROUND_FINITE_FRACTION)
+    _validate_finite_fraction(
+        "LCDM rho_crit",
+        rho_crit,
+        min_fraction=_MIN_BACKGROUND_FINITE_FRACTION,
+    )
+    _validate_non_negative("LCDM rho_crit", rho_crit)
+
     with np.errstate(divide="ignore", invalid="ignore"):
         Omega_cdm = np.where(rho_crit != 0.0, rho_cdm / rho_crit, np.nan)
         Omega_lambda = np.where(rho_crit != 0.0, rho_lambda / rho_crit, np.nan)
 
     return {
         "background_file": background_file,
+        "provenance": _build_source_provenance(background_file),
         "column_labels": labels,
         "column_indices": idx,
         "raw_table": data,
@@ -1226,6 +1546,9 @@ def save_lcdm_background_omegas_cache(dataset: Dict[str, Any], cache_file: str) 
     """Save processed LCDM Omega dataset to a compressed NPZ cache file."""
     path = Path(cache_file)
     path.parent.mkdir(parents=True, exist_ok=True)
+    provenance = dataset.get("provenance") or _build_source_provenance(
+        str(dataset["background_file"])
+    )
 
     column_label_array = np.array(dataset["column_labels"], dtype=str)
     column_index_keys = np.array(list(dataset["column_indices"].keys()), dtype=str)
@@ -1235,8 +1558,12 @@ def save_lcdm_background_omegas_cache(dataset: Dict[str, Any], cache_file: str) 
 
     np.savez_compressed(
         str(path),
-        schema_version=np.array([1], dtype=np.int64),
+        schema_version=np.array([2], dtype=np.int64),
         background_file=np.array([str(dataset["background_file"])], dtype=str),
+        source_file=np.array([provenance["source_file"]], dtype=str),
+        source_mtime_ns=np.array([provenance["source_mtime_ns"]], dtype=np.int64),
+        source_size_bytes=np.array([provenance["source_size_bytes"]], dtype=np.int64),
+        source_head_hash=np.array([provenance["source_head_hash"]], dtype=str),
         column_labels=column_label_array,
         column_index_keys=column_index_keys,
         column_index_values=column_index_values,
@@ -1254,18 +1581,26 @@ def load_lcdm_background_omegas_cache(cache_file: str) -> Dict[str, Any]:
     """Load processed LCDM Omega dataset from a compressed NPZ cache file."""
     with np.load(cache_file, allow_pickle=False) as cached:
         schema_version = int(cached["schema_version"][0])
-        if schema_version != 1:
+        if schema_version not in (1, 2):
             raise ValueError(
                 f"Unsupported LCDM Omega cache schema version: {schema_version}"
             )
+
+        background_file = str(cached["background_file"][0])
+        if schema_version >= 2 and not _cache_matches_source_provenance(
+            cached,
+            background_file,
+        ):
+            raise ValueError("LCDM omega cache provenance mismatch with source file")
 
         column_labels = [str(x) for x in cached["column_labels"].tolist()]
         column_index_keys = [str(x) for x in cached["column_index_keys"].tolist()]
         column_index_values = [int(x) for x in cached["column_index_values"].tolist()]
         column_indices = dict(zip(column_index_keys, column_index_values))
 
-        return {
-            "background_file": str(cached["background_file"][0]),
+        dataset = {
+            "background_file": background_file,
+            "provenance": _build_source_provenance(background_file),
             "column_labels": column_labels,
             "column_indices": column_indices,
             "raw_table": cached["raw_table"],
@@ -1276,6 +1611,23 @@ def load_lcdm_background_omegas_cache(cache_file: str) -> Dict[str, Any]:
             "Omega_cdm": cached["Omega_cdm"],
             "Omega_lambda": cached["Omega_lambda"],
         }
+        _ensure_min_rows(
+            "LCDM background cache table",
+            dataset["raw_table"],
+            _MIN_BACKGROUND_ROWS,
+        )
+        _validate_finite_fraction(
+            "LCDM z",
+            dataset["z"],
+            min_fraction=_MIN_BACKGROUND_FINITE_FRACTION,
+        )
+        _validate_finite_fraction(
+            "LCDM rho_crit",
+            dataset["rho_crit"],
+            min_fraction=_MIN_BACKGROUND_FINITE_FRACTION,
+        )
+        _validate_non_negative("LCDM rho_crit", dataset["rho_crit"])
+        return dataset
 
 
 def load_or_compute_lcdm_background_omegas_dataset(
@@ -1289,11 +1641,28 @@ def load_or_compute_lcdm_background_omegas_dataset(
     bg_path = Path(background_file)
     cache_path = Path(cache_file)
 
+    if not bg_path.exists():
+        raise FileNotFoundError(f"LCDM background file not found: {background_file}")
+
+    if _has_active_class_run_lock(background_file):
+        dataset = load_lcdm_background_omegas_dataset(background_file)
+        dataset["provenance"] = _build_source_provenance(background_file)
+        save_lcdm_background_omegas_cache(dataset, str(cache_path))
+        return dataset, "computed"
+
     if cache_path.exists() and cache_path.stat().st_mtime >= bg_path.stat().st_mtime:
-        dataset = load_lcdm_background_omegas_cache(str(cache_path))
-        return dataset, "cache"
+        try:
+            dataset = load_lcdm_background_omegas_cache(str(cache_path))
+            with np.load(str(cache_path), allow_pickle=False) as cached:
+                old_schema = int(cached["schema_version"][0])
+            if old_schema < 2:
+                save_lcdm_background_omegas_cache(dataset, str(cache_path))
+            return dataset, "cache"
+        except (KeyError, ValueError, OSError, EOFError, BadZipFile):
+            pass
 
     dataset = load_lcdm_background_omegas_dataset(background_file)
+    dataset["provenance"] = _build_source_provenance(background_file)
     save_lcdm_background_omegas_cache(dataset, str(cache_path))
     return dataset, "computed"
 
@@ -1325,6 +1694,8 @@ def load_pk_dataset(pk_file: str) -> Dict[str, Any]:
     if data.ndim == 1:
         data = data[np.newaxis, :]
 
+    _ensure_min_rows("P(k) file", data, _MIN_PK_ROWS)
+
     # CLASS P(k) file format: k, P(k)
     # First column is k, second is P(k)
     if data.shape[1] < 2:
@@ -1333,8 +1704,13 @@ def load_pk_dataset(pk_file: str) -> Dict[str, Any]:
     k = data[:, 0]
     P_k = data[:, 1]
 
+    _validate_monotonic_increasing("k grid", k, strict=True)
+    _validate_finite_fraction("P(k) values", P_k, min_fraction=_MIN_PK_FINITE_FRACTION)
+    _validate_non_negative("P(k) values", P_k)
+
     return {
         "pk_file": pk_file,
+        "provenance": _build_source_provenance(pk_file),
         "k": k,
         "P_k": P_k,
     }
@@ -1344,11 +1720,18 @@ def save_pk_dataset_cache(dataset: Dict[str, Any], cache_file: str) -> None:
     """Save processed P(k) dataset to a compressed NPZ cache file."""
     path = Path(cache_file)
     path.parent.mkdir(parents=True, exist_ok=True)
+    provenance = dataset.get("provenance") or _build_source_provenance(
+        str(dataset["pk_file"])
+    )
 
     np.savez_compressed(
         str(path),
-        schema_version=np.array([1], dtype=np.int64),
+        schema_version=np.array([2], dtype=np.int64),
         pk_file=np.array([str(dataset["pk_file"])], dtype=str),
+        source_file=np.array([provenance["source_file"]], dtype=str),
+        source_mtime_ns=np.array([provenance["source_mtime_ns"]], dtype=np.int64),
+        source_size_bytes=np.array([provenance["source_size_bytes"]], dtype=np.int64),
+        source_head_hash=np.array([provenance["source_head_hash"]], dtype=str),
         k=dataset["k"],
         P_k=dataset["P_k"],
     )
@@ -1358,14 +1741,33 @@ def load_pk_dataset_cache(cache_file: str) -> Dict[str, Any]:
     """Load processed P(k) dataset from a compressed NPZ cache file."""
     with np.load(cache_file, allow_pickle=False) as cached:
         schema_version = int(cached["schema_version"][0])
-        if schema_version != 1:
+        if schema_version not in (1, 2):
             raise ValueError(f"Unsupported P(k) cache schema version: {schema_version}")
 
-        return {
-            "pk_file": str(cached["pk_file"][0]),
+        pk_file = str(cached["pk_file"][0])
+        if schema_version >= 2 and not _cache_matches_source_provenance(
+            cached, pk_file
+        ):
+            raise ValueError("P(k) cache provenance mismatch with source file")
+
+        dataset = {
+            "pk_file": pk_file,
+            "provenance": _build_source_provenance(pk_file),
             "k": cached["k"],
             "P_k": cached["P_k"],
+            "_cache_needs_rewrite": schema_version < 2,
         }
+        _ensure_min_rows(
+            "P(k) cache", np.column_stack((dataset["k"], dataset["P_k"])), _MIN_PK_ROWS
+        )
+        _validate_monotonic_increasing("cached k grid", dataset["k"], strict=True)
+        _validate_finite_fraction(
+            "cached P(k)",
+            dataset["P_k"],
+            min_fraction=_MIN_PK_FINITE_FRACTION,
+        )
+        _validate_non_negative("cached P(k)", dataset["P_k"])
+        return dataset
 
 
 def load_or_compute_pk_dataset(
@@ -1383,9 +1785,23 @@ def load_or_compute_pk_dataset(
     pk_path = Path(pk_file)
     cache_path = Path(cache_file)
 
+    if not pk_path.exists():
+        raise FileNotFoundError(f"P(k) file not found: {pk_file}")
+
+    if _has_active_class_run_lock(pk_file):
+        dataset = load_pk_dataset(pk_file)
+        save_pk_dataset_cache(dataset, str(cache_path))
+        return dataset, "computed"
+
     if cache_path.exists() and cache_path.stat().st_mtime >= pk_path.stat().st_mtime:
-        dataset = load_pk_dataset_cache(str(cache_path))
-        return dataset, "cache"
+        try:
+            dataset = load_pk_dataset_cache(str(cache_path))
+            cache_needs_rewrite = bool(dataset.pop("_cache_needs_rewrite", False))
+            if cache_needs_rewrite:
+                save_pk_dataset_cache(dataset, str(cache_path))
+            return dataset, "cache"
+        except (KeyError, ValueError, OSError, EOFError, BadZipFile):
+            pass
 
     dataset = load_pk_dataset(pk_file)
     save_pk_dataset_cache(dataset, str(cache_path))
@@ -1425,6 +1841,8 @@ def load_cl_dataset(cl_lensed_file: str, lmax: int = 9000) -> Dict[str, Any]:
     if data.ndim == 1:
         data = data[np.newaxis, :]
 
+    _ensure_min_rows("C_ℓ file", data, _MIN_CL_ROWS)
+
     # CLASS lensed C_ℓ file format: ell, TT, EE, TE, BB
     # First column is ell, then TT, EE, TE, BB (if present)
     if data.shape[1] < 4:
@@ -1442,6 +1860,25 @@ def load_cl_dataset(cl_lensed_file: str, lmax: int = 9000) -> Dict[str, Any]:
     Cl_EE = Cl_EE[mask]
     Cl_TE = Cl_TE[mask]
 
+    if ell.size == 0:
+        raise ValueError(f"C_ℓ data empty after lmax filtering (requested lmax={lmax})")
+
+    _validate_monotonic_increasing("ell grid", ell.astype(float), strict=True)
+    if ell.size > 1 and not np.all(np.diff(ell) == 1):
+        raise ValueError("C_ℓ ell grid is non-contiguous after filtering")
+
+    warnings: List[str] = []
+    if int(np.max(ell)) < int(0.95 * lmax):
+        _record_warning(
+            warnings,
+            f"C_ℓ max ell ({int(np.max(ell))}) is lower than requested lmax ({lmax}); "
+            "check CLASS l_max_* settings if this is unexpected.",
+        )
+
+    _validate_finite_fraction("Cl_TT", Cl_TT, min_fraction=_MIN_CL_FINITE_FRACTION)
+    _validate_finite_fraction("Cl_EE", Cl_EE, min_fraction=_MIN_CL_FINITE_FRACTION)
+    _validate_finite_fraction("Cl_TE", Cl_TE, min_fraction=_MIN_CL_FINITE_FRACTION)
+
     # Scale by ℓ(ℓ+1)/(2π) for standard power units
     scaling = ell * (ell + 1.0) / (2.0 * np.pi)
     Cl_TT_scaled = scaling * Cl_TT
@@ -1450,6 +1887,9 @@ def load_cl_dataset(cl_lensed_file: str, lmax: int = 9000) -> Dict[str, Any]:
 
     return {
         "cl_lensed_file": cl_lensed_file,
+        "provenance": _build_source_provenance(cl_lensed_file),
+        "requested_lmax": int(lmax),
+        "warnings": warnings,
         "ell": ell,
         "ell_times_ell_plus_1_over_2pi": scaling,
         "Cl_TT_scaled": Cl_TT_scaled,
@@ -1462,6 +1902,9 @@ def save_cl_dataset_cache(dataset: Dict[str, Any], cache_file: str) -> None:
     """Save processed C_ℓ dataset to a compressed NPZ cache file."""
     path = Path(cache_file)
     path.parent.mkdir(parents=True, exist_ok=True)
+    provenance = dataset.get("provenance") or _build_source_provenance(
+        str(dataset["cl_lensed_file"])
+    )
 
     requested_lmax = dataset.get("requested_lmax")
     if requested_lmax is None:
@@ -1469,9 +1912,14 @@ def save_cl_dataset_cache(dataset: Dict[str, Any], cache_file: str) -> None:
 
     np.savez_compressed(
         str(path),
-        schema_version=np.array([2], dtype=np.int64),
+        schema_version=np.array([3], dtype=np.int64),
         cl_lensed_file=np.array([str(dataset["cl_lensed_file"])], dtype=str),
+        source_file=np.array([provenance["source_file"]], dtype=str),
+        source_mtime_ns=np.array([provenance["source_mtime_ns"]], dtype=np.int64),
+        source_size_bytes=np.array([provenance["source_size_bytes"]], dtype=np.int64),
+        source_head_hash=np.array([provenance["source_head_hash"]], dtype=str),
         requested_lmax=np.array([int(requested_lmax)], dtype=np.int64),
+        warnings=np.array(dataset.get("warnings", []), dtype=str),
         ell=dataset["ell"],
         ell_times_ell_plus_1_over_2pi=dataset["ell_times_ell_plus_1_over_2pi"],
         Cl_TT_scaled=dataset["Cl_TT_scaled"],
@@ -1487,10 +1935,17 @@ def load_cl_dataset_cache(
     """Load processed C_ℓ dataset from a compressed NPZ cache file."""
     with np.load(cache_file, allow_pickle=False) as cached:
         schema_version = int(cached["schema_version"][0])
-        if schema_version not in (1, 2):
+        if schema_version not in (1, 2, 3):
             raise ValueError(f"Unsupported C_ℓ cache schema version: {schema_version}")
 
-        if schema_version == 2:
+        cl_lensed_file = str(cached["cl_lensed_file"][0])
+        if schema_version >= 3 and not _cache_matches_source_provenance(
+            cached,
+            cl_lensed_file,
+        ):
+            raise ValueError("C_ℓ cache provenance mismatch with source file")
+
+        if schema_version >= 2:
             cache_lmax = int(cached["requested_lmax"][0])
         else:
             # Legacy schema has no explicit lmax metadata; infer from stored ell grid.
@@ -1502,16 +1957,33 @@ def load_cl_dataset_cache(
                 f"C_ℓ cache lmax mismatch: cache={cache_lmax}, requested={requested_lmax}"
             )
 
-        return {
-            "cl_lensed_file": str(cached["cl_lensed_file"][0]),
+        dataset = {
+            "cl_lensed_file": cl_lensed_file,
+            "provenance": _build_source_provenance(cl_lensed_file),
             "requested_lmax": cache_lmax,
+            "warnings": (
+                [str(x) for x in cached["warnings"].tolist()]
+                if "warnings" in cached.files
+                else []
+            ),
             "ell": cached["ell"],
             "ell_times_ell_plus_1_over_2pi": cached["ell_times_ell_plus_1_over_2pi"],
             "Cl_TT_scaled": cached["Cl_TT_scaled"],
             "Cl_EE_scaled": cached["Cl_EE_scaled"],
             "Cl_TE_scaled": cached["Cl_TE_scaled"],
-            "_cache_needs_rewrite": cache_needs_rewrite,
+            "_cache_needs_rewrite": cache_needs_rewrite or schema_version < 3,
         }
+        _ensure_min_rows(
+            "C_ℓ cache",
+            np.column_stack((dataset["ell"], dataset["Cl_TT_scaled"])),
+            _MIN_CL_ROWS,
+        )
+        _validate_monotonic_increasing(
+            "cached ell grid", dataset["ell"].astype(float), strict=True
+        )
+        if dataset["ell"].size > 1 and not np.all(np.diff(dataset["ell"]) == 1):
+            raise ValueError("Cached C_ℓ ell grid is non-contiguous")
+        return dataset
 
 
 def load_or_compute_cl_dataset(
@@ -1530,6 +2002,14 @@ def load_or_compute_cl_dataset(
     cl_path = Path(cl_lensed_file)
     cache_path = Path(cache_file)
 
+    if not cl_path.exists():
+        raise FileNotFoundError(f"C_ℓ file not found: {cl_lensed_file}")
+
+    if _has_active_class_run_lock(cl_lensed_file):
+        dataset = load_cl_dataset(cl_lensed_file, lmax=lmax)
+        save_cl_dataset_cache(dataset, str(cache_path))
+        return dataset, "computed"
+
     if cache_path.exists() and cache_path.stat().st_mtime >= cl_path.stat().st_mtime:
         try:
             dataset = load_cl_dataset_cache(
@@ -1544,7 +2024,6 @@ def load_or_compute_cl_dataset(
             pass
 
     dataset = load_cl_dataset(cl_lensed_file, lmax=lmax)
-    dataset["requested_lmax"] = int(lmax)
     save_cl_dataset_cache(dataset, str(cache_path))
     return dataset, "computed"
 
@@ -1628,6 +2107,8 @@ if __name__ == "__main__":
             print(f"LCDM best-fit file: {lcdm_metadata['bestfit_file']}")
             print(f"LCDM YAML file:     {lcdm_metadata['yaml_file']}")
             print(f"LCDM params passed: {lcdm_metadata['parameters_extracted']}")
+            for warning in lcdm_metadata.get("warnings", []):
+                print(f"  ⚠ {warning}")
 
             baseline_run_info = resolve_or_run_class_outputs(
                 class_params=lcdm_params,
@@ -1666,6 +2147,8 @@ if __name__ == "__main__":
         print(
             f"  z-range:        [{np.nanmin(background_dataset['z']):.6g}, {np.nanmax(background_dataset['z']):.6g}]"
         )
+        for wmsg in background_dataset.get("warnings", []):
+            print(f"  ⚠ {wmsg}")
 
         pk_cache_file = str(Path(run_info["pk_file"]).with_suffix(".processed.npz"))
         pk_dataset, pk_source = load_or_compute_pk_dataset(
@@ -1684,13 +2167,15 @@ if __name__ == "__main__":
         cl_dataset, cl_source = load_or_compute_cl_dataset(
             cl_lensed_file=run_info["cl_lensed_file"],
             cache_file=cl_cache_file,
-            lmax=9000,
+            lmax=_PLOT_CL_LMAX,
         )
         print(f"\nC_ℓ data:         source={cl_source}, cache={cl_cache_file}")
         print(f"  ℓ-points:       {cl_dataset['ell'].shape[0]}")
         print(
             f"  ℓ-range:        [{np.min(cl_dataset['ell'])}, {np.max(cl_dataset['ell'])}]"
         )
+        for wmsg in cl_dataset.get("warnings", []):
+            print(f"  ⚠ {wmsg}")
 
         if baseline_run_info is not None:
             baseline_bg_cache_file = (
@@ -1711,6 +2196,8 @@ if __name__ == "__main__":
             print(
                 f"  z-range:        [{np.nanmin(baseline_background_dataset['z']):.6g}, {np.nanmax(baseline_background_dataset['z']):.6g}]"
             )
+            for wmsg in baseline_background_dataset.get("warnings", []):
+                print(f"  ⚠ {wmsg}")
 
             baseline_pk_cache_file = str(
                 Path(baseline_run_info["pk_file"]).with_suffix(".processed.npz")
@@ -1733,7 +2220,7 @@ if __name__ == "__main__":
             baseline_cl_dataset, baseline_cl_source = load_or_compute_cl_dataset(
                 cl_lensed_file=baseline_run_info["cl_lensed_file"],
                 cache_file=baseline_cl_cache_file,
-                lmax=9000,
+                lmax=_PLOT_CL_LMAX,
             )
             print(
                 f"\nLCDM C_ℓ data:    source={baseline_cl_source}, cache={baseline_cl_cache_file}"
@@ -1895,11 +2382,16 @@ def _interp_series_on_z_grid(
     z_target: np.ndarray,
     z_source: np.ndarray,
     y_source: np.ndarray,
-) -> np.ndarray:
+) -> Tuple[np.ndarray, Dict[str, float]]:
     """Interpolate source series onto target z grid with NaN outside overlap."""
     mask = np.isfinite(z_source) & np.isfinite(y_source)
     if np.count_nonzero(mask) < 2:
-        return np.full_like(z_target, np.nan, dtype=float)
+        out = np.full_like(z_target, np.nan, dtype=float)
+        return out, {
+            "valid_fraction": 0.0,
+            "z_overlap_min": np.nan,
+            "z_overlap_max": np.nan,
+        }
 
     z_src = z_source[mask]
     y_src = y_source[mask]
@@ -1907,7 +2399,14 @@ def _interp_series_on_z_grid(
     z_src = z_src[order]
     y_src = y_src[order]
 
-    return np.interp(z_target, z_src, y_src, left=np.nan, right=np.nan)
+    out = np.interp(z_target, z_src, y_src, left=np.nan, right=np.nan)
+    valid_fraction = float(np.mean(np.isfinite(out))) if out.size else 0.0
+    diagnostics = {
+        "valid_fraction": valid_fraction,
+        "z_overlap_min": float(np.min(z_src)),
+        "z_overlap_max": float(np.max(z_src)),
+    }
+    return out, diagnostics
 
 
 def _style_redshift_axis(ax: Axes, z: np.ndarray) -> None:
@@ -1972,16 +2471,33 @@ def _apply_tight_ylims(
     ax: Axes,
     arrays: List[np.ndarray],
     pad_frac: float = 0.08,
+    full_range: bool = False,
 ) -> None:
-    """Set robust y-limits with small padding for publication-ready hierarchy."""
+    """Set robust y-limits with small padding for publication-ready hierarchy.
+
+    When *full_range* is True the limits span the exact data min/max instead
+    of the 1st–99th percentile, which is needed for panels (like the ΔΩ
+    residual) where extreme values carry physical meaning.
+    """
     finite_chunks = [a[np.isfinite(a)] for a in arrays]
     finite_chunks = [a for a in finite_chunks if a.size > 0]
     if not finite_chunks:
         return
 
     y_all = np.concatenate(finite_chunks)
-    y_lo = float(np.nanmin(y_all))
-    y_hi = float(np.nanmax(y_all))
+    if full_range:
+        y_lo = float(np.nanmin(y_all))
+        y_hi = float(np.nanmax(y_all))
+    else:
+        try:
+            y_lo, y_hi = [float(v) for v in np.nanpercentile(y_all, [1.0, 99.0])]
+        except Exception:
+            y_lo = float(np.nanmin(y_all))
+            y_hi = float(np.nanmax(y_all))
+
+    if y_lo == y_hi:
+        y_lo = float(np.nanmin(y_all))
+        y_hi = float(np.nanmax(y_all))
 
     if not np.isfinite(y_lo) or not np.isfinite(y_hi):
         return
@@ -2055,7 +2571,7 @@ def make_three_plots(
 
     # Plot 2: Omega_scf and Omega_cdm (+ Delta panel against LCDM when available).
     if baseline_background_dataset is None:
-        fig2, ax2 = plt.subplots(figsize=(6.4, 4.1))
+        fig2, ax2 = plt.subplots(figsize=(6.4, 4.1), constrained_layout=True)
         ax2.plot(
             z,
             series["Omega_scf"],
@@ -2082,7 +2598,8 @@ def make_three_plots(
             1,
             sharex=True,
             figsize=(6.4, 5.7),
-            gridspec_kw={"height_ratios": [3.0, 2.1], "hspace": 0.02},
+            constrained_layout=True,
+            gridspec_kw={"height_ratios": [3.0, 2.1]},
         )
 
         # Upper panel kept as the current Omega plot (model only).
@@ -2127,16 +2644,29 @@ def make_three_plots(
 
         # Lower panel: Delta Omega evolutions.
         baseline_series = _prepare_lcdm_omega_arrays(baseline_background_dataset)
-        omega_cdm_lcdm_on_model = _interp_series_on_z_grid(
+        omega_cdm_lcdm_on_model, cdm_interp_diag = _interp_series_on_z_grid(
             z_target=series["z"],
             z_source=baseline_series["z"],
             y_source=baseline_series["Omega_cdm"],
         )
-        omega_lambda_lcdm_on_model = _interp_series_on_z_grid(
+        omega_lambda_lcdm_on_model, lambda_interp_diag = _interp_series_on_z_grid(
             z_target=series["z"],
             z_source=baseline_series["z"],
             y_source=baseline_series["Omega_lambda"],
         )
+
+        if cdm_interp_diag["valid_fraction"] < _INTERP_MIN_VALID_FRACTION:
+            raise ValueError(
+                "Insufficient z-overlap for ΔΩ_cdm interpolation: "
+                f"valid_fraction={cdm_interp_diag['valid_fraction']:.3f} < {_INTERP_MIN_VALID_FRACTION:.3f}; "
+                f"LCDM z-range=[{cdm_interp_diag['z_overlap_min']:.6g}, {cdm_interp_diag['z_overlap_max']:.6g}]"
+            )
+        if lambda_interp_diag["valid_fraction"] < _INTERP_MIN_VALID_FRACTION:
+            raise ValueError(
+                "Insufficient z-overlap for ΔΩ_DE interpolation: "
+                f"valid_fraction={lambda_interp_diag['valid_fraction']:.3f} < {_INTERP_MIN_VALID_FRACTION:.3f}; "
+                f"LCDM z-range=[{lambda_interp_diag['z_overlap_min']:.6g}, {lambda_interp_diag['z_overlap_max']:.6g}]"
+            )
 
         delta_omega_cdm = series["Omega_cdm"] - omega_cdm_lcdm_on_model
         delta_omega_de = series["Omega_scf"] - omega_lambda_lcdm_on_model
@@ -2163,7 +2693,12 @@ def make_three_plots(
             alpha=0.9,
             zorder=1,
         )
-        _apply_tight_ylims(ax2_bottom, [delta_omega_cdm, delta_omega_de], pad_frac=0.08)
+        _apply_tight_ylims(
+            ax2_bottom,
+            [delta_omega_cdm, delta_omega_de],
+            pad_frac=0.08,
+            full_range=True,
+        )
         ax2_bottom.set_ylabel(r"$\Delta\Omega$")
         ax2_bottom.grid(True, which="major", alpha=0.32, linewidth=0.6)
         ax2_bottom.grid(True, which="minor", alpha=0.09, linewidth=0.4)
@@ -2175,7 +2710,6 @@ def make_three_plots(
             borderaxespad=0.0,
             fontsize=9.6,
         )
-    fig2.tight_layout()
     p2 = out_dir / f"{stem}_plot2_omegas"
     _save_figure_bundle(fig2, p2)
     plt.close(fig2)
