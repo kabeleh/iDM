@@ -111,7 +111,7 @@ import numpy as np
 import yaml
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
-from matplotlib.ticker import FixedFormatter, FixedLocator, NullFormatter
+from matplotlib.ticker import FixedFormatter, FixedLocator, LogLocator, NullFormatter
 
 _LCDM_BASELINE_INPUT_KEYS = (
     "n_s",
@@ -158,6 +158,15 @@ _MIN_PK_FINITE_FRACTION = 1.0
 _MIN_CL_FINITE_FRACTION = 1.0
 _INTERP_MIN_VALID_FRACTION = 0.98
 _PLOT_CL_LMAX = 9000
+
+_PLOT_DS_YMIN = -1.0
+_PLOT_DS_YMAX = 2.0
+_PLOT_EOS_YMIN = -1.2
+_PLOT_EOS_YMAX = 2.1
+_PLOT_PK_YMIN = 1.0e-3
+_PLOT_PK_YMAX = 1.0e7
+_PLOT_CL_YMIN = 1.0e-14
+_PLOT_CL_YMAX = 1.0e-4
 
 
 def parse_arguments() -> argparse.Namespace:
@@ -2467,6 +2476,15 @@ def _save_figure_bundle(fig: Figure, base_path: Path) -> None:
     fig.savefig(str(base_path.parent / f"{base_path.name}.pgf"))
 
 
+def _force_log_subticks(ax: Axes) -> None:
+    """Force dense log subticks on both axes, independent of autoscaling heuristics."""
+    minor_subs = tuple(i / 10.0 for i in range(2, 10))
+    ax.xaxis.set_minor_locator(LogLocator(base=10.0, subs=minor_subs, numticks=1000))
+    ax.yaxis.set_minor_locator(LogLocator(base=10.0, subs=minor_subs, numticks=1000))
+    ax.xaxis.set_minor_formatter(NullFormatter())
+    ax.yaxis.set_minor_formatter(NullFormatter())
+
+
 def _apply_tight_ylims(
     ax: Axes,
     arrays: List[np.ndarray],
@@ -2561,7 +2579,7 @@ def make_three_plots(
         label=r"$\mathfrak{s}_2 = -V_{\phi\phi}/V$",
     )
     _style_redshift_axis(ax1, z)
-    _apply_tight_ylims(ax1, [series["s1"], series["s2"]], pad_frac=0.04)
+    ax1.set_ylim(_PLOT_DS_YMIN, _PLOT_DS_YMAX)
     ax1.set_ylabel(r"de Sitter Parameters")
     ax1.legend(**legend_kw)
     fig1.tight_layout()
@@ -2736,7 +2754,7 @@ def make_three_plots(
         zorder=1,
     )
     _style_redshift_axis(ax3, z)
-    _apply_tight_ylims(ax3, [series["swampland_expr"], series["w"]], pad_frac=0.05)
+    ax3.set_ylim(_PLOT_EOS_YMIN, _PLOT_EOS_YMAX)
     ax3.set_ylabel(r"Equation of State")
     ax3.legend(**legend_kw)
     fig3.tight_layout()
@@ -2793,6 +2811,8 @@ def make_pk_plot(
 
     ax.set_xlabel(r"Wavenumber $k$ [$h/\mathrm{Mpc}$]")
     ax.set_ylabel(r"Matter Power Spectrum $P(k)$ [$(Mpc/h)^3$]")
+    ax.set_ylim(_PLOT_PK_YMIN, _PLOT_PK_YMAX)
+    _force_log_subticks(ax)
     ax.grid(True, which="major", alpha=0.32, linewidth=0.6)
     ax.grid(True, which="minor", alpha=0.09, linewidth=0.4)
     ax.legend(loc="lower left", handlelength=2.2, labelspacing=0.35, borderaxespad=0.0)
@@ -2881,6 +2901,8 @@ def make_cl_plot(
 
     ax.set_xlabel(r"Multipole Moment $\ell$")
     ax.set_ylabel(r"$\ell(\ell+1)/(2\pi)\, C_\ell$ [$\mu K^2$]")
+    ax.set_ylim(_PLOT_CL_YMIN, _PLOT_CL_YMAX)
+    _force_log_subticks(ax)
     ax.grid(True, which="major", alpha=0.32, linewidth=0.6)
     ax.grid(True, which="minor", alpha=0.09, linewidth=0.4)
     ax.legend(loc="lower left", handlelength=2.2, labelspacing=0.35, borderaxespad=0.0)
