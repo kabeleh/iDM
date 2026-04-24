@@ -3557,9 +3557,9 @@ def generate_swampland_table(
     """
     Generate a LaTeX table for swampland constraint parameters.
 
-    Filters chains to only those containing 'swampland' in the name.
-    Organizes by dataset and model type (Hyperbolic, Double Exponential).
-    Shows best-fit ± 1σ values.
+    Filters non-LCDM chains to those that actually expose swampland parameters.
+    Generates one table per model family, with datasets as columns.
+    Shows posterior mean with 68% confidence intervals.
 
     Parameters
     ----------
@@ -3580,7 +3580,7 @@ def generate_swampland_table(
     # Swampland parameters to extract
     swampland_params = [
         "phi_ini_scf_ic",
-        "phi_prime_scf_ic",
+        # "phi_prime_scf_ic",
         "phi_scf_min",
         "phi_scf_max",
         "phi_scf_range",
@@ -3588,11 +3588,11 @@ def generate_swampland_table(
         "ddV_V_scf_max",
         "ddV_V_at_dV_V_min",
         "dV_V_at_ddV_V_max",
-        "swgc_expr_min",
+        # "swgc_expr_min",
         "sswgc_min",
-        "attractor_regime_scf",  # Integer parameter
-        "AdSDC2_max",
-        "AdSDC4_max",
+        # "attractor_regime_scf",  # Integer parameter
+        # "AdSDC2_max",
+        # "AdSDC4_max",
         "combined_dSC_min",
         "conformal_age",
     ]
@@ -3615,44 +3615,58 @@ def generate_swampland_table(
     if not swampland_roots:
         return "% No swampland constraint chains found."
 
-    # Check if phi_ini_scf_ic and phi_prime_scf_ic are always identical
-    duplicate_phi = True
+    # The duplicate-phi path is intentionally disabled while phi_prime_scf_ic
+    # remains commented out in the table definition above.
+    # duplicate_phi = True
+    # for root in swampland_roots:
+    #     summary = _get_chain_summary(root, chain_dir, resolved_settings)
+    #     if summary is None:
+    #         duplicate_phi = False
+    #         break
+    #     phi_identity = summary.get("phi_identity")
+    #     if not isinstance(phi_identity, bool) or not phi_identity:
+    #         duplicate_phi = False
+    #         break
+    #     _process_gui_events()
+    #
+    # if duplicate_phi:
+    #     print(
+    #         "Note: phi_ini_scf_ic and phi_prime_scf_ic are identical across all swampland chains."
+    #     )
+    #     swampland_params.remove("phi_prime_scf_ic")
+
+    # Group swampland chains by model family first, then dataset.
+    model_groups: dict[str, list[str]] = {
+        "hyperbolic": [],
+        "dexp": [],
+    }
+
     for root in swampland_roots:
-        summary = _get_chain_summary(root, chain_dir, resolved_settings)
-        if summary is None:
-            duplicate_phi = False
-            break
-        phi_identity = summary.get("phi_identity")
-        if not isinstance(phi_identity, bool) or not phi_identity:
-            duplicate_phi = False
-            break
-        _process_gui_events()
-
-    if duplicate_phi:
-        print(
-            "Note: phi_ini_scf_ic and phi_prime_scf_ic are identical across all swampland chains."
-        )
-        # Remove the duplicate parameter
-        swampland_params.remove("phi_prime_scf_ic")
-
-    # Group chains by dataset and model type
-    dataset_model_groups: dict[str, dict[str, list[str]]] = {}
-
-    for root in swampland_roots:
-        dataset_key, _, _ = identify_dataset_from_root(root)
         root_lower = root.lower()
 
         if "hyperbolic" in root_lower or "tanh" in root_lower:
-            model_type = "hyperbolic"
+            model_groups["hyperbolic"].append(root)
         elif "doubleexp" in root_lower or "dexp" in root_lower:
-            model_type = "dexp"
-        else:
-            model_type = "unknown"
+            model_groups["dexp"].append(root)
 
-        if dataset_key not in dataset_model_groups:
-            dataset_model_groups[dataset_key] = {"hyperbolic": [], "dexp": []}
-
-        dataset_model_groups[dataset_key][model_type].append(root)
+    # Previous combined-model grouping kept for reference.
+    # dataset_model_groups: dict[str, dict[str, list[str]]] = {}
+    #
+    # for root in swampland_roots:
+    #     dataset_key, _, _ = identify_dataset_from_root(root)
+    #     root_lower = root.lower()
+    #
+    #     if "hyperbolic" in root_lower or "tanh" in root_lower:
+    #         model_type = "hyperbolic"
+    #     elif "doubleexp" in root_lower or "dexp" in root_lower:
+    #         model_type = "dexp"
+    #     else:
+    #         model_type = "unknown"
+    #
+    #     if dataset_key not in dataset_model_groups:
+    #         dataset_model_groups[dataset_key] = {"hyperbolic": [], "dexp": []}
+    #
+    #     dataset_model_groups[dataset_key][model_type].append(root)
 
     # Collect parameter data
     chain_data: dict[str, dict[str, Any]] = {}
@@ -3689,13 +3703,10 @@ def generate_swampland_table(
     if not chain_data:
         return "% No swampland chains with usable data were available."
 
-    # Build LaTeX table
-    # Parameters as column headers, datasets as sub-headers, within each dataset: Hyperbolic then Double Exp
-
     # Prepare parameter labels
     param_latex_labels: dict[str, str] = {
         "phi_ini_scf_ic": r"\phi_{\text{ini}}",
-        "phi_prime_scf_ic": r"\dot{\phi}_{\text{ini}}",
+        # "phi_prime_scf_ic": r"\dot{\phi}_{\text{ini}}",
         "phi_scf_min": r"\phi_{\min}",
         "phi_scf_max": r"\phi_{\max}",
         "phi_scf_range": r"\Delta\phi",
@@ -3703,30 +3714,57 @@ def generate_swampland_table(
         "ddV_V_scf_max": r"\left(\frac{d^2V}{V}\right)_{\max}",
         "ddV_V_at_dV_V_min": r"\left(\frac{d^2V}{V}\right)_{\text{dV/V}_{\min}}",
         "dV_V_at_ddV_V_max": r"\left(\frac{dV}{V}\right)_{\text{d}^2\text{V/V}_{\max}}",
-        "swgc_expr_min": r"\text{SWGC}_{\text{expr,min}}",
+        # "swgc_expr_min": r"\text{SWGC}_{\text{expr,min}}",
         "sswgc_min": r"\text{SSWGC}_{\min}",
-        "attractor_regime_scf": r"n_{\text{attr}}",
-        "AdSDC2_max": r"m_{\text{DM,min}}^{\text{SUSY AdS}}",
-        "AdSDC4_max": r"m_{\text{DM,min}}^{\text{scale sep}}",
+        # "attractor_regime_scf": r"n_{\text{attr}}",
+        # "AdSDC2_max": r"m_{\text{DM,min}}^{\text{SUSY AdS}}",
+        # "AdSDC4_max": r"m_{\text{DM,min}}^{\text{scale sep}}",
         "combined_dSC_min": r"\text{dSC}_{\min}",
         "conformal_age": r"\tau_{\text{conf}}",
     }
 
-    # Pivoted layout: parameters as rows, model configurations as columns.
-    ordered_roots: list[str] = []
-    for dataset_key in sorted(dataset_model_groups.keys()):
-        models_dict = dataset_model_groups[dataset_key]
-        for model_type in ["hyperbolic", "dexp"]:
-            for root in models_dict[model_type]:
-                if root in chain_data:
-                    ordered_roots.append(root)
+    model_info: dict[str, dict[str, str]] = {
+        "dexp": {
+            "name": r"\Nref{pot:dexp} potential",
+            "label": "tab:swampland_dexp",
+            "short_caption": r"Swampland constraint parameters for the \Nref{pot:dexp} potential.",
+        },
+        "hyperbolic": {
+            "name": r"\Nref{pot:tanh} potential",
+            "label": "tab:swampland_hyperbolic",
+            "short_caption": r"Swampland constraint parameters for the \Nref{pot:tanh} potential.",
+        },
+    }
 
-    if not ordered_roots:
-        return "% No swampland chains with usable data were available."
+    def _swampland_dataset_header_lines(root: str) -> str:
+        dataset_flags = infer_dataset_flags_from_root(root)
+        parts: list[str] = []
+        if dataset_flags["has_spa"]:
+            parts.append(r"\gls{spa}")
+        elif dataset_flags["has_planck"]:
+            parts.append("Planck 2018")
+        if dataset_flags["has_desi"]:
+            parts.append(r"\gls{desi} DR2")
+        if dataset_flags["has_pantheon"]:
+            parts.append("Pantheon+")
+        if dataset_flags["has_sh0es"]:
+            parts.append(r"\gls{shoes}")
+        return r" \\ ".join(parts) if parts else root
 
-    n_models = len(ordered_roots)
-    # Use plain centered columns for maximum LaTeX robustness in this table.
-    col_spec = "l" + " c" * n_models
+    # Previous combined-model ordering kept for reference.
+    # ordered_roots: list[str] = []
+    # for dataset_key in sorted(dataset_model_groups.keys()):
+    #     models_dict = dataset_model_groups[dataset_key]
+    #     for model_type in ["hyperbolic", "dexp"]:
+    #         for root in models_dict[model_type]:
+    #             if root in chain_data:
+    #                 ordered_roots.append(root)
+    #
+    # if not ordered_roots:
+    #     return "% No swampland chains with usable data were available."
+    #
+    # n_models = len(ordered_roots)
+    # col_spec = "l" + " c" * n_models
 
     def _table3_decimals(
         mean: float, err_up: float, err_down: float, precision: int
@@ -3771,80 +3809,100 @@ def generate_swampland_table(
         inv_upper = 1.0 / lower_bound
         return inv_mean, inv_lower, inv_upper
 
-    lines: list[str] = []
-    lines.append(r"% Requires \\usepackage{graphicx} for \\rotatebox")
-    lines.append(r"\begin{table}[htbp]")
-    lines.append(r"\centering")
-    lines.append(r"\small")
-    lines.append(r"\caption{Swampland constraint parameters from MCMC analysis.}")
-    lines.append(r"\label{tab:swampland_params}")
-    lines.append(r"\tagpdfsetup{table/header-rows={1}}")
-    lines.append(r"\begin{tabular}{" + col_spec + "}")
-    lines.append(r"\toprule")
+    all_tables: list[str] = []
 
-    # Rotated headers with potential + likelihood information.
-    header_parts: list[str] = ["Parameter"]
-    for root in ordered_roots:
-        header_label = _table_glossary_label(build_legend_label(root))
-        header_parts.append(
-            r"\multicolumn{1}{c}{\rotatebox[origin=c]{90}{\parbox{3.8cm}{\centering "
-            + header_label
-            + r"}}}"
+    for model_key, model_roots in model_groups.items():
+        ordered_roots = []
+        for root in model_roots:
+            if root in chain_data:
+                ordered_roots.append(root)
+
+        ordered_roots.sort(key=lambda root: identify_dataset_from_root(root)[0])
+
+        if not ordered_roots:
+            continue
+
+        n_models = len(ordered_roots)
+        col_spec = "l" + " c" * n_models
+
+        lines: list[str] = []
+        lines.append(r"\begin{sidewaystable}[htbp]")
+        lines.append(r"\centering")
+        lines.append(r"\small")
+        lines.append(
+            r"\caption["
+            + model_info[model_key]["short_caption"]
+            + r"]{Swampland constraint parameters for the "
+            + model_info[model_key]["name"]
+            + r".}"
         )
-    lines.append(" & ".join(header_parts) + r" \\")
-    lines.append(r"\midrule")
+        lines.append(r"\label{" + model_info[model_key]["label"] + "}")
+        lines.append(r"\tagpdfsetup{table/header-rows={1}}")
+        lines.append(r"\begin{tabular}{" + col_spec + "}")
+        lines.append(r"\toprule")
 
-    # One row per parameter, one column per model.
-    for param in swampland_params:
-        row_parts: list[str] = [r"$" + param_latex_labels.get(param, param) + r"$"]
+        header_parts: list[str] = ["Parameter"]
         for root in ordered_roots:
-            data = chain_data[root]
-            if param == "attractor_regime_scf":
-                # Keep integer parameter readable by reporting weighted mean and mode.
-                if root in integer_modes:
-                    mean_val, mode_val = integer_modes[root]
-                    row_parts.append(rf"{mean_val:.2f} (mode:{mode_val})")
-                else:
-                    row_parts.append("--")
-            elif data["stats"] and data["stats"].get(param):
-                s = data["stats"][param]
-                if param in ("AdSDC2_max", "AdSDC4_max"):
-                    inverted = _invert_bound_stat(
-                        float(s["mean"]),
-                        float(s["lower_1sigma"]),
-                        float(s["upper_1sigma"]),
-                    )
-                    if inverted is None:
-                        row_parts.append("--")
+            header_label = _table_glossary_label(_swampland_dataset_header_lines(root))
+            header_parts.append(
+                r"\multicolumn{1}{c}{\parbox{3.0cm}{\centering " + header_label + r"}}"
+            )
+        lines.append(" & ".join(header_parts) + r" \\")
+        lines.append(r"\midrule")
+
+        for param in swampland_params:
+            row_parts: list[str] = [r"$" + param_latex_labels.get(param, param) + r"$"]
+            for root in ordered_roots:
+                data = chain_data[root]
+                if param == "attractor_regime_scf":
+                    if root in integer_modes:
+                        mean_val, mode_val = integer_modes[root]
+                        row_parts.append(rf"{mean_val:.2f} (mode:{mode_val})")
                     else:
-                        inv_mean, inv_lower, inv_upper = inverted
+                        row_parts.append("--")
+                elif data["stats"] and data["stats"].get(param):
+                    s = data["stats"][param]
+                    if param in ("AdSDC2_max", "AdSDC4_max"):
+                        inverted = _invert_bound_stat(
+                            float(s["mean"]),
+                            float(s["lower_1sigma"]),
+                            float(s["upper_1sigma"]),
+                        )
+                        if inverted is None:
+                            row_parts.append("--")
+                        else:
+                            inv_mean, inv_lower, inv_upper = inverted
+                            row_parts.append(
+                                _fmt_table3_value(
+                                    inv_mean,
+                                    inv_lower,
+                                    inv_upper,
+                                    precision=2,
+                                )
+                            )
+                    else:
                         row_parts.append(
                             _fmt_table3_value(
-                                inv_mean,
-                                inv_lower,
-                                inv_upper,
+                                s["mean"],
+                                s["lower_1sigma"],
+                                s["upper_1sigma"],
                                 precision=2,
                             )
                         )
                 else:
-                    row_parts.append(
-                        _fmt_table3_value(
-                            s["mean"],
-                            s["lower_1sigma"],
-                            s["upper_1sigma"],
-                            precision=2,
-                        )
-                    )
-            else:
-                row_parts.append("--")
+                    row_parts.append("--")
 
-        lines.append(" & ".join(row_parts) + r" \\")
+            lines.append(" & ".join(row_parts) + r" \\")
 
-    lines.append(r"\bottomrule")
-    lines.append(r"\end{tabular}")
-    lines.append(r"\end{table}")
+        lines.append(r"\bottomrule")
+        lines.append(r"\end{tabular}")
+        lines.append(r"\end{sidewaystable}")
+        all_tables.append("\n".join(lines))
 
-    return "\n".join(lines)
+    if not all_tables:
+        return "% No swampland chains with usable data were available."
+
+    return "\n\n".join(all_tables)
 
 
 def _compute_all_tables() -> dict[str, str]:
