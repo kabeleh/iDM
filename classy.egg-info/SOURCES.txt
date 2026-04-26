@@ -1,10 +1,9 @@
-CLASS_rename.py
+LICENSE
 Makefile
 README.md
 __init__.py
 pyproject.toml
 setup.py
-./CLASS_rename.py
 ./Makefile
 ./__init__.py
 ./setup.py
@@ -102,7 +101,6 @@ setup.py
 ./python/extract_errors.py
 ./python/interface_generator.py
 ./python/setup.py
-./python/test_class.py
 ./source/background.c
 ./source/distortions.c
 ./source/fourier.c
@@ -227,7 +225,6 @@ python/classy.pyx
 python/extract_errors.py
 python/interface_generator.py
 python/setup.py
-python/test_class.py
 source/background.c
 source/distortions.c
 source/fourier.c

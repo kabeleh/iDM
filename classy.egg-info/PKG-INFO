@@ -5,4 +5,6 @@ Summary: Python interface to the Cosmological Boltzmann code CLASS
 Home-page: http://www.class-code.net
 Author: Julien Lesgourgues, Thomas Tram, Nils Schöneberg, ... and many more (see webpage)
 Project-URL: Homepage, http://www.class-code.net
+License-File: LICENSE
 Dynamic: home-page
+Dynamic: license-file
