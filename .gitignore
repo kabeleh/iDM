@@ -30,3 +30,5 @@ assessment/
 baseline/*.dat
 baseline/*.npz
 baseline/*.npy
+PostProcessing/Plots/
+analysis/
