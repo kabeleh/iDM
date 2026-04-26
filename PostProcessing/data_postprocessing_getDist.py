@@ -629,10 +629,11 @@ def parse_cli_args() -> argparse.Namespace:
     parser.add_argument(
         "--only-plot",
         type=int,
-        choices=[1, 2],
+        choices=[1, 2, 3],
         default=None,
         help=(
-            "Internal/advanced mode: render only one plot (1=H0/S8, 2=scalar-field)."
+            "Internal/advanced mode: render only one plot "
+            "(1=H0/S8, 2=scalar-field, 3=cdm_c 1D)."
         ),
     )
     args = parser.parse_args()
@@ -913,8 +914,8 @@ ROOTS: list[str] = [
     # "hyperbolic_PP_S_D_InitCond_MCMC",
     # --- LCDM Archive ---
     # "cobaya_mcmc_CV_CMB_SPA_LCDM.post.S8",
-    # "cobaya_polychord_CV_PP_DESI_LCDM.post.S8",
-    # "cobaya_mcmc_CV_PP_S_DESI_LCDM.post.S8",
+    "cobaya_polychord_CV_PP_DESI_LCDM.post.S8",
+    "cobaya_mcmc_CV_PP_S_DESI_LCDM.post.S8",
     "cobaya_mcmc_fast_CMB_LCDM",
     "cobaya_mcmc_fast_CMB_LCDM.post.PP",
     "cobaya_mcmc_fast_CMB_LCDM.post.PPS",
@@ -939,8 +940,8 @@ ROOTS: list[str] = [
     # "SqE_Planck_InitCond_MCMC",
     # Hyperbolic Model:
     # "hyperbolic_SPA_InitCond_MCMC",
-    # "hyperbolic_PP_D_InitCond_MCMC",
-    # "hyperbolic_PP_S_D_InitCond_MCMC",
+    "hyperbolic_PP_D_InitCond_MCMC",
+    "hyperbolic_PP_S_D_InitCond_MCMC",
     "hyperbolic_Planck_InitCond_MCMC.post.Swamp",
     "hyperbolic_Planck_PP_DESI_InitCond_Swamp_MCMC",
     "hyperbolic_Planck_PPS_DESI_InitCond_Swamp_MCMC",
@@ -1752,6 +1753,105 @@ def make_triangle_plot(
     return g
 
 
+def make_1d_distribution_plot(
+    param: str,
+    param_label: str | None = None,
+    title: str | None = None,
+    size_scale: float = 1.0,
+) -> Any:
+    """Create a standalone 1D posterior plot for one parameter."""
+    _ensure_preview_fonts()
+    g: Any = plots.get_subplot_plotter(  # type: ignore[misc]
+        chain_dir=CHAIN_DIR,
+        analysis_settings=ANALYSIS_SETTINGS,
+    )
+
+    samples_by_root: list[tuple[str, str, Any]] = []
+    for root in ROOTS:
+        samples = get_samples_for_root(root, CHAIN_DIR, ANALYSIS_SETTINGS)
+        if samples is None:
+            continue
+        param_obj = samples.paramNames.parWithName(param)
+        if param_obj is None:
+            continue
+        if param_label is not None:
+            param_obj.label = param_label
+        resolved_root = resolve_chain_root(root, CHAIN_DIR)
+        samples_by_root.append((root, resolved_root, samples))
+
+    if not samples_by_root:
+        raise ValueError(
+            f"Parameter '{param}' is not available in any of the selected roots."
+        )
+
+    used_roots: list[str] = [root for root, _, _ in samples_by_root]
+    roots_to_plot: Sequence[Any] = [samples for _, _, samples in samples_by_root]
+    chain_colors: list[Color] = [ROOT_TO_COLOUR[root] for root in used_roots]
+    line_args = _build_chain_line_args(chain_colors)
+
+    g.plot_1d(
+        roots_to_plot,
+        param,
+        colors=chain_colors,
+        line_args=line_args,
+    )
+
+    _apply_chain_styles_to_axes(g, used_roots)
+
+    fig: Any = g.fig
+    fig.set_size_inches(FIGURE_WIDTH_IN * size_scale, FIGURE_HEIGHT_IN * size_scale)
+
+    # Replace auto legend with a style-consistent custom legend.
+    for legend in fig.legends:
+        legend.remove()
+    for ax in fig.axes:
+        legend = ax.get_legend()
+        if legend:
+            legend.remove()
+
+    chain_handles: list[Line2D] = []
+    for i, root in enumerate(used_roots):
+        linestyle, marker = _style_for_chain(i)
+        chain_handles.append(
+            Line2D(
+                [0],
+                [0],
+                color=ROOT_TO_COLOUR[root],
+                lw=2.0,
+                ls=linestyle,
+                marker=marker,
+                markersize=4,
+                label=build_legend_label(root),
+            )
+        )
+
+    # Reserve space on the right for a single-column legend outside the axes.
+    fig.subplots_adjust(left=0.12, right=0.65, top=0.96, bottom=0.12)
+
+    # Finalize figure layout to get accurate axis bounding box coordinates.
+    fig.canvas.draw()
+
+    # Position legend at the upper-right corner of the plot, close to the border.
+    ax = fig.axes[0]
+    ax_bbox = ax.get_position()
+
+    fig.legend(
+        chain_handles,
+        [str(h.get_label()) for h in chain_handles],
+        loc="upper left",
+        bbox_to_anchor=(ax_bbox.x1 + 0.01, ax_bbox.y1 + 0.018),
+        bbox_transform=fig.transFigure,
+        frameon=True,
+        fontsize=10.5,
+        ncol=1,
+    )
+
+    if title:
+        fig.suptitle(title, y=0.995)
+
+    return g
+
+
 # ============================================================================
 # ANNOTATION FUNCTIONS
 # ============================================================================
@@ -1906,6 +2006,7 @@ if CLI_ARGS.skip_plots:
 else:
     generate_plot1 = CLI_ARGS.only_plot in (None, 1)
     generate_plot2 = CLI_ARGS.only_plot in (None, 2)
+    generate_plot3 = CLI_ARGS.only_plot in (None, 3)
     plot_workers: list[subprocess.Popen[Any]] = []
 
     strict_export_dir = os.path.abspath(CLI_ARGS.strict_export_dir)
@@ -1919,6 +2020,9 @@ else:
         if generate_plot2:
             _log_prefixed("main", "Launching plot 2 in a parallel worker process.")
             plot_workers.append(_spawn_plot_worker(2))
+        if generate_plot3:
+            _log_prefixed("main", "Launching plot 3 in a parallel worker process.")
+            plot_workers.append(_spawn_plot_worker(3))
         if plot_workers:
             pids = ", ".join(str(p.pid) for p in plot_workers)
             _log_prefixed(
@@ -2004,6 +2108,40 @@ else:
             _show_figure_nonblocking(g2.fig, "Plot 2")
         except ValueError as e:
             _log_prefixed("plot2", f"Skipping scalar field parameters plot: {e}")
+
+    if CLI_ARGS.only_plot is not None and generate_plot3:
+        # ============================================================================
+        # PLOT 3: Standalone 1D posterior for cdm_c
+        # ============================================================================
+        try:
+            _log_prefixed("plot3", "Generating standalone cdm_c 1D posterior plot...")
+            g3 = make_1d_distribution_plot(
+                "cdm_c",
+                param_label=scf_labels.get("cdm_c"),
+                title=None,
+                size_scale=1.08,
+            )
+
+            if CLI_ARGS.strict_export:
+                pdf_path = os.path.join(
+                    strict_export_dir, "plot_cdm_c_distribution.pdf"
+                )
+                pgf_path = os.path.join(
+                    strict_export_dir, "plot_cdm_c_distribution.pgf"
+                )
+                save_strict_plex_figure(g3.fig, pdf_path, pgf_path)
+                print(f"Strict export saved: {pdf_path}")
+                print(f"Strict export saved: {pgf_path}")
+
+            # Apply legend text style fix only for interactive display
+            if g3.fig.legends:
+                for text in g3.fig.legends[0].get_texts():
+                    text.set_style("normal")
+                    text.set_weight("normal")
+
+            _show_figure_nonblocking(g3.fig, "Plot 3")
+        except ValueError as e:
+            _log_prefixed("plot3", f"Skipping cdm_c 1D plot: {e}")
 
     # Tables only need cached summaries and parsed best-fit data at this point.
     # Releasing the full sample cache cuts peak memory substantially.
