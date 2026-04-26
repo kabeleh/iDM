@@ -207,6 +207,14 @@ def parse_arguments() -> argparse.Namespace:
             "LCDM background/P(k)/lensed C_ℓ outputs and overlays LCDM references in the P(k) and C_ℓ plots."
         ),
     )
+    parser.add_argument(
+        "--print_omegas",
+        action="store_true",
+        help=(
+            "Print Omega_m, Omega_dm (CDM), and Omega_DE at z=0 for the model and, if --lcdm_baseline "
+            "is provided, for the LCDM concordance model. Skips P(k), C_ℓ loading, and all plots."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -1205,6 +1213,7 @@ def load_background_dataset(background_file: str) -> Dict[str, Any]:
         "V": _find_column_index(labels, "V_scf"),
         "dV": _find_column_index(labels, "V'_scf"),
         "d2V": _find_column_index(labels, "V''_scf"),
+        "Omega_m": _find_column_index(labels, "Omega_m(z)"),
     }
 
     z = data[:, idx["z"]]
@@ -1215,6 +1224,7 @@ def load_background_dataset(background_file: str) -> Dict[str, Any]:
     V = data[:, idx["V"]]
     dV = data[:, idx["dV"]]
     d2V = data[:, idx["d2V"]]
+    Omega_m_class = data[:, idx["Omega_m"]]
 
     _validate_monotonic_increasing("background z (ascending)", np.sort(z), strict=False)
     _validate_finite_fraction(
@@ -1280,6 +1290,7 @@ def load_background_dataset(background_file: str) -> Dict[str, Any]:
         "V": V,
         "dV": dV,
         "d2V": d2V,
+        "Omega_m_class": Omega_m_class,
         **derived,
     }
 
@@ -1397,10 +1408,13 @@ def load_background_dataset_cache(cache_file: str) -> Dict[str, Any]:
                 "V": _find_column_index(column_labels, "V_scf"),
                 "dV": _find_column_index(column_labels, "V'_scf"),
                 "d2V": _find_column_index(column_labels, "V''_scf"),
+                "Omega_m": _find_column_index(column_labels, "Omega_m(z)"),
             }
         else:
             column_labels = cached_column_labels
-            column_indices = cached_column_indices
+            column_indices = dict(cached_column_indices)
+            if "Omega_m" not in column_indices:
+                column_indices["Omega_m"] = _find_column_index(column_labels, "Omega_m(z)")
 
         z = raw_table[:, column_indices["z"]]
         rho_cdm = raw_table[:, column_indices["rho_cdm"]]
@@ -1410,6 +1424,7 @@ def load_background_dataset_cache(cache_file: str) -> Dict[str, Any]:
         V = raw_table[:, column_indices["V"]]
         dV = raw_table[:, column_indices["dV"]]
         d2V = raw_table[:, column_indices["d2V"]]
+        Omega_m_class = raw_table[:, column_indices["Omega_m"]]
         derived = _compute_background_derived(
             z=z,
             rho_cdm=rho_cdm,
@@ -1460,6 +1475,7 @@ def load_background_dataset_cache(cache_file: str) -> Dict[str, Any]:
             "V": V,
             "dV": dV,
             "d2V": d2V,
+            "Omega_m_class": Omega_m_class,
             "_cache_needs_rewrite": cache_needs_rewrite,
             **derived,
         }
@@ -1517,12 +1533,14 @@ def load_lcdm_background_omegas_dataset(background_file: str) -> Dict[str, Any]:
         "rho_cdm": _find_column_index(labels, "(.)rho_cdm"),
         "rho_lambda": _find_column_index(labels, "(.)rho_lambda"),
         "rho_crit": _find_column_index(labels, "(.)rho_crit"),
+        "Omega_m": _find_column_index(labels, "Omega_m(z)"),
     }
 
     z = data[:, idx["z"]]
     rho_cdm = data[:, idx["rho_cdm"]]
     rho_lambda = data[:, idx["rho_lambda"]]
     rho_crit = data[:, idx["rho_crit"]]
+    Omega_m_class = data[:, idx["Omega_m"]]
 
     _validate_finite_fraction("LCDM z", z, min_fraction=_MIN_BACKGROUND_FINITE_FRACTION)
     _validate_finite_fraction(
@@ -1548,6 +1566,7 @@ def load_lcdm_background_omegas_dataset(background_file: str) -> Dict[str, Any]:
         "rho_crit": rho_crit,
         "Omega_cdm": Omega_cdm,
         "Omega_lambda": Omega_lambda,
+        "Omega_m_class": Omega_m_class,
     }
 
 
@@ -1607,18 +1626,23 @@ def load_lcdm_background_omegas_cache(cache_file: str) -> Dict[str, Any]:
         column_index_values = [int(x) for x in cached["column_index_values"].tolist()]
         column_indices = dict(zip(column_index_keys, column_index_values))
 
+        raw_table = cached["raw_table"]
+        Omega_m_idx = _find_column_index(column_labels, "Omega_m(z)")
+        Omega_m_class = raw_table[:, Omega_m_idx]
+
         dataset = {
             "background_file": background_file,
             "provenance": _build_source_provenance(background_file),
             "column_labels": column_labels,
             "column_indices": column_indices,
-            "raw_table": cached["raw_table"],
+            "raw_table": raw_table,
             "z": cached["z"],
             "rho_cdm": cached["rho_cdm"],
             "rho_lambda": cached["rho_lambda"],
             "rho_crit": cached["rho_crit"],
             "Omega_cdm": cached["Omega_cdm"],
             "Omega_lambda": cached["Omega_lambda"],
+            "Omega_m_class": Omega_m_class,
         }
         _ensure_min_rows(
             "LCDM background cache table",
@@ -2037,6 +2061,77 @@ def load_or_compute_cl_dataset(
     return dataset, "computed"
 
 
+def print_omega_summary_at_z0(
+    model_dataset: Dict[str, Any],
+    model_label: str,
+    lcdm_dataset: Optional[Dict[str, Any]] = None,
+) -> None:
+    """Print Omega_m, Omega_dm (CDM), and Omega_DE at z=0 for model and optionally LCDM.
+
+    Values are read directly from the last row of the CLASS background table (z=0).
+    Omega_m is taken from the CLASS-computed Omega_m(z) column (= (rho_b+rho_cdm+rho_ncdm)/rho_crit).
+    Omega_dm is rho_cdm/rho_crit.
+    Omega_DE is rho_scf/rho_crit for the model, rho_lambda/rho_crit for LCDM.
+    """
+    def _z0_row(z: np.ndarray) -> int:
+        """Return the index of the z=0 row (last row, or closest to z=0)."""
+        if float(z[-1]) == 0.0:
+            return len(z) - 1
+        return int(np.argmin(np.abs(z)))
+
+    print("\n" + "=" * 80)
+    print("Cosmological Density Parameters at z = 0  (a = 1)")
+    print("=" * 80)
+    print(f"{'Quantity':<22}  {'Model (' + model_label + ')':>28}", end="")
+    if lcdm_dataset is not None:
+        print(f"  {'LCDM':>16}", end="")
+    print()
+    print("-" * (52 if lcdm_dataset is None else 72))
+
+    # Model values
+    m_idx = _z0_row(model_dataset["z"])
+    m_Omega_m   = float(model_dataset["Omega_m_class"][m_idx])
+    m_Omega_dm  = float(model_dataset["Omega_cdm"][m_idx])
+    m_Omega_DE  = float(model_dataset["Omega_scf"][m_idx])
+    m_z         = float(model_dataset["z"][m_idx])
+
+    rows = [
+        ("Omega_m  (total matter)", m_Omega_m,  None),
+        ("Omega_dm (CDM only)",     m_Omega_dm, None),
+        ("Omega_DE (dark energy)",  m_Omega_DE, None),
+    ]
+
+    if lcdm_dataset is not None:
+        l_idx = _z0_row(lcdm_dataset["z"])
+        l_Omega_m  = float(lcdm_dataset["Omega_m_class"][l_idx])
+        l_Omega_dm = float(lcdm_dataset["Omega_cdm"][l_idx])
+        l_Omega_DE = float(lcdm_dataset["Omega_lambda"][l_idx])
+        l_z        = float(lcdm_dataset["z"][l_idx])
+        rows = [
+            ("Omega_m  (total matter)", m_Omega_m,  l_Omega_m),
+            ("Omega_dm (CDM only)",     m_Omega_dm, l_Omega_dm),
+            ("Omega_DE (dark energy)",  m_Omega_DE, l_Omega_DE),
+        ]
+
+    for label, m_val, l_val in rows:
+        line = f"  {label:<20}  {m_val:>28.10f}"
+        if l_val is not None:
+            line += f"  {l_val:>16.10f}"
+        print(line)
+
+    print("-" * (52 if lcdm_dataset is None else 72))
+    print(f"  (evaluated at z = {m_z:.2e} for model", end="")
+    if lcdm_dataset is not None:
+        print(f", z = {l_z:.2e} for LCDM)", end="")
+    print(")")
+    print(
+        "  Note: Omega_m = (rho_b + rho_cdm + rho_ncdm) / rho_crit  [CLASS Omega_m(z) column]\n"
+        "        Omega_dm = rho_cdm / rho_crit\n"
+        "        Omega_DE = rho_scf / rho_crit  (model)  |  rho_Lambda / rho_crit  (LCDM)"
+    )
+    print("=" * 80)
+
+
 if __name__ == "__main__":
     args = parse_arguments()
 
@@ -2137,11 +2232,11 @@ if __name__ == "__main__":
             print(f"LCDM P(k):          {baseline_run_info['pk_file']}")
             print(f"LCDM C_ℓ:           {baseline_run_info['cl_lensed_file']}")
 
-        print("\nAll required CLASS outputs are ready. Now loading for plotting...")
+        print("\nAll required CLASS outputs are ready. Now loading datasets...")
 
-        # Step 2.b: Load all three datasets and compute quantities for plotting.
+        # Step 2.b: Load background datasets (always needed).
         print("\n" + "=" * 80)
-        print("Loading Background, P(k), and C_ℓ Data")
+        print("Loading Background Data")
         print("=" * 80)
 
         bg_cache_file = str(
@@ -2158,6 +2253,44 @@ if __name__ == "__main__":
         )
         for wmsg in background_dataset.get("warnings", []):
             print(f"  ⚠ {wmsg}")
+
+        if baseline_run_info is not None:
+            baseline_bg_cache_file = (
+                f"{baseline_run_info['background_file']}.lcdm_omegas.processed.npz"
+            )
+            baseline_background_dataset, baseline_bg_source = (
+                load_or_compute_lcdm_background_omegas_dataset(
+                    background_file=baseline_run_info["background_file"],
+                    cache_file=baseline_bg_cache_file,
+                )
+            )
+            print(
+                f"\nLCDM background Ω data: source={baseline_bg_source}, cache={baseline_bg_cache_file}"
+            )
+            print(
+                f"  Rows:           {baseline_background_dataset['raw_table'].shape[0]}"
+            )
+            print(
+                f"  z-range:        [{np.nanmin(baseline_background_dataset['z']):.6g}, {np.nanmax(baseline_background_dataset['z']):.6g}]"
+            )
+            for wmsg in baseline_background_dataset.get("warnings", []):
+                print(f"  ⚠ {wmsg}")
+
+        # Always print the z=0 density parameters.
+        _model_label = Path(args.bestfit_file).stem
+        print_omega_summary_at_z0(
+            background_dataset,
+            _model_label,
+            baseline_background_dataset,
+        )
+
+        if args.print_omegas:
+            sys.exit(0)
+
+        # Step 2.c: Load P(k) and C_ℓ datasets for plotting.
+        print("\n" + "=" * 80)
+        print("Loading P(k) and C_ℓ Data")
+        print("=" * 80)
 
         pk_cache_file = str(Path(run_info["pk_file"]).with_suffix(".processed.npz"))
         pk_dataset, pk_source = load_or_compute_pk_dataset(
@@ -2187,27 +2320,6 @@ if __name__ == "__main__":
             print(f"  ⚠ {wmsg}")
 
         if baseline_run_info is not None:
-            baseline_bg_cache_file = (
-                f"{baseline_run_info['background_file']}.lcdm_omegas.processed.npz"
-            )
-            baseline_background_dataset, baseline_bg_source = (
-                load_or_compute_lcdm_background_omegas_dataset(
-                    background_file=baseline_run_info["background_file"],
-                    cache_file=baseline_bg_cache_file,
-                )
-            )
-            print(
-                f"\nLCDM background Ω data: source={baseline_bg_source}, cache={baseline_bg_cache_file}"
-            )
-            print(
-                f"  Rows:           {baseline_background_dataset['raw_table'].shape[0]}"
-            )
-            print(
-                f"  z-range:        [{np.nanmin(baseline_background_dataset['z']):.6g}, {np.nanmax(baseline_background_dataset['z']):.6g}]"
-            )
-            for wmsg in baseline_background_dataset.get("warnings", []):
-                print(f"  ⚠ {wmsg}")
-
             baseline_pk_cache_file = str(
                 Path(baseline_run_info["pk_file"]).with_suffix(".processed.npz")
             )
