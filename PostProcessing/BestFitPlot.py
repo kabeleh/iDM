@@ -1210,6 +1210,7 @@ def load_background_dataset(background_file: str) -> Dict[str, Any]:
         "rho_scf": _find_column_index(labels, "(.)rho_scf"),
         "rho_crit": _find_column_index(labels, "(.)rho_crit"),
         "p_scf": _find_column_index(labels, "(.)p_scf"),
+        "phi_scf": _find_column_index(labels, "phi_scf"),
         "V": _find_column_index(labels, "V_scf"),
         "dV": _find_column_index(labels, "V'_scf"),
         "d2V": _find_column_index(labels, "V''_scf"),
@@ -1221,6 +1222,7 @@ def load_background_dataset(background_file: str) -> Dict[str, Any]:
     rho_scf = data[:, idx["rho_scf"]]
     rho_crit = data[:, idx["rho_crit"]]
     p_scf = data[:, idx["p_scf"]]
+    phi_scf = data[:, idx["phi_scf"]]
     V = data[:, idx["V"]]
     dV = data[:, idx["dV"]]
     d2V = data[:, idx["d2V"]]
@@ -1287,6 +1289,7 @@ def load_background_dataset(background_file: str) -> Dict[str, Any]:
         "rho_scf": rho_scf,
         "rho_crit": rho_crit,
         "p_scf": p_scf,
+        "phi_scf": phi_scf,
         "V": V,
         "dV": dV,
         "d2V": d2V,
@@ -1339,7 +1342,7 @@ def save_background_dataset_cache(dataset: Dict[str, Any], cache_file: str) -> N
 
     np.savez_compressed(
         str(path),
-        schema_version=np.array([3], dtype=np.int64),
+        schema_version=np.array([4], dtype=np.int64),
         background_file=np.array([str(dataset["background_file"])], dtype=str),
         source_file=np.array([provenance["source_file"]], dtype=str),
         source_mtime_ns=np.array([provenance["source_mtime_ns"]], dtype=np.int64),
@@ -1356,6 +1359,7 @@ def save_background_dataset_cache(dataset: Dict[str, Any], cache_file: str) -> N
         rho_scf=dataset["rho_scf"],
         rho_crit=dataset["rho_crit"],
         p_scf=dataset["p_scf"],
+        phi_scf=dataset["phi_scf"],
         V=dataset["V"],
         dV=dataset["dV"],
         d2V=dataset["d2V"],
@@ -1372,7 +1376,7 @@ def load_background_dataset_cache(cache_file: str) -> Dict[str, Any]:
     """Load processed background dataset from a compressed NPZ cache file."""
     with np.load(cache_file, allow_pickle=False) as cached:
         schema_version = int(cached["schema_version"][0])
-        if schema_version not in (1, 2, 3):
+        if schema_version not in (1, 2, 3, 4):
             raise ValueError(
                 f"Unsupported background cache schema version: {schema_version}"
             )
@@ -1405,6 +1409,7 @@ def load_background_dataset_cache(cache_file: str) -> Dict[str, Any]:
                 "rho_scf": _find_column_index(column_labels, "(.)rho_scf"),
                 "rho_crit": _find_column_index(column_labels, "(.)rho_crit"),
                 "p_scf": _find_column_index(column_labels, "(.)p_scf"),
+                "phi_scf": _find_column_index(column_labels, "phi_scf"),
                 "V": _find_column_index(column_labels, "V_scf"),
                 "dV": _find_column_index(column_labels, "V'_scf"),
                 "d2V": _find_column_index(column_labels, "V''_scf"),
@@ -1415,12 +1420,15 @@ def load_background_dataset_cache(cache_file: str) -> Dict[str, Any]:
             column_indices = dict(cached_column_indices)
             if "Omega_m" not in column_indices:
                 column_indices["Omega_m"] = _find_column_index(column_labels, "Omega_m(z)")
+            if "phi_scf" not in column_indices:
+                column_indices["phi_scf"] = _find_column_index(column_labels, "phi_scf")
 
         z = raw_table[:, column_indices["z"]]
         rho_cdm = raw_table[:, column_indices["rho_cdm"]]
         rho_scf = raw_table[:, column_indices["rho_scf"]]
         rho_crit = raw_table[:, column_indices["rho_crit"]]
         p_scf = raw_table[:, column_indices["p_scf"]]
+        phi_scf = raw_table[:, column_indices["phi_scf"]]
         V = raw_table[:, column_indices["V"]]
         dV = raw_table[:, column_indices["dV"]]
         d2V = raw_table[:, column_indices["d2V"]]
@@ -1441,7 +1449,7 @@ def load_background_dataset_cache(cache_file: str) -> Dict[str, Any]:
             or column_indices != cached_column_indices
         )
 
-        if schema_version < 3:
+        if schema_version < 4:
             cache_needs_rewrite = True
 
         provenance = _build_source_provenance(background_file)
@@ -1472,6 +1480,7 @@ def load_background_dataset_cache(cache_file: str) -> Dict[str, Any]:
             "rho_scf": rho_scf,
             "rho_crit": rho_crit,
             "p_scf": p_scf,
+            "phi_scf": phi_scf,
             "V": V,
             "dV": dV,
             "d2V": d2V,
@@ -1479,6 +1488,80 @@ def load_background_dataset_cache(cache_file: str) -> Dict[str, Any]:
             "_cache_needs_rewrite": cache_needs_rewrite,
             **derived,
         }
+
+
+def extract_dm_mass_evolution_from_bestfit(
+    bestfit_path: str,
+    output_dir: str,
+    *,
+    reuse_background: bool = True,
+) -> Dict[str, Any]:
+    """Compute normalized dark-matter mass evolution m(phi)/m(phi0) from a best-fit run.
+
+    The model uses m(phi) proportional to 0.5 * (1 - tanh(cdm_c * phi)); the normalization
+    denominator is cdm_f_phi0 from CLASS best-fit outputs when available.
+    """
+    class_params, _ = extract_parameters_from_bestfit(bestfit_path)
+    run_info = resolve_or_run_class_outputs(
+        class_params=class_params,
+        bestfit_path=bestfit_path,
+        output_dir=output_dir,
+        reuse_only=reuse_background,
+        reuse_if_available=True,
+    )
+
+    bg_cache_file = str(Path(run_info["background_file"]).with_suffix(".processed.npz"))
+    background_dataset, bg_source = load_or_compute_background_dataset(
+        background_file=run_info["background_file"],
+        cache_file=bg_cache_file,
+    )
+
+    bestfit_values = load_bestfit_file(bestfit_path)
+    if "cdm_c" not in bestfit_values:
+        raise KeyError(
+            f"Required parameter 'cdm_c' missing in best-fit file: {bestfit_path}"
+        )
+    cdm_c = float(bestfit_values["cdm_c"])
+
+    phi_scf = np.asarray(background_dataset["phi_scf"], dtype=float)
+    z = np.asarray(background_dataset["z"], dtype=float)
+
+    with np.errstate(over="ignore", invalid="ignore"):
+        numerator = 0.5 * (1.0 - np.tanh(cdm_c * phi_scf))
+
+    cdm_f_phi0 = bestfit_values.get("cdm_f_phi0")
+    if cdm_f_phi0 is not None and np.isfinite(float(cdm_f_phi0)) and abs(float(cdm_f_phi0)) > 0.0:
+        denom = float(cdm_f_phi0)
+        denom_source = "bestfit"
+    else:
+        if z.size == 0:
+            raise ValueError(
+                f"Background dataset has no rows for best-fit file: {bestfit_path}"
+            )
+        z0_idx = int(np.argmin(np.abs(z)))
+        phi0 = float(phi_scf[z0_idx])
+        denom = float(0.5 * (1.0 - np.tanh(cdm_c * phi0)))
+        if not np.isfinite(denom) or denom == 0.0:
+            raise ValueError(
+                f"Failed to build finite non-zero mass normalization for: {bestfit_path}"
+            )
+        denom_source = "reconstructed_from_phi0"
+
+    mass_ratio = numerator / denom
+
+    return {
+        "bestfit_file": os.path.abspath(bestfit_path),
+        "output_root": run_info["output_root"],
+        "background_file": run_info["background_file"],
+        "background_cache": bg_cache_file,
+        "background_source": bg_source,
+        "z": z,
+        "phi_scf": phi_scf,
+        "cdm_c": cdm_c,
+        "cdm_f_phi0": float(denom),
+        "cdm_f_phi0_source": denom_source,
+        "mass_ratio": mass_ratio,
+    }
 
 
 def load_or_compute_background_dataset(

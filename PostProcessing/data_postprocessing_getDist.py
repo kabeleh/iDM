@@ -54,6 +54,7 @@ from matplotlib.lines import Line2D
 from matplotlib.patches import Patch
 from cmcrameri import cm  # type: ignore[import-untyped]
 from getdist import plots  # type: ignore[import-untyped]
+from BestFitPlot import extract_dm_mass_evolution_from_bestfit
 
 # GetDist imports for MCMC analysis
 from getdist import MCSamples, loadMCSamples  # type: ignore[import-untyped]
@@ -629,11 +630,11 @@ def parse_cli_args() -> argparse.Namespace:
     parser.add_argument(
         "--only-plot",
         type=int,
-        choices=[1, 2, 3],
+        choices=[1, 2, 3, 4],
         default=None,
         help=(
             "Internal/advanced mode: render only one plot "
-            "(1=H0/S8, 2=scalar-field, 3=cdm_c 1D)."
+            "(1=H0/S8, 2=scalar-field, 3=cdm_c 1D, 4=DM mass evolution)."
         ),
     )
     args = parser.parse_args()
@@ -1852,6 +1853,78 @@ def make_1d_distribution_plot(
     return g
 
 
+def make_dm_mass_evolution_plot(output_dir: str) -> Any:
+    """Create a z-history plot for normalized dark-matter mass evolution.
+    
+    Iterates over hyperbolic models in ROOTS, extracting DM mass evolution data
+    from their respective bestfit files. Uses the standard legend system to
+    maintain consistency with plots 1–3.
+    """
+    _ensure_preview_fonts()
+
+    fig, ax = plt.subplots(figsize=(FIGURE_WIDTH_IN * 1.12, FIGURE_HEIGHT_IN * 0.95))
+    plotted = 0
+    hyperbolic_roots = [r for r in ROOTS if "hyperbolic" in r]
+
+    for i, root in enumerate(hyperbolic_roots):
+        try:
+            resolved_root = resolve_chain_root(root, CHAIN_DIR)
+            bestfit_path = _root_base_path(resolved_root, CHAIN_DIR) + ".bestfit"
+            dataset = extract_dm_mass_evolution_from_bestfit(
+                bestfit_path=bestfit_path,
+                output_dir=output_dir,
+                reuse_background=True,
+            )
+
+            z = np.asarray(dataset["z"], dtype=float)
+            mass_ratio = np.asarray(dataset["mass_ratio"], dtype=float)
+            finite = np.isfinite(z) & np.isfinite(mass_ratio)
+            if np.count_nonzero(finite) < 2:
+                raise ValueError("insufficient finite samples for plotting")
+
+            z_plot = z[finite]
+            ratio_plot = mass_ratio[finite]
+            order = np.argsort(z_plot)
+            z_plot = z_plot[order]
+            ratio_plot = ratio_plot[order]
+
+            color = ROOT_TO_COLOUR.get(root, ROOT_TO_COLOUR.get(resolved_root))
+            if color is None:
+                color = _RAW_CHAIN_COLOURS[i % len(_RAW_CHAIN_COLOURS)]
+            linestyle, marker = _style_for_chain(i)
+
+            ax.plot(
+                z_plot,
+                ratio_plot,
+                color=color,
+                linestyle=linestyle,
+                marker=marker,
+                markevery=max(1, len(z_plot) // 18),
+                linewidth=1.7,
+                label=build_legend_label(root),
+            )
+            plotted += 1
+        except Exception as e:  # noqa: BLE001
+            _log_prefixed("plot4", f"Skipping {root}: {e}")
+
+    if plotted == 0:
+        raise ValueError("No valid dark matter mass evolution curves were produced.")
+
+    # Matching BestFitPlot._style_redshift_axis: symlog with linthresh=1.0
+    # and xlim (zmax, 0.0) to achieve cosmic history left-to-right direction.
+    ax.set_xscale("symlog", linthresh=1.0)
+    zmax = float(np.nanmax(z[np.isfinite(z)])) if np.any(np.isfinite(z)) else 1.0e14
+    ax.set_xlim(zmax, 0.0)
+    ax.set_xlabel(r"$z$")
+    ax.set_ylabel(r"$m_{\tanh}(\phi) / m_{\tanh}(\phi_0)$")
+    ax.axhline(1.0, color="black", linestyle=":", linewidth=1.0, alpha=0.9)
+    ax.grid(True, which="major", alpha=0.32, linewidth=0.55)
+    ax.grid(True, which="minor", alpha=0.16, linewidth=0.45)
+    ax.legend(loc="best")
+    fig.tight_layout()
+    return fig
+
+
 # ============================================================================
 # ANNOTATION FUNCTIONS
 # ============================================================================
@@ -2007,6 +2080,7 @@ else:
     generate_plot1 = CLI_ARGS.only_plot in (None, 1)
     generate_plot2 = CLI_ARGS.only_plot in (None, 2)
     generate_plot3 = CLI_ARGS.only_plot in (None, 3)
+    generate_plot4 = CLI_ARGS.only_plot in (None, 4)
     plot_workers: list[subprocess.Popen[Any]] = []
 
     strict_export_dir = os.path.abspath(CLI_ARGS.strict_export_dir)
@@ -2023,6 +2097,9 @@ else:
         if generate_plot3:
             _log_prefixed("main", "Launching plot 3 in a parallel worker process.")
             plot_workers.append(_spawn_plot_worker(3))
+        if generate_plot4:
+            _log_prefixed("main", "Launching plot 4 in a parallel worker process.")
+            plot_workers.append(_spawn_plot_worker(4))
         if plot_workers:
             pids = ", ".join(str(p.pid) for p in plot_workers)
             _log_prefixed(
@@ -2142,6 +2219,32 @@ else:
             _show_figure_nonblocking(g3.fig, "Plot 3")
         except ValueError as e:
             _log_prefixed("plot3", f"Skipping cdm_c 1D plot: {e}")
+
+    if CLI_ARGS.only_plot is not None and generate_plot4:
+        # ============================================================================
+        # PLOT 4: Dark matter mass evolution over cosmic history
+        # ============================================================================
+        try:
+            _log_prefixed("plot4", "Generating DM mass evolution z-history plot...")
+            plots_dir = os.path.join(_SCRIPT_DIR, "Plots")
+            fig4 = make_dm_mass_evolution_plot(
+                output_dir=plots_dir,
+            )
+
+            if CLI_ARGS.strict_export:
+                pdf_path = os.path.join(
+                    strict_export_dir, "plot_dm_mass_evolution_hyperbolic.pdf"
+                )
+                pgf_path = os.path.join(
+                    strict_export_dir, "plot_dm_mass_evolution_hyperbolic.pgf"
+                )
+                save_strict_plex_figure(fig4, pdf_path, pgf_path)
+                print(f"Strict export saved: {pdf_path}")
+                print(f"Strict export saved: {pgf_path}")
+
+            _show_figure_nonblocking(fig4, "Plot 4")
+        except ValueError as e:
+            _log_prefixed("plot4", f"Skipping DM mass evolution plot: {e}")
 
     # Tables only need cached summaries and parsed best-fit data at this point.
     # Releasing the full sample cache cuts peak memory substantially.
