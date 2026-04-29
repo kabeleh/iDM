@@ -10,6 +10,7 @@ in kWh and equivalent CO2 emissions.
 import os
 import sys
 import glob
+import re
 from pathlib import Path
 from typing import List
 
@@ -26,6 +27,8 @@ def parse_energy_from_file(filepath: str) -> List[int]:
     """
     energy_values: List[int] = []
     in_table = False
+    energy_col_start = -1
+    max_valid_energy = 2**63 - 1
 
     try:
         with open(filepath, "r") as f:
@@ -33,6 +36,7 @@ def parse_energy_from_file(filepath: str) -> List[int]:
                 # Check if we've found the header line
                 if "ConsumedEnergyRaw" in line and "JobID" in line:
                     in_table = True
+                    energy_col_start = line.find("ConsumedEnergyRaw")
                     continue
 
                 # Skip the separator line
@@ -42,19 +46,26 @@ def parse_energy_from_file(filepath: str) -> List[int]:
                 # If we're in a table and hit an empty line, we're done with this table
                 if in_table and line.strip() == "":
                     in_table = False
+                    energy_col_start = -1
                     continue
 
                 # Parse data lines
                 if in_table:
-                    parts = line.split()
-                    if len(parts) >= 6:  # Should have at least 6 columns
-                        try:
-                            energy_str = parts[-1]  # ConsumedEnergyRaw is last column
-                            energy = int(energy_str)
-                            energy_values.append(energy)
-                        except (ValueError, IndexError):
-                            # Skip lines that don't have valid energy values
-                            pass
+                    # SLURM rows start with numeric JobID (e.g. 12345 or 12345.batch).
+                    # If this no longer holds, we've likely left the table.
+                    if not re.match(r"\s*\d", line):
+                        in_table = False
+                        energy_col_start = -1
+                        continue
+
+                    if energy_col_start >= 0 and len(line) > energy_col_start:
+                        energy_field = line[energy_col_start:].strip()
+                        if energy_field:
+                            token = energy_field.split()[0]
+                            if re.fullmatch(r"\d+", token):
+                                energy = int(token)
+                                if energy <= max_valid_energy:
+                                    energy_values.append(energy)
 
     except Exception as e:
         print(f"Warning: Error reading {filepath}: {e}", file=sys.stderr)
