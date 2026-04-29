@@ -1098,7 +1098,7 @@ def run_class_background(
 #      - the critical density rho_crit
 #      - the scalar field pressur p_scf
 #      - the scalar field potential V
-#      - the scalar field potential first derivative dV
+#      - the scalar field potential first derivative dV = V'_pure used for dSC diagnostics
 #      - the scalar field potential second derivative d2V
 #      Based on these quantities, we then compute
 #      - the equation of state w = p_scf / rho_scf
@@ -1184,13 +1184,13 @@ def load_background_dataset(background_file: str) -> Dict[str, Any]:
       - (.)rho_crit
       - (.)p_scf
       - V_scf
-      - V'_scf
+      - V'_p_scf
       - V''_scf
 
     Computed quantities:
       - a = 1/(1+z)
       - w = p_scf / rho_scf
-      - s1 = |V'_scf| / V_scf
+      - s1 = |V'_p_scf| / V_scf
       - minus_s2 = V''_scf / V_scf
       - swampland_expr = 1 + w - 0.15 * s1^2
       - Omega_cdm = rho_cdm / rho_crit
@@ -1212,7 +1212,7 @@ def load_background_dataset(background_file: str) -> Dict[str, Any]:
         "p_scf": _find_column_index(labels, "(.)p_scf"),
         "phi_scf": _find_column_index(labels, "phi_scf"),
         "V": _find_column_index(labels, "V_scf"),
-        "dV": _find_column_index(labels, "V'_scf"),
+        "dV": _find_column_index(labels, "V'_p_scf"),
         "d2V": _find_column_index(labels, "V''_scf"),
         "Omega_m": _find_column_index(labels, "Omega_m(z)"),
     }
@@ -1342,7 +1342,7 @@ def save_background_dataset_cache(dataset: Dict[str, Any], cache_file: str) -> N
 
     np.savez_compressed(
         str(path),
-        schema_version=np.array([4], dtype=np.int64),
+        schema_version=np.array([5], dtype=np.int64),
         background_file=np.array([str(dataset["background_file"])], dtype=str),
         source_file=np.array([provenance["source_file"]], dtype=str),
         source_mtime_ns=np.array([provenance["source_mtime_ns"]], dtype=np.int64),
@@ -1376,7 +1376,7 @@ def load_background_dataset_cache(cache_file: str) -> Dict[str, Any]:
     """Load processed background dataset from a compressed NPZ cache file."""
     with np.load(cache_file, allow_pickle=False) as cached:
         schema_version = int(cached["schema_version"][0])
-        if schema_version not in (1, 2, 3, 4):
+        if schema_version not in (1, 2, 3, 4, 5):
             raise ValueError(
                 f"Unsupported background cache schema version: {schema_version}"
             )
@@ -1411,7 +1411,7 @@ def load_background_dataset_cache(cache_file: str) -> Dict[str, Any]:
                 "p_scf": _find_column_index(column_labels, "(.)p_scf"),
                 "phi_scf": _find_column_index(column_labels, "phi_scf"),
                 "V": _find_column_index(column_labels, "V_scf"),
-                "dV": _find_column_index(column_labels, "V'_scf"),
+                "dV": _find_column_index(column_labels, "V'_p_scf"),
                 "d2V": _find_column_index(column_labels, "V''_scf"),
                 "Omega_m": _find_column_index(column_labels, "Omega_m(z)"),
             }
@@ -1419,7 +1419,9 @@ def load_background_dataset_cache(cache_file: str) -> Dict[str, Any]:
             column_labels = cached_column_labels
             column_indices = dict(cached_column_indices)
             if "Omega_m" not in column_indices:
-                column_indices["Omega_m"] = _find_column_index(column_labels, "Omega_m(z)")
+                column_indices["Omega_m"] = _find_column_index(
+                    column_labels, "Omega_m(z)"
+                )
             if "phi_scf" not in column_indices:
                 column_indices["phi_scf"] = _find_column_index(column_labels, "phi_scf")
 
@@ -1449,7 +1451,7 @@ def load_background_dataset_cache(cache_file: str) -> Dict[str, Any]:
             or column_indices != cached_column_indices
         )
 
-        if schema_version < 4:
+        if schema_version < 5:
             cache_needs_rewrite = True
 
         provenance = _build_source_provenance(background_file)
@@ -1530,7 +1532,11 @@ def extract_dm_mass_evolution_from_bestfit(
         numerator = 0.5 * (1.0 - np.tanh(cdm_c * phi_scf))
 
     cdm_f_phi0 = bestfit_values.get("cdm_f_phi0")
-    if cdm_f_phi0 is not None and np.isfinite(float(cdm_f_phi0)) and abs(float(cdm_f_phi0)) > 0.0:
+    if (
+        cdm_f_phi0 is not None
+        and np.isfinite(float(cdm_f_phi0))
+        and abs(float(cdm_f_phi0)) > 0.0
+    ):
         denom = float(cdm_f_phi0)
         denom_source = "bestfit"
     else:
@@ -2156,6 +2162,7 @@ def print_omega_summary_at_z0(
     Omega_dm is rho_cdm/rho_crit.
     Omega_DE is rho_scf/rho_crit for the model, rho_lambda/rho_crit for LCDM.
     """
+
     def _z0_row(z: np.ndarray) -> int:
         """Return the index of the z=0 row (last row, or closest to z=0)."""
         if float(z[-1]) == 0.0:
@@ -2173,27 +2180,27 @@ def print_omega_summary_at_z0(
 
     # Model values
     m_idx = _z0_row(model_dataset["z"])
-    m_Omega_m   = float(model_dataset["Omega_m_class"][m_idx])
-    m_Omega_dm  = float(model_dataset["Omega_cdm"][m_idx])
-    m_Omega_DE  = float(model_dataset["Omega_scf"][m_idx])
-    m_z         = float(model_dataset["z"][m_idx])
+    m_Omega_m = float(model_dataset["Omega_m_class"][m_idx])
+    m_Omega_dm = float(model_dataset["Omega_cdm"][m_idx])
+    m_Omega_DE = float(model_dataset["Omega_scf"][m_idx])
+    m_z = float(model_dataset["z"][m_idx])
 
     rows = [
-        ("Omega_m  (total matter)", m_Omega_m,  None),
-        ("Omega_dm (CDM only)",     m_Omega_dm, None),
-        ("Omega_DE (dark energy)",  m_Omega_DE, None),
+        ("Omega_m  (total matter)", m_Omega_m, None),
+        ("Omega_dm (CDM only)", m_Omega_dm, None),
+        ("Omega_DE (dark energy)", m_Omega_DE, None),
     ]
 
     if lcdm_dataset is not None:
         l_idx = _z0_row(lcdm_dataset["z"])
-        l_Omega_m  = float(lcdm_dataset["Omega_m_class"][l_idx])
+        l_Omega_m = float(lcdm_dataset["Omega_m_class"][l_idx])
         l_Omega_dm = float(lcdm_dataset["Omega_cdm"][l_idx])
         l_Omega_DE = float(lcdm_dataset["Omega_lambda"][l_idx])
-        l_z        = float(lcdm_dataset["z"][l_idx])
+        l_z = float(lcdm_dataset["z"][l_idx])
         rows = [
-            ("Omega_m  (total matter)", m_Omega_m,  l_Omega_m),
-            ("Omega_dm (CDM only)",     m_Omega_dm, l_Omega_dm),
-            ("Omega_DE (dark energy)",  m_Omega_DE, l_Omega_DE),
+            ("Omega_m  (total matter)", m_Omega_m, l_Omega_m),
+            ("Omega_dm (CDM only)", m_Omega_dm, l_Omega_dm),
+            ("Omega_DE (dark energy)", m_Omega_DE, l_Omega_DE),
         ]
 
     for label, m_val, l_val in rows:
