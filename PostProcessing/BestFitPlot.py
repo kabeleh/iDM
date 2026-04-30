@@ -2,7 +2,7 @@
 # First, extract the model parameters from the passed *.bestfit file
 # Second, runs CLASS with those parameters to obtain:
 #   - The scalar field evolution
-#   - The scalar field potential evolution including the first and second derivatives
+#   - The scalar field potential evolution including the first to fourth derivatives
 #   - The equation of state evolution of the scalar field
 #   - The dark matter and dark energy density evolution
 #   - The matter power spectrum P(k)
@@ -34,7 +34,7 @@ This script:
 4. Combines special parameters (e.g., scalar field parameters) into CLASS-compatible strings
 5. Runs CLASS to compute background evolution, P(k), and C_ℓ outputs
 6. Optionally loads LCDM baseline background data and computes Omega_cdm and Omega_λ
-7. Generates five publication-quality plots:
+7. Generates six publication-quality plots:
    - Background evolution quantities (de Sitter parameters, energy densities, swampland)
    - Energy density plot with optional ΔΩ_cdm and ΔΩ_DE evolution (when LCDM baseline is provided)
    - Matter power spectrum P(k) with optional LCDM overlay
@@ -89,6 +89,7 @@ Output Files:
     - plot3_*: Swampland expression (1+w-0.15s₁²) and equation of state (w)
     - plot4_*: Matter power spectrum P(k) [+ LCDM overlay if --lcdm_baseline]
     - plot5_*: Lensed CMB power spectrum C_ℓ (TT, EE, TE) [+ LCDM overlay if --lcdm_baseline]
+    - plot6_*: SWGC evolution history (lhs, rhs, rhs-lhs)
 
     Plus cache files for fast reruns:
     - *.processed.npz: cached CLASS output datasets
@@ -1089,7 +1090,7 @@ def run_class_background(
 
 
 # 2.b) Extract the background data from the stored file and compute quantities
-#      Obtain the scalar field evolution, the scalar field potential evolution including the first and second derivatives,
+#      Obtain the scalar field evolution, the scalar field potential evolution including the first to fourth derivatives,
 #      the equation of state evolution of the scalar field, and the dark matter and dark energy density evolution from CLASS
 #      We extract
 #      - the redhisft z
@@ -1100,6 +1101,8 @@ def run_class_background(
 #      - the scalar field potential V
 #      - the scalar field potential first derivative dV = V'_pure used for dSC diagnostics
 #      - the scalar field potential second derivative d2V
+#      - the scalar field potential third derivative d3V
+#      - the scalar field potential fourth derivative d4V
 #      Based on these quantities, we then compute
 #      - the equation of state w = p_scf / rho_scf
 #      - the de Sitter conjecture s1=|dV|/V and -s2=d^2V/V
@@ -1153,6 +1156,8 @@ def _compute_background_derived(
     V: np.ndarray,
     dV: np.ndarray,
     d2V: np.ndarray,
+    d3V: np.ndarray,
+    d4V: np.ndarray,
 ) -> Dict[str, np.ndarray]:
     """Compute derived background quantities from primitive arrays."""
     with np.errstate(divide="ignore", invalid="ignore"):
@@ -1162,6 +1167,9 @@ def _compute_background_derived(
         minus_s2 = np.where(V != 0.0, d2V / V, np.nan)
         Omega_cdm = np.where(rho_crit != 0.0, rho_cdm / rho_crit, np.nan)
         Omega_scf = np.where(rho_crit != 0.0, rho_scf / rho_crit, np.nan)
+        swgc_lhs = np.square(d2V)
+        swgc_rhs = 2.0 * np.square(d3V) - d2V * d4V
+        swgc_residual = swgc_rhs - swgc_lhs
 
     return {
         "a": a,
@@ -1171,6 +1179,9 @@ def _compute_background_derived(
         "swampland_expr": 1.0 + w - 0.15 * np.square(s1),
         "Omega_cdm": Omega_cdm,
         "Omega_scf": Omega_scf,
+        "swgc_lhs": swgc_lhs,
+        "swgc_rhs": swgc_rhs,
+        "swgc_residual": swgc_residual,
     }
 
 
@@ -1186,6 +1197,8 @@ def load_background_dataset(background_file: str) -> Dict[str, Any]:
       - V_scf
       - V'_p_scf
       - V''_scf
+      - V'''_scf
+      - V''''_scf
 
     Computed quantities:
       - a = 1/(1+z)
@@ -1195,6 +1208,9 @@ def load_background_dataset(background_file: str) -> Dict[str, Any]:
       - swampland_expr = 1 + w - 0.15 * s1^2
       - Omega_cdm = rho_cdm / rho_crit
       - Omega_scf = rho_scf / rho_crit
+      - swgc_lhs = (V''_scf)^2
+      - swgc_rhs = 2*(V'''_scf)^2 - V''_scf*V''''_scf
+      - swgc_residual = swgc_rhs - swgc_lhs
     """
     labels = _parse_background_column_labels(background_file)
     data = np.loadtxt(background_file, comments="#")
@@ -1214,6 +1230,8 @@ def load_background_dataset(background_file: str) -> Dict[str, Any]:
         "V": _find_column_index(labels, "V_scf"),
         "dV": _find_column_index(labels, "V'_p_scf"),
         "d2V": _find_column_index(labels, "V''_scf"),
+        "d3V": _find_column_index(labels, "V'''_scf"),
+        "d4V": _find_column_index(labels, "V''''_scf"),
         "Omega_m": _find_column_index(labels, "Omega_m(z)"),
     }
 
@@ -1226,6 +1244,8 @@ def load_background_dataset(background_file: str) -> Dict[str, Any]:
     V = data[:, idx["V"]]
     dV = data[:, idx["dV"]]
     d2V = data[:, idx["d2V"]]
+    d3V = data[:, idx["d3V"]]
+    d4V = data[:, idx["d4V"]]
     Omega_m_class = data[:, idx["Omega_m"]]
 
     _validate_monotonic_increasing("background z (ascending)", np.sort(z), strict=False)
@@ -1248,6 +1268,8 @@ def load_background_dataset(background_file: str) -> Dict[str, Any]:
         V=V,
         dV=dV,
         d2V=d2V,
+        d3V=d3V,
+        d4V=d4V,
     )
 
     warnings: List[str] = []
@@ -1293,6 +1315,8 @@ def load_background_dataset(background_file: str) -> Dict[str, Any]:
         "V": V,
         "dV": dV,
         "d2V": d2V,
+        "d3V": d3V,
+        "d4V": d4V,
         "Omega_m_class": Omega_m_class,
         **derived,
     }
@@ -1342,7 +1366,7 @@ def save_background_dataset_cache(dataset: Dict[str, Any], cache_file: str) -> N
 
     np.savez_compressed(
         str(path),
-        schema_version=np.array([5], dtype=np.int64),
+        schema_version=np.array([6], dtype=np.int64),
         background_file=np.array([str(dataset["background_file"])], dtype=str),
         source_file=np.array([provenance["source_file"]], dtype=str),
         source_mtime_ns=np.array([provenance["source_mtime_ns"]], dtype=np.int64),
@@ -1363,12 +1387,17 @@ def save_background_dataset_cache(dataset: Dict[str, Any], cache_file: str) -> N
         V=dataset["V"],
         dV=dataset["dV"],
         d2V=dataset["d2V"],
+        d3V=dataset["d3V"],
+        d4V=dataset["d4V"],
         w=dataset["w"],
         s1=dataset["s1"],
         minus_s2=dataset["minus_s2"],
         swampland_expr=dataset["swampland_expr"],
         Omega_cdm=dataset["Omega_cdm"],
         Omega_scf=dataset["Omega_scf"],
+        swgc_lhs=dataset["swgc_lhs"],
+        swgc_rhs=dataset["swgc_rhs"],
+        swgc_residual=dataset["swgc_residual"],
     )
 
 
@@ -1376,7 +1405,7 @@ def load_background_dataset_cache(cache_file: str) -> Dict[str, Any]:
     """Load processed background dataset from a compressed NPZ cache file."""
     with np.load(cache_file, allow_pickle=False) as cached:
         schema_version = int(cached["schema_version"][0])
-        if schema_version not in (1, 2, 3, 4, 5):
+        if schema_version not in (1, 2, 3, 4, 5, 6):
             raise ValueError(
                 f"Unsupported background cache schema version: {schema_version}"
             )
@@ -1413,6 +1442,8 @@ def load_background_dataset_cache(cache_file: str) -> Dict[str, Any]:
                 "V": _find_column_index(column_labels, "V_scf"),
                 "dV": _find_column_index(column_labels, "V'_p_scf"),
                 "d2V": _find_column_index(column_labels, "V''_scf"),
+                "d3V": _find_column_index(column_labels, "V'''_scf"),
+                "d4V": _find_column_index(column_labels, "V''''_scf"),
                 "Omega_m": _find_column_index(column_labels, "Omega_m(z)"),
             }
         else:
@@ -1424,6 +1455,10 @@ def load_background_dataset_cache(cache_file: str) -> Dict[str, Any]:
                 )
             if "phi_scf" not in column_indices:
                 column_indices["phi_scf"] = _find_column_index(column_labels, "phi_scf")
+            if "d3V" not in column_indices:
+                column_indices["d3V"] = _find_column_index(column_labels, "V'''_scf")
+            if "d4V" not in column_indices:
+                column_indices["d4V"] = _find_column_index(column_labels, "V''''_scf")
 
         z = raw_table[:, column_indices["z"]]
         rho_cdm = raw_table[:, column_indices["rho_cdm"]]
@@ -1434,6 +1469,8 @@ def load_background_dataset_cache(cache_file: str) -> Dict[str, Any]:
         V = raw_table[:, column_indices["V"]]
         dV = raw_table[:, column_indices["dV"]]
         d2V = raw_table[:, column_indices["d2V"]]
+        d3V = raw_table[:, column_indices["d3V"]]
+        d4V = raw_table[:, column_indices["d4V"]]
         Omega_m_class = raw_table[:, column_indices["Omega_m"]]
         derived = _compute_background_derived(
             z=z,
@@ -1444,6 +1481,8 @@ def load_background_dataset_cache(cache_file: str) -> Dict[str, Any]:
             V=V,
             dV=dV,
             d2V=d2V,
+            d3V=d3V,
+            d4V=d4V,
         )
         cache_needs_rewrite = (
             _background_cache_needs_rewrite(schema_version, cached, derived)
@@ -1451,7 +1490,7 @@ def load_background_dataset_cache(cache_file: str) -> Dict[str, Any]:
             or column_indices != cached_column_indices
         )
 
-        if schema_version < 5:
+        if schema_version < 6:
             cache_needs_rewrite = True
 
         provenance = _build_source_provenance(background_file)
@@ -1486,6 +1525,8 @@ def load_background_dataset_cache(cache_file: str) -> Dict[str, Any]:
             "V": V,
             "dV": dV,
             "d2V": d2V,
+            "d3V": d3V,
+            "d4V": d4V,
             "Omega_m_class": Omega_m_class,
             "_cache_needs_rewrite": cache_needs_rewrite,
             **derived,
@@ -2457,17 +2498,18 @@ if __name__ == "__main__":
         print("Next step: Build publication-quality plots")
         print("*" * 80)
         print("""
-  5 plots are generated automatically:
-  1. de Sitter conjecture parameters (s1, s2)
-  2. Energy density evolution (Omega_scf, Omega_cdm)
-  3. Swampland expression and equation of state (w)
-  4. Matter power spectrum P(k)
-  5. Lensed CMB angular power spectrum C_l (TT, EE, TE)
+  6 plots are generated automatically:
+    1. de Sitter conjecture parameters (s1, s2)
+    2. Energy density evolution (Omega_scf, Omega_cdm)
+    3. Swampland expression and equation of state (w)
+    4. Matter power spectrum P(k)
+    5. Lensed CMB angular power spectrum C_l (TT, EE, TE)
+    6. SWGC evolution history (lhs, rhs, rhs-lhs)
 
-    If --lcdm_baseline is provided, plots 4 and 5 include ΛCDM reference curves.
+        If --lcdm_baseline is provided, plots 4 and 5 include ΛCDM reference curves.
 
-  Use --reuse_background to skip rerunning CLASS while iterating on style.
-        """)
+    Use --reuse_background to skip rerunning CLASS while iterating on style.
+            """)
 
     except FileNotFoundError as e:
         print(f"Error: {e}", file=sys.stderr)
@@ -2565,6 +2607,9 @@ def _prepare_plot_arrays(background_dataset: Dict[str, Any]) -> Dict[str, np.nda
     swampland_expr = np.asarray(background_dataset["swampland_expr"], dtype=float)[
         order
     ]
+    swgc_lhs = np.asarray(background_dataset["swgc_lhs"], dtype=float)[order]
+    swgc_rhs = np.asarray(background_dataset["swgc_rhs"], dtype=float)[order]
+    swgc_residual = np.asarray(background_dataset["swgc_residual"], dtype=float)[order]
 
     return {
         "z": z_plot,
@@ -2574,6 +2619,9 @@ def _prepare_plot_arrays(background_dataset: Dict[str, Any]) -> Dict[str, np.nda
         "Omega_cdm": omega_cdm,
         "w": w,
         "swampland_expr": swampland_expr,
+        "swgc_lhs": swgc_lhs,
+        "swgc_rhs": swgc_rhs,
+        "swgc_residual": swgc_residual,
     }
 
 
@@ -2977,6 +3025,105 @@ def make_three_plots(
     }
 
 
+def make_swgc_history_plot(
+    background_dataset: Dict[str, Any],
+    output_root: str,
+) -> Dict[str, str]:
+    """Create SWGC history plot: lhs, rhs, and residual rhs-lhs over redshift."""
+    series = _prepare_plot_arrays(background_dataset)
+    z = series["z"]
+
+    out_root = Path(output_root)
+    out_dir = out_root.parent
+    stem = out_root.name
+
+    c_lhs = _HIGH_CONTRAST_PALETTE["blue"]
+    c_rhs = _HIGH_CONTRAST_PALETTE["teal"]
+    c_res = _HIGH_CONTRAST_PALETTE["red"]
+
+    fig, (ax_top, ax_bottom) = plt.subplots(
+        2,
+        1,
+        sharex=True,
+        figsize=(6.4, 5.7),
+        constrained_layout=True,
+        gridspec_kw={"height_ratios": [2.8, 2.0]},
+    )
+
+    ax_top.plot(
+        z,
+        series["swgc_lhs"],
+        color=c_lhs,
+        linestyle="-",
+        label=r"$\left(V_{\phi\phi}\right)^2$",
+    )
+    ax_top.plot(
+        z,
+        series["swgc_rhs"],
+        color=c_rhs,
+        linestyle="--",
+        label=r"$2\left(V_{\phi\phi\phi}\right)^2 - V_{\phi\phi}V_{\phi\phi\phi\phi}$",
+    )
+    _style_redshift_axis(ax_top, z)
+    _apply_tight_ylims(
+        ax_top,
+        [series["swgc_lhs"], series["swgc_rhs"]],
+        pad_frac=0.06,
+        full_range=True,
+    )
+    ax_top.set_ylabel(r"SWGC Terms")
+    ax_top.legend(
+        loc="upper left",
+        bbox_to_anchor=(0.02, 0.98),
+        handlelength=2.2,
+        labelspacing=0.30,
+        borderaxespad=0.0,
+        fontsize=9.6,
+    )
+
+    ax_bottom.plot(
+        z,
+        series["swgc_residual"],
+        color=c_res,
+        linestyle="-",
+        label=r"$\Delta_{\rm SWGC}=2\left(V_{\phi\phi\phi}\right)^2 - V_{\phi\phi}V_{\phi\phi\phi\phi} - \left(V_{\phi\phi}\right)^2$",
+    )
+    ax_bottom.axhline(
+        0.0,
+        color="0.20",
+        linestyle=(0, (5, 2.5)),
+        linewidth=1.0,
+        alpha=0.9,
+        zorder=1,
+    )
+    _style_redshift_axis(ax_bottom, z)
+    _apply_tight_ylims(
+        ax_bottom,
+        [series["swgc_residual"]],
+        pad_frac=0.10,
+        full_range=True,
+    )
+    ax_bottom.set_ylabel(r"$\Delta_{\rm SWGC}$")
+    ax_bottom.legend(
+        loc="upper left",
+        bbox_to_anchor=(0.02, 0.98),
+        handlelength=2.2,
+        labelspacing=0.30,
+        borderaxespad=0.0,
+        fontsize=9.6,
+    )
+
+    p6 = out_dir / f"{stem}_plot6_swgc_history"
+    _save_figure_bundle(fig, p6)
+    plt.close(fig)
+
+    return {
+        "plot6_png": str(p6.parent / f"{p6.name}.png"),
+        "plot6_pdf": str(p6.parent / f"{p6.name}.pdf"),
+        "plot6_pgf": str(p6.parent / f"{p6.name}.pgf"),
+    }
+
+
 def make_pk_plot(
     pk_dataset: Dict[str, Any],
     output_root: str,
@@ -3157,6 +3304,15 @@ if __name__ == "__main__" and "_BESTFITPLOT_RUNTIME" in globals():
             cl_dataset=_runtime["cl_dataset"],
             output_root=_runtime["output_root"],
             baseline_cl_dataset=_runtime.get("baseline_cl_dataset"),
+        )
+    )
+
+    # Plot 6: SWGC history plot
+    print("  Rendering SWGC history plot...")
+    _plot_paths.update(
+        make_swgc_history_plot(
+            background_dataset=_runtime["background_dataset"],
+            output_root=_runtime["output_root"],
         )
     )
 
