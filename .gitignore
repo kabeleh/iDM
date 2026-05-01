@@ -31,4 +31,6 @@ baseline/*.dat
 baseline/*.npz
 baseline/*.npy
 PostProcessing/Plots/
+PostProcessing/PosteriorHeatmaps/
+PostProcessing/background_posterior_cache/
 analysis/
