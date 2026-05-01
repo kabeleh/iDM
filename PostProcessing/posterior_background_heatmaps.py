@@ -39,8 +39,17 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
 from cmcrameri import cm as cmc
+from matplotlib.colorbar import Colorbar
 from matplotlib.colors import LogNorm
+from matplotlib.axes import Axes
 from matplotlib.figure import Figure
+from matplotlib.ticker import (
+    FixedFormatter,
+    FixedLocator,
+    LogLocator,
+    MaxNLocator,
+    NullFormatter,
+)
 
 from BestFitPlot import (
     extract_class_parameters,
@@ -996,6 +1005,171 @@ def _save_figure_bundle(fig: Figure, base_path: Path) -> None:
     fig.savefig(str(base_path.parent / f"{base_path.name}.pgf"))
 
 
+def _style_redshift_axis(ax: Axes, z: np.ndarray) -> None:
+    """Apply BestFitPlot-style redshift axis formatting with z=0 at right."""
+    finite_z = z[np.isfinite(z)]
+    zmax = float(np.nanmax(finite_z)) if finite_z.size else 1.0
+
+    ax.set_xscale("symlog", linthresh=1.0)
+    ax.set_xlim(zmax, 0.0)
+
+    if zmax >= 1.0:
+        max_pow = int(np.floor(np.log10(zmax)))
+        major_ticks = [10.0**p for p in range(max_pow, -1, -1)] + [0.0]
+    else:
+        major_ticks = [zmax, 0.0]
+
+    major_ticks = sorted(set(float(t) for t in major_ticks))
+
+    major_labels: list[str] = []
+    for tick in major_ticks:
+        if np.isclose(tick, 0.0):
+            major_labels.append("0")
+        elif tick >= 1.0:
+            power = int(np.round(np.log10(tick)))
+            major_labels.append(rf"$10^{{{power}}}$")
+        else:
+            major_labels.append("")
+
+    ax.xaxis.set_major_locator(FixedLocator(major_ticks))
+    ax.xaxis.set_major_formatter(FixedFormatter(major_labels))
+
+    minor_ticks: list[float] = []
+    if zmax >= 10.0:
+        for power in range(max_pow - 1, -1, -1):
+            decade = 10.0**power
+            for multiplier in (2, 5):
+                tick = multiplier * decade
+                if 1.0 < tick < zmax:
+                    minor_ticks.append(tick)
+
+    minor_ticks.extend([0.2, 0.4, 0.6, 0.8])
+    minor_ticks = sorted(set(minor_ticks))
+    ax.xaxis.set_minor_locator(FixedLocator(minor_ticks))
+    ax.xaxis.set_minor_formatter(NullFormatter())
+
+    ax.set_xlabel(r"Redshift $z$")
+    ax.grid(True, which="major", alpha=0.32, linewidth=0.6)
+    ax.grid(True, which="minor", alpha=0.09, linewidth=0.4)
+
+
+def _build_colorbar_ticks(vmin: float, vmax: float) -> list[float]:
+    """Choose at least two readable labeled ticks over [vmin, vmax]."""
+    if not (np.isfinite(vmin) and np.isfinite(vmax)) or vmin <= 0.0 or vmax <= vmin:
+        return [vmin, vmax]
+
+    lo = np.log10(vmin)
+    hi = np.log10(vmax)
+
+    # For narrow dynamic ranges, prefer rounded linear ticks over awkward
+    # geometric midpoints such as 9.16515 for a range that visually reads 6..14.
+    if hi - lo < 0.5:
+        locator = MaxNLocator(nbins=5, min_n_ticks=2, steps=[1, 2, 2.5, 5, 10])
+        ticks = [
+            float(tick)
+            for tick in locator.tick_values(vmin, vmax)
+            if vmin <= float(tick) <= vmax
+        ]
+        if len(ticks) >= 2:
+            return ticks
+
+    decade_ticks = [
+        10.0**power
+        for power in range(int(np.ceil(lo)), int(np.floor(hi)) + 1)
+        if vmin <= 10.0**power <= vmax
+    ]
+    if len(decade_ticks) >= 2:
+        return decade_ticks
+
+    nice_log_ticks: list[float] = []
+    min_power = int(np.floor(lo)) - 1
+    max_power = int(np.ceil(hi)) + 1
+    for power in range(min_power, max_power + 1):
+        decade = 10.0**power
+        for sub in (1.0, 2.0, 5.0):
+            tick = sub * decade
+            if vmin <= tick <= vmax:
+                nice_log_ticks.append(float(tick))
+    if len(nice_log_ticks) >= 2:
+        return sorted(set(nice_log_ticks))
+
+    ticks = sorted(set([vmin, vmax]))
+    if len(ticks) < 2:
+        ticks = [vmin, vmax]
+    return ticks
+
+
+def _format_colorbar_tick(tick: float) -> str:
+    if tick >= 1e-2 and tick < 1e3:
+        if np.isclose(tick, round(tick), rtol=0.0, atol=1e-10):
+            return f"{int(round(tick))}"
+        if np.isclose(tick, round(tick, 1), rtol=0.0, atol=1e-10):
+            return f"{tick:.1f}"
+        return f"{tick:g}"
+
+    exponent = np.log10(tick)
+    rounded = int(np.round(exponent))
+    if np.isclose(exponent, rounded, atol=1e-10):
+        return rf"$10^{{{rounded}}}$"
+    return f"{tick:.1e}"
+
+
+def _style_colorbar(cb: Colorbar, vmin: float, vmax: float) -> None:
+    """Style the heatmap colorbar with the same tick density/geometry family."""
+    major_ticks = _build_colorbar_ticks(vmin, vmax)
+    cb.ax.yaxis.set_major_locator(FixedLocator(major_ticks))
+    cb.ax.yaxis.set_major_formatter(
+        FixedFormatter([_format_colorbar_tick(tick) for tick in major_ticks])
+    )
+    cb.ax.yaxis.set_minor_locator(LogLocator(base=10.0, subs=(2.0, 5.0), numticks=12))
+    cb.ax.yaxis.set_minor_formatter(NullFormatter())
+    cb.ax.tick_params(
+        axis="y",
+        which="major",
+        direction="in",
+        length=4.8,
+        width=0.95,
+        labelsize=11,
+    )
+    cb.ax.tick_params(
+        axis="y",
+        which="minor",
+        direction="in",
+        length=2.4,
+        width=0.72,
+    )
+
+
+def _symlog_transform(values: np.ndarray, linthresh: float) -> np.ndarray:
+    return np.sign(values) * np.log10(1.0 + np.abs(values) / linthresh)
+
+
+def _symlog_inverse(values: np.ndarray, linthresh: float) -> np.ndarray:
+    return np.sign(values) * linthresh * (np.power(10.0, np.abs(values)) - 1.0)
+
+
+def _build_quantity_y_edges(
+    y_min: float,
+    y_max: float,
+    y_bins: int,
+    qty: str,
+) -> tuple[np.ndarray, float | None]:
+    """Construct y-bin edges and optional y-axis symlog threshold."""
+    pad = 0.03 * (y_max - y_min)
+    y_low = y_min - pad
+    y_high = y_max + pad
+
+    if qty == "phi_scf" and y_low < 0.0 < y_high:
+        max_abs = max(abs(y_low), abs(y_high))
+        linthresh = max(1e-6, 0.02 * max_abs)
+        t_low = _symlog_transform(np.array([y_low]), linthresh)[0]
+        t_high = _symlog_transform(np.array([y_high]), linthresh)[0]
+        t_edges = np.linspace(t_low, t_high, y_bins + 1)
+        return _symlog_inverse(t_edges, linthresh), linthresh
+
+    return np.linspace(y_low, y_high, y_bins + 1), None
+
+
 def _build_sample_class_params(
     row_map: dict[str, float],
     bestfit_values: dict[str, float],
@@ -1272,9 +1446,14 @@ def process_dataset(
             )
             continue
 
-        pad = 0.03 * (y_max_qty - y_min_qty)
-        y_edges = np.linspace(y_min_qty - pad, y_max_qty + pad, args.y_bins + 1)
+        y_edges, y_linthresh = _build_quantity_y_edges(
+            y_min_qty,
+            y_max_qty,
+            args.y_bins,
+            qty,
+        )
         x_edges = np.linspace(args.x_min, args.x_max, args.x_bins + 1)
+        z_edges = np.power(10.0, x_edges) - 1.0
 
         H = np.zeros((args.x_bins, args.y_bins), dtype=float)
         for qty_interps, multiplicity in trajectory_payload:
@@ -1308,7 +1487,7 @@ def process_dataset(
             vmax = float(np.max(positive))
 
         mesh = ax.pcolormesh(
-            x_edges,
+            z_edges,
             y_edges,
             H_plot,
             cmap=_HEATMAP_CMAP,
@@ -1318,35 +1497,13 @@ def process_dataset(
 
         cb = fig.colorbar(mesh, ax=ax, pad=0.02)
         cb.set_label("Posterior Path Density")
-
-        # Show cosmic time direction as in BestFitPlot-style redshift narratives.
-        ax.set_xlim(args.x_max, args.x_min)
-        z_ticks = np.array([1e14, 1e10, 1e7, 1e5, 1e3, 10.0, 1.0, 0.0])
-        x_ticks = np.log10(1.0 + z_ticks)
-        x_tick_labels = [
-            r"$10^{14}$",
-            r"$10^{10}$",
-            r"$10^7$",
-            r"$10^5$",
-            r"$10^3$",
-            "10",
-            "1",
-            "0",
-        ]
-        inside = (x_ticks >= args.x_min) & (x_ticks <= args.x_max)
-        ax.set_xticks(x_ticks[inside])
-        ax.set_xticklabels([x_tick_labels[k] for k, ok in enumerate(inside) if ok])
+        _style_colorbar(cb, vmin, vmax)
 
         qty_label = y_label_map.get(qty, qty)
-        ax.set_xlabel(r"Redshift $z$")
         ax.set_ylabel(qty_label)
-        ax.grid(True, which="major", alpha=0.32, linewidth=0.6)
-        ax.grid(True, which="minor", alpha=0.09, linewidth=0.4)
-        ax.set_title(
-            f"{dataset_label} | {qty_label} Posterior Heatmap\n"
-            f"HPD-Like Mass={args.hpd_mass:.2f}, Draws={total_draws:,}, "
-            f"unique={len(draw_records):,}"
-        )
+        _style_redshift_axis(ax, z_edges)
+        if y_linthresh is not None:
+            ax.set_yscale("symlog", linthresh=y_linthresh)
 
         fig.tight_layout()
 
