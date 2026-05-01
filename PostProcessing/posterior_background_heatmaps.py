@@ -35,6 +35,9 @@ Presets (--preset):
 
 Examples
 --------
+# 2000 samples of phi for all roots, using all cores, with failure auditing
+python3 PostProcessing/posterior_background_heatmaps.py --max-samples 2000 --hpd-mass 0.68 --num-threads 0 --failure-audit-dir PostProcessing/failure_audit
+
 # Minimal: single chain, default quantity (phi_scf)
 python3 PostProcessing/posterior_background_heatmaps.py \\
     --roots hyperbolic_PP_D_InitCond_MCMC \\
@@ -129,6 +132,8 @@ from matplotlib.colorbar import Colorbar
 from matplotlib.colors import LogNorm
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
+from matplotlib.patches import Patch
+from mpl_toolkits.axes_grid1 import make_axes_locatable
 from matplotlib.ticker import (
     FixedFormatter,
     FixedLocator,
@@ -204,6 +209,8 @@ mpl.rcParams.update(
 )
 
 _HEATMAP_CMAP = getattr(cmc, "batlowK")
+_OMEGA_DM_CMAP = getattr(cmc, "lajolla", _HEATMAP_CMAP)
+_OMEGA_PHI_CMAP = getattr(cmc, "oslo", _HEATMAP_CMAP)
 
 
 @dataclass
@@ -1620,8 +1627,13 @@ def process_dataset(
         "swgc_residual": r"$\Delta_{\rm SWGC} = 2(V''')^2 - V''V'''' - (V'')^2$",
     }
 
+    omega_combined_only = {"Omega_cdm", "Omega_scf"}.issubset(set(quantities))
+
     # Pass 2: for each quantity, accumulate histogram and produce figure + NPZ.
     for qty in quantities:
+        if omega_combined_only and qty in {"Omega_cdm", "Omega_scf"}:
+            continue
+
         y_min_qty, y_max_qty = y_ranges[qty]
         if (
             not np.isfinite(y_min_qty)
@@ -1725,6 +1737,155 @@ def process_dataset(
         print(
             f"  [{qty}] Saved: {png_path.name}, {pdf_path.name}, {pgf_path.name}, {npz_path.name}"
         )
+
+    # Combined Omega figure (analogous to BestFitPlot omega panel):
+    # Omega_phi and Omega_DM in one panel with fixed y-range [0, 1].
+    if omega_combined_only:
+        x_edges = np.linspace(args.x_min, args.x_max, args.x_bins + 1)
+        z_edges = np.power(10.0, x_edges) - 1.0
+        y_edges_omega = np.linspace(0.0, 1.0, args.y_bins + 1)
+
+        H_omega_dm = np.zeros((args.x_bins, args.y_bins), dtype=float)
+        H_omega_scf = np.zeros((args.x_bins, args.y_bins), dtype=float)
+
+        for qty_interps, multiplicity in trajectory_payload:
+            y_dm = qty_interps.get("Omega_cdm")
+            y_scf = qty_interps.get("Omega_scf")
+
+            if y_dm is not None:
+                valid_dm = np.isfinite(y_dm)
+                if np.count_nonzero(valid_dm) >= 2:
+                    w_dm = np.full(int(np.count_nonzero(valid_dm)), float(multiplicity))
+                    h_dm, _, _ = np.histogram2d(
+                        x_grid[valid_dm],
+                        y_dm[valid_dm],
+                        bins=(x_edges, y_edges_omega),  # type: ignore[arg-type]
+                        weights=w_dm,
+                    )
+                    H_omega_dm += h_dm
+
+            if y_scf is not None:
+                valid_scf = np.isfinite(y_scf)
+                if np.count_nonzero(valid_scf) >= 2:
+                    w_scf = np.full(
+                        int(np.count_nonzero(valid_scf)), float(multiplicity)
+                    )
+                    h_scf, _, _ = np.histogram2d(
+                        x_grid[valid_scf],
+                        y_scf[valid_scf],
+                        bins=(x_edges, y_edges_omega),  # type: ignore[arg-type]
+                        weights=w_scf,
+                    )
+                    H_omega_scf += h_scf
+
+        if np.any(H_omega_dm > 0) or np.any(H_omega_scf > 0):
+            fig_omega, ax_top = plt.subplots(figsize=(6.4, 4.1))
+            mesh_omega_phi = None
+            mesh_omega_dm = None
+            omega_phi_limits: tuple[float, float] | None = None
+            omega_dm_limits: tuple[float, float] | None = None
+
+            if np.any(H_omega_scf > 0):
+                pos_scf = H_omega_scf[H_omega_scf > 0]
+                vmin_scf = max(float(np.percentile(pos_scf, 5.0)), 1e-12)
+                vmax_scf = float(np.percentile(pos_scf, 99.8))
+                if vmax_scf <= vmin_scf:
+                    vmax_scf = float(np.max(pos_scf))
+                mesh_omega_phi = ax_top.pcolormesh(
+                    z_edges,
+                    y_edges_omega,
+                    H_omega_scf.T,
+                    cmap=_OMEGA_PHI_CMAP,
+                    norm=LogNorm(vmin=vmin_scf, vmax=vmax_scf),
+                    shading="auto",
+                    alpha=0.64,
+                )
+                omega_phi_limits = (vmin_scf, vmax_scf)
+
+            if np.any(H_omega_dm > 0):
+                pos_dm = H_omega_dm[H_omega_dm > 0]
+                vmin_dm = max(float(np.percentile(pos_dm, 5.0)), 1e-12)
+                vmax_dm = float(np.percentile(pos_dm, 99.8))
+                if vmax_dm <= vmin_dm:
+                    vmax_dm = float(np.max(pos_dm))
+                mesh_omega_dm = ax_top.pcolormesh(
+                    z_edges,
+                    y_edges_omega,
+                    H_omega_dm.T,
+                    cmap=_OMEGA_DM_CMAP,
+                    norm=LogNorm(vmin=vmin_dm, vmax=vmax_dm),
+                    shading="auto",
+                    alpha=0.64,
+                )
+                omega_dm_limits = (vmin_dm, vmax_dm)
+
+            _style_redshift_axis(ax_top, z_edges)
+            ax_top.set_ylim(0.0, 1.0)
+            ax_top.set_ylabel(r"Relative Energy Density $\Omega$")
+            ax_top.legend(
+                handles=[
+                    Patch(
+                        facecolor=_OMEGA_PHI_CMAP(0.78),
+                        edgecolor="none",
+                        alpha=0.64,
+                        label=r"$\Omega_{\phi}$",
+                    ),
+                    Patch(
+                        facecolor=_OMEGA_DM_CMAP(0.78),
+                        edgecolor="none",
+                        alpha=0.64,
+                        label=r"$\Omega_{\rm DM}$",
+                    ),
+                ],
+                loc="best",
+                frameon=False,
+            )
+
+            # Add both reference colorbars (one per overlaid Omega component).
+            divider = make_axes_locatable(ax_top)
+            cax_dm = None
+            dm_pad = 0.26
+            if mesh_omega_dm is not None and omega_dm_limits is not None:
+                cax_dm = divider.append_axes("right", size="2.8%", pad=dm_pad)
+                cb_dm = fig_omega.colorbar(mesh_omega_dm, cax=cax_dm)
+                cb_dm.set_label(r"$\Omega_{\rm DM}$ Path Density")
+                cb_dm.ax.yaxis.set_label_position("left")
+                _style_colorbar(cb_dm, omega_dm_limits[0], omega_dm_limits[1])
+
+            if mesh_omega_phi is not None and omega_phi_limits is not None:
+                # Keep the DE bar nearly fixed while nudging the DM bar outward.
+                phi_pad = 0.8 - dm_pad if cax_dm is not None else 0.20
+                cax_phi = divider.append_axes("right", size="2.8%", pad=phi_pad)
+                cb_phi = fig_omega.colorbar(mesh_omega_phi, cax=cax_phi)
+                cb_phi.set_label(r"$\Omega_{\phi}$ Path Density")
+                cb_phi.ax.yaxis.set_label_position("left")
+                _style_colorbar(cb_phi, omega_phi_limits[0], omega_phi_limits[1])
+
+            fig_omega.tight_layout()
+
+            omega_base = output_dir / f"heatmap_omega_combined_{safe}"
+            _save_figure_bundle(fig_omega, omega_base)
+            plt.close(fig_omega)
+
+            omega_npz_path = output_dir / f"heatmap_omega_combined_{safe}.npz"
+            save_payload: dict[str, Any] = {
+                "H_omega_dm": H_omega_dm,
+                "H_omega_scf": H_omega_scf,
+                "x_edges": x_edges,
+                "y_edges_omega": y_edges_omega,
+                "root": np.array([bundle.root], dtype=str),
+                "dataset_label": np.array([dataset_label], dtype=str),
+                "total_draws": np.array([total_draws], dtype=np.int64),
+                "unique_trajectories": np.array([len(draw_records)], dtype=np.int64),
+            }
+
+            np.savez_compressed(omega_npz_path, **save_payload)
+
+            print(
+                "  [omega-combined] Saved: "
+                f"{omega_base.name}.png, {omega_base.name}.pdf, {omega_base.name}.pgf, "
+                f"{omega_npz_path.name}"
+            )
 
     print(
         f"Background cache usage: hit={cache_hits}, miss={cache_misses}, "
