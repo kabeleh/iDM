@@ -30,6 +30,7 @@ import subprocess
 import uuid
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -80,6 +81,29 @@ class TrajectoryResult:
     qty_interps: dict[str, np.ndarray]
     multiplicity: int
     cache_hit: bool
+
+
+class ClassBackgroundRunError(RuntimeError):
+    """Structured error for a failed CLASS background-only replay."""
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        cache_key: str,
+        ini_path: Path,
+        ini_text: str,
+        returncode: int,
+        stdout_tail: str,
+        stderr_tail: str,
+    ) -> None:
+        super().__init__(message)
+        self.cache_key = cache_key
+        self.ini_path = ini_path
+        self.ini_text = ini_text
+        self.returncode = returncode
+        self.stdout_tail = stdout_tail
+        self.stderr_tail = stderr_tail
 
 
 _FIELDS_TO_CACHE: tuple[str, ...] = (
@@ -247,6 +271,14 @@ def parse_args() -> argparse.Namespace:
         "--output-dir",
         default="PostProcessing/PosteriorHeatmaps",
         help="Output directory for figures and histogram arrays.",
+    )
+    parser.add_argument(
+        "--failure-audit-dir",
+        default="PostProcessing/background_failure_audit",
+        help=(
+            "Directory for structured audit artifacts from failed CLASS background replays. "
+            "Each failure writes a preserved .ini plus a JSON metadata record."
+        ),
     )
     parser.add_argument(
         "--seed",
@@ -640,6 +672,77 @@ def _hash_class_params(class_params: dict[str, Any]) -> str:
     return hashlib.sha256(blob.encode("utf-8")).hexdigest()[:20]
 
 
+def _serialize_value(value: Any) -> Any:
+    if isinstance(value, np.generic):
+        return value.item()
+    if isinstance(value, np.ndarray):
+        return value.tolist()
+    return value
+
+
+def _write_failure_audit(
+    audit_dir: Path,
+    *,
+    bundle_root: str,
+    chain_file: Path,
+    trajectory_index: int,
+    record: DrawRecord,
+    row_map: dict[str, float],
+    class_params: dict[str, Any],
+    error: ClassBackgroundRunError,
+) -> Path:
+    audit_dir.mkdir(parents=True, exist_ok=True)
+
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S.%fZ")
+    stem = (
+        f"{_sanitize_label(bundle_root)}"
+        f"__{chain_file.stem}"
+        f"__traj{trajectory_index:05d}"
+        f"__row{record.row_index_postburn}"
+        f"__{error.cache_key}"
+        f"__{uuid.uuid4().hex[:8]}"
+    )
+
+    ini_copy_path = audit_dir / f"{stem}.ini"
+    json_path = audit_dir / f"{stem}.json"
+    summary_path = audit_dir / "failures.jsonl"
+
+    ini_copy_path.write_text(error.ini_text, encoding="utf-8")
+
+    payload = {
+        "timestamp_utc": stamp,
+        "bundle_root": bundle_root,
+        "chain_file": str(chain_file),
+        "trajectory_index": trajectory_index,
+        "file_index": record.file_index,
+        "row_index_postburn": record.row_index_postburn,
+        "multiplicity": record.multiplicity,
+        "cache_key": error.cache_key,
+        "generated_ini_file": str(ini_copy_path),
+        "generated_ini_original_path": str(error.ini_path),
+        "sampled_parameter_values": {
+            key: _serialize_value(value) for key, value in sorted(row_map.items())
+        },
+        "class_parameters": {
+            key: _serialize_value(value) for key, value in sorted(class_params.items())
+        },
+        "error": {
+            "message": str(error),
+            "returncode": error.returncode,
+            "stdout_tail": error.stdout_tail,
+            "stderr_tail": error.stderr_tail,
+        },
+    }
+
+    json_path.write_text(
+        json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8"
+    )
+    with open(summary_path, "a", encoding="utf-8") as f:
+        f.write(json.dumps(payload, sort_keys=True) + "\n")
+
+    return json_path
+
+
 def _run_class_background_only(
     class_params: dict[str, Any],
     cache_dir: Path,
@@ -669,10 +772,13 @@ def _run_class_background_only(
 
     _normalize_sbbn_path(run_params)
 
+    ini_lines = ["# Auto-generated: posterior_background_heatmaps.py\n"]
+    for key in sorted(run_params):
+        ini_lines.append(f"{key} = {run_params[key]}\n")
+    ini_text = "".join(ini_lines)
+
     with open(ini_path, "w") as f:
-        f.write("# Auto-generated: posterior_background_heatmaps.py\n")
-        for key in sorted(run_params):
-            f.write(f"{key} = {run_params[key]}\n")
+        f.write(ini_text)
 
     proc = subprocess.run(
         [str(class_exec), str(ini_path)],
@@ -687,16 +793,30 @@ def _run_class_background_only(
         if proc.returncode != 0:
             stdout_tail = "\n".join(proc.stdout.splitlines()[-20:])
             stderr_tail = "\n".join(proc.stderr.splitlines()[-20:])
-            raise RuntimeError(
+            raise ClassBackgroundRunError(
                 "CLASS background-only run failed.\n"
                 f"Return code: {proc.returncode}\n"
                 f"INI: {ini_path}\n"
                 f"STDOUT tail:\n{stdout_tail}\n"
-                f"STDERR tail:\n{stderr_tail}"
+                f"STDERR tail:\n{stderr_tail}",
+                cache_key=cache_key,
+                ini_path=ini_path,
+                ini_text=ini_text,
+                returncode=proc.returncode,
+                stdout_tail=stdout_tail,
+                stderr_tail=stderr_tail,
             )
 
         if not background_file.exists():
-            raise RuntimeError(f"Expected background output missing: {background_file}")
+            raise ClassBackgroundRunError(
+                f"Expected background output missing: {background_file}",
+                cache_key=cache_key,
+                ini_path=ini_path,
+                ini_text=ini_text,
+                returncode=proc.returncode,
+                stdout_tail="\n".join(proc.stdout.splitlines()[-20:]),
+                stderr_tail="\n".join(proc.stderr.splitlines()[-20:]),
+            )
 
         dataset = load_background_dataset(str(background_file))
         return {k: np.asarray(dataset[k]) for k in _FIELDS_TO_CACHE if k in dataset}
@@ -830,6 +950,8 @@ def _build_sample_class_params(
 
 
 def _process_single_trajectory(
+    bundle_root: str,
+    chain_files: list[Path],
     rec_index: tuple[int, DrawRecord],
     header: list[str],
     extracted_by_file: dict[int, dict[int, list[float]]],
@@ -838,6 +960,7 @@ def _process_single_trajectory(
     quantities: list[str],
     x_grid: np.ndarray,
     cache_dir: Path,
+    failure_audit_dir: Path,
 ) -> TrajectoryResult | None:
     """Process a single trajectory: extract, run CLASS, interpolate quantities.
 
@@ -845,6 +968,7 @@ def _process_single_trajectory(
     On CLASS failure, logs error and returns None (skipped).
     """
     i, rec = rec_index
+    chain_file = chain_files[rec.file_index]
     row_values = extracted_by_file[rec.file_index][rec.row_index_postburn]
     row_map = {name: float(row_values[j]) for j, name in enumerate(header)}
 
@@ -852,11 +976,20 @@ def _process_single_trajectory(
 
     try:
         bg, source, _ = get_or_compute_background(class_params, cache_dir)
-    except RuntimeError as e:
-        # Log failure and skip this trajectory (CLASS numerical failure on edge case).
+    except ClassBackgroundRunError as e:
+        audit_json = _write_failure_audit(
+            failure_audit_dir,
+            bundle_root=bundle_root,
+            chain_file=chain_file,
+            trajectory_index=i,
+            record=rec,
+            row_map=row_map,
+            class_params=class_params,
+            error=e,
+        )
         print(
-            f"    [WARNING] Trajectory {i}: CLASS background run failed (likely numerical edge case). "
-            f"Skipping. Error: {str(e)[:100]}"
+            f"    [WARNING] Trajectory {i}: CLASS background run failed. "
+            f"Skipping. Audit: {audit_json}"
         )
         return None
 
@@ -888,6 +1021,7 @@ def process_dataset(
     rng: np.random.Generator,
     cache_dir: Path,
     output_dir: Path,
+    failure_audit_dir: Path,
 ) -> None:
     """Run the full heatmap pipeline for one dataset root.
 
@@ -987,6 +1121,8 @@ def process_dataset(
                 i,
                 executor.submit(
                     _process_single_trajectory,
+                    bundle.root,
+                    bundle.chain_files,
                     (i, rec),
                     header,
                     extracted_by_file,
@@ -995,6 +1131,7 @@ def process_dataset(
                     quantities,
                     x_grid,
                     cache_dir,
+                    failure_audit_dir,
                 ),
             )
             for i, rec in enumerate(draw_records, 1)
@@ -1180,6 +1317,7 @@ def _process_single_root_wrapper(
     hdm_root: Path,
     cache_dir: Path,
     output_dir: Path,
+    failure_audit_dir: Path,
 ) -> None:
     """Process a single dataset root (for root-level parallelization).
 
@@ -1190,7 +1328,15 @@ def _process_single_root_wrapper(
     root_seed = seed + idx
     rng = np.random.default_rng(root_seed)
     bundle = discover_chain_bundle(root, hdm_root)
-    process_dataset(bundle, args, quantities, rng, cache_dir, output_dir)
+    process_dataset(
+        bundle,
+        args,
+        quantities,
+        rng,
+        cache_dir,
+        output_dir,
+        failure_audit_dir,
+    )
 
 
 def main() -> None:
@@ -1208,6 +1354,7 @@ def main() -> None:
 
     cache_dir = (_repo_root() / args.cache_dir).resolve()
     output_dir = (_repo_root() / args.output_dir).resolve()
+    failure_audit_dir = (_repo_root() / args.failure_audit_dir).resolve()
     cache_dir.mkdir(parents=True, exist_ok=True)
     output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -1217,6 +1364,7 @@ def main() -> None:
     print(f"  HDM root:   {hdm_root}")
     print(f"  Cache dir:  {cache_dir}")
     print(f"  Output dir: {output_dir}")
+    print(f"  Audit dir:  {failure_audit_dir}")
     print(f"  Quantities: {quantities}")
     print(f"  HPD params: {args.hpd_params}")
     print(f"  HPD mass:   {args.hpd_mass}")
@@ -1233,7 +1381,15 @@ def main() -> None:
         rng = np.random.default_rng(args.seed)
         for root in args.roots:
             bundle = discover_chain_bundle(root, hdm_root)
-            process_dataset(bundle, args, quantities, rng, cache_dir, output_dir)
+            process_dataset(
+                bundle,
+                args,
+                quantities,
+                rng,
+                cache_dir,
+                output_dir,
+                failure_audit_dir,
+            )
     else:
         # Parallel root processing with ProcessPoolExecutor.
         with ProcessPoolExecutor(max_workers=num_roots) as executor:
@@ -1247,6 +1403,7 @@ def main() -> None:
                     hdm_root,
                     cache_dir,
                     output_dir,
+                    failure_audit_dir,
                 )
                 for i, root in enumerate(args.roots)
             ]
