@@ -28,6 +28,7 @@ import os
 import re
 import subprocess
 import uuid
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -70,6 +71,14 @@ class DrawRecord:
     file_index: int
     row_index_postburn: int
     multiplicity: int
+
+
+@dataclass
+class TrajectoryResult:
+    """Result from processing a single trajectory: interpolated quantities and stats."""
+    qty_interps: dict[str, np.ndarray]
+    multiplicity: int
+    cache_hit: bool
 
 
 _FIELDS_TO_CACHE: tuple[str, ...] = (
@@ -248,6 +257,26 @@ def parse_args() -> argparse.Namespace:
         "--dry-run",
         action="store_true",
         help="Only print selection statistics; skip CLASS runs and plotting.",
+    )
+    parser.add_argument(
+        "--num-threads",
+        type=int,
+        default=1,
+        help=(
+            "Number of worker threads for trajectory-level parallelization (CLASS runs per dataset). "
+            "Default: 1 (serial). Recommended: min(N_cores, max_samples). "
+            "Set to 0 for all available cores."
+        ),
+    )
+    parser.add_argument(
+        "--num-roots",
+        type=int,
+        default=1,
+        help=(
+            "Number of worker processes for root-level parallelization (datasets). "
+            "Default: 1 (serial). Recommended: min(N_cores, len(roots)). "
+            "Set to 0 for all available cores."
+        ),
     )
     return parser.parse_args()
 
@@ -799,6 +828,47 @@ def _build_sample_class_params(
     return class_params
 
 
+def _process_single_trajectory(
+    rec_index: tuple[int, DrawRecord],
+    header: list[str],
+    extracted_by_file: dict[int, dict[int, list[float]]],
+    bestfit_values: dict[str, float],
+    yaml_config: dict[str, Any],
+    quantities: list[str],
+    x_grid: np.ndarray,
+    cache_dir: Path,
+) -> TrajectoryResult | None:
+    """Process a single trajectory: extract, run CLASS, interpolate quantities.
+    
+    Returns TrajectoryResult if valid (>= 2 finite points per quantity), else None.
+    """
+    i, rec = rec_index
+    row_values = extracted_by_file[rec.file_index][rec.row_index_postburn]
+    row_map = {name: float(row_values[j]) for j, name in enumerate(header)}
+
+    class_params = _build_sample_class_params(row_map, bestfit_values, yaml_config)
+    bg, source, _ = get_or_compute_background(class_params, cache_dir)
+    cache_hit = source == "cache"
+
+    qty_interps: dict[str, np.ndarray] = {}
+    for qty in quantities:
+        if qty not in bg:
+            continue
+        y_interp = _interp_background_quantity(bg, qty, x_grid)
+        valid = np.isfinite(y_interp)
+        if np.count_nonzero(valid) >= 2:
+            qty_interps[qty] = y_interp
+
+    if not qty_interps:
+        return None
+
+    return TrajectoryResult(
+        qty_interps=qty_interps,
+        multiplicity=rec.multiplicity,
+        cache_hit=cache_hit,
+    )
+
+
 def process_dataset(
     bundle: ChainBundle,
     args: argparse.Namespace,
@@ -885,6 +955,7 @@ def process_dataset(
     )
 
     # Pass 1: run CLASS (or load cache) once per unique sample; interpolate all quantities.
+    # With parallelization, process trajectories concurrently (threads safe for I/O-bound CLASS runs).
     # y_ranges[qty] = [min, max] accumulated across trajectories.
     y_ranges: dict[str, list[float]] = {qty: [np.inf, -np.inf] for qty in quantities}
     cache_hits = 0
@@ -894,43 +965,60 @@ def process_dataset(
     # Each element: per-quantity interpolated y-values on x_grid, plus multiplicity.
     trajectory_payload: list[tuple[dict[str, np.ndarray], int]] = []
 
-    for i, rec in enumerate(draw_records, 1):
-        row_values = extracted_by_file[rec.file_index][rec.row_index_postburn]
-        row_map = {name: float(row_values[j]) for j, name in enumerate(header)}
+    # Determine thread pool size: 0 = use all cores, >0 = explicit limit.
+    num_threads = args.num_threads if args.num_threads > 0 else None
 
-        class_params = _build_sample_class_params(row_map, bestfit_values, yaml_config)
-        bg, source, _ = get_or_compute_background(class_params, cache_dir)
-        if source == "cache":
-            cache_hits += 1
-        else:
-            cache_misses += 1
-
-        qty_interps: dict[str, np.ndarray] = {}
-        for qty in quantities:
-            if qty not in bg:
-                continue
-            y_interp = _interp_background_quantity(bg, qty, x_grid)
-            valid = np.isfinite(y_interp)
-            if np.count_nonzero(valid) >= 2:
-                y_ranges[qty][0] = min(
-                    y_ranges[qty][0], float(np.nanmin(y_interp[valid]))
-                )
-                y_ranges[qty][1] = max(
-                    y_ranges[qty][1], float(np.nanmax(y_interp[valid]))
-                )
-                qty_interps[qty] = y_interp
-
-        if not qty_interps:
-            skipped += 1
-            continue
-
-        trajectory_payload.append((qty_interps, rec.multiplicity))
-
-        if i % 50 == 0 or i == len(draw_records):
-            print(
-                f"  processed {i}/{len(draw_records)} unique trajectories "
-                f"(cache hit={cache_hits}, miss={cache_misses}, skipped={skipped})"
+    with ThreadPoolExecutor(max_workers=num_threads) as executor:
+        # Submit all tasks in order.
+        futures = [
+            (
+                i,
+                executor.submit(
+                    _process_single_trajectory,
+                    (i, rec),
+                    header,
+                    extracted_by_file,
+                    bestfit_values,
+                    yaml_config,
+                    quantities,
+                    x_grid,
+                    cache_dir,
+                ),
             )
+            for i, rec in enumerate(draw_records, 1)
+        ]
+
+        # Collect results maintaining order.
+        for i, future in futures:
+            traj_result = future.result()
+
+            if traj_result is None:
+                skipped += 1
+            else:
+                if traj_result.cache_hit:
+                    cache_hits += 1
+                else:
+                    cache_misses += 1
+
+                for qty, y_interp in traj_result.qty_interps.items():
+                    valid = np.isfinite(y_interp)
+                    if np.count_nonzero(valid) >= 2:
+                        y_ranges[qty][0] = min(
+                            y_ranges[qty][0], float(np.nanmin(y_interp[valid]))
+                        )
+                        y_ranges[qty][1] = max(
+                            y_ranges[qty][1], float(np.nanmax(y_interp[valid]))
+                        )
+
+                trajectory_payload.append(
+                    (traj_result.qty_interps, traj_result.multiplicity)
+                )
+
+            if i % 50 == 0 or i == len(draw_records):
+                print(
+                    f"  processed {i}/{len(draw_records)} unique trajectories "
+                    f"(cache hit={cache_hits}, miss={cache_misses}, skipped={skipped})"
+                )
 
     if not trajectory_payload:
         raise RuntimeError(
@@ -1072,6 +1160,27 @@ def process_dataset(
     )
 
 
+def _process_single_root_wrapper(
+    root_index_tuple: tuple[int, str],
+    args: argparse.Namespace,
+    quantities: list[str],
+    seed: int,
+    hdm_root: Path,
+    cache_dir: Path,
+    output_dir: Path,
+) -> None:
+    """Process a single dataset root (for root-level parallelization).
+    
+    Wraps process_dataset with per-root RNG seeding for reproducibility.
+    """
+    idx, root = root_index_tuple
+    # Adjust seed per root for independent randomization across processes.
+    root_seed = seed + idx
+    rng = np.random.default_rng(root_seed)
+    bundle = discover_chain_bundle(root, hdm_root)
+    process_dataset(bundle, args, quantities, rng, cache_dir, output_dir)
+
+
 def main() -> None:
     args = parse_args()
     if args.hpd_mass <= 0.0 or args.hpd_mass >= 1.0:
@@ -1090,7 +1199,6 @@ def main() -> None:
     cache_dir.mkdir(parents=True, exist_ok=True)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    rng = np.random.default_rng(args.seed)
     hdm_root = _hdm_root()
 
     print("Posterior background heatmap pipeline")
@@ -1101,10 +1209,38 @@ def main() -> None:
     print(f"  HPD params: {args.hpd_params}")
     print(f"  HPD mass:   {args.hpd_mass}")
     print(f"  Max draws:  {args.max_samples}")
+    print(f"  Trajectory parallelization: --num-threads={args.num_threads}")
+    print(f"  Root-level parallelization: --num-roots={args.num_roots}")
 
-    for root in args.roots:
-        bundle = discover_chain_bundle(root, hdm_root)
-        process_dataset(bundle, args, quantities, rng, cache_dir, output_dir)
+    # Determine process pool size: 0 = use all cores, >0 = explicit limit.
+    num_roots = args.num_roots if args.num_roots > 0 else None
+
+    # Root-level parallelization: process multiple roots concurrently.
+    if num_roots == 1 or len(args.roots) == 1:
+        # Serial root processing.
+        rng = np.random.default_rng(args.seed)
+        for root in args.roots:
+            bundle = discover_chain_bundle(root, hdm_root)
+            process_dataset(bundle, args, quantities, rng, cache_dir, output_dir)
+    else:
+        # Parallel root processing with ProcessPoolExecutor.
+        with ProcessPoolExecutor(max_workers=num_roots) as executor:
+            futures = [
+                executor.submit(
+                    _process_single_root_wrapper,
+                    (i, root),
+                    args,
+                    quantities,
+                    args.seed,
+                    hdm_root,
+                    cache_dir,
+                    output_dir,
+                )
+                for i, root in enumerate(args.roots)
+            ]
+            # Wait for all to complete.
+            for future in futures:
+                future.result()
 
 
 if __name__ == "__main__":
