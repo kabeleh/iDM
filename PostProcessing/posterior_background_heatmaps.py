@@ -26,6 +26,7 @@ import hashlib
 import json
 import os
 import re
+import shutil
 import subprocess
 import uuid
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
@@ -37,7 +38,9 @@ from typing import Any
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
+from cmcrameri import cm as cmc
 from matplotlib.colors import LogNorm
+from matplotlib.figure import Figure
 
 from BestFitPlot import (
     extract_class_parameters,
@@ -48,6 +51,64 @@ from BestFitPlot import (
 
 # Keep plotting dependencies lightweight and robust on clusters/headless runs.
 mpl.use("Agg")
+
+mpl.rcParams.update(
+    {
+        "font.family": "serif",
+        "font.size": 11.5,
+        "axes.labelsize": 12,
+        "xtick.labelsize": 11,
+        "ytick.labelsize": 11,
+        "legend.fontsize": 11,
+        "lines.linewidth": 1.85,
+        "axes.linewidth": 0.95,
+        "xtick.direction": "in",
+        "ytick.direction": "in",
+        "xtick.minor.visible": True,
+        "ytick.minor.visible": True,
+        "xtick.major.size": 4.8,
+        "ytick.major.size": 4.8,
+        "xtick.minor.size": 2.4,
+        "ytick.minor.size": 2.4,
+        "xtick.major.width": 0.95,
+        "ytick.major.width": 0.95,
+        "xtick.minor.width": 0.72,
+        "ytick.minor.width": 0.72,
+        "lines.markersize": 4,
+        "errorbar.capsize": 3,
+        "axes.xmargin": 0.02,
+        "axes.ymargin": 0.02,
+        "legend.frameon": False,
+        "savefig.bbox": "tight",
+        "savefig.dpi": 300,
+        **(
+            {
+                "text.usetex": True,
+                "pgf.preamble": (
+                    r"\usepackage{fontspec}"
+                    r"\usepackage{mathtools}"
+                    r"\usepackage{amsfonts}"
+                    r"\usepackage{amssymb}"
+                    r"\usepackage[warnings-off={mathtools-overbracket,mathtools-colon}]{unicode-math}"
+                    r"\setmainfont{IBM Plex Serif}"
+                    r"\setsansfont{IBM Plex Sans}"
+                    r"\setmonofont{IBM Plex Mono}"
+                    r"\setmathfont{IBM Plex Math}"
+                ),
+                "text.latex.preamble": r"\usepackage{amsfonts}\usepackage{amssymb}",
+                "pgf.texsystem": "lualatex",
+                "pgf.rcfonts": False,
+            }
+            if shutil.which("latex")
+            else {
+                "text.usetex": False,
+                "mathtext.fontset": "cm",
+            }
+        ),
+    }
+)
+
+_HEATMAP_CMAP = getattr(cmc, "batlowK")
 
 
 @dataclass
@@ -928,6 +989,13 @@ def _sanitize_label(text: str) -> str:
     return re.sub(r"[^A-Za-z0-9._-]+", "_", text).strip("_")
 
 
+def _save_figure_bundle(fig: Figure, base_path: Path) -> None:
+    """Save each figure as PNG/PDF/PGF for quick view and LaTeX workflows."""
+    fig.savefig(str(base_path.parent / f"{base_path.name}.png"))
+    fig.savefig(str(base_path.parent / f"{base_path.name}.pdf"))
+    fig.savefig(str(base_path.parent / f"{base_path.name}.pgf"))
+
+
 def _build_sample_class_params(
     row_map: dict[str, float],
     bestfit_values: dict[str, float],
@@ -1230,7 +1298,7 @@ def process_dataset(
             print(f"  [WARN] Empty histogram for {qty}, skipping.")
             continue
 
-        fig, ax = plt.subplots(figsize=(8.2, 5.2))
+        fig, ax = plt.subplots(figsize=(6.4, 4.1))
 
         H_plot = H.T
         positive = H_plot[H_plot > 0]
@@ -1243,13 +1311,13 @@ def process_dataset(
             x_edges,
             y_edges,
             H_plot,
-            cmap="magma",
+            cmap=_HEATMAP_CMAP,
             norm=LogNorm(vmin=vmin, vmax=vmax),
             shading="auto",
         )
 
         cb = fig.colorbar(mesh, ax=ax, pad=0.02)
-        cb.set_label("posterior path density (weighted resampling)")
+        cb.set_label("Posterior Path Density")
 
         # Show cosmic time direction as in BestFitPlot-style redshift narratives.
         ax.set_xlim(args.x_max, args.x_min)
@@ -1269,11 +1337,14 @@ def process_dataset(
         ax.set_xticks(x_ticks[inside])
         ax.set_xticklabels([x_tick_labels[k] for k, ok in enumerate(inside) if ok])
 
-        ax.set_xlabel(r"$z$")
-        ax.set_ylabel(y_label_map.get(qty, qty))
+        qty_label = y_label_map.get(qty, qty)
+        ax.set_xlabel(r"Redshift $z$")
+        ax.set_ylabel(qty_label)
+        ax.grid(True, which="major", alpha=0.32, linewidth=0.6)
+        ax.grid(True, which="minor", alpha=0.09, linewidth=0.4)
         ax.set_title(
-            f"{dataset_label} | {qty} posterior heatmap\n"
-            f"HPD-like mass={args.hpd_mass:.2f}, draws={total_draws:,}, "
+            f"{dataset_label} | {qty_label} Posterior Heatmap\n"
+            f"HPD-Like Mass={args.hpd_mass:.2f}, Draws={total_draws:,}, "
             f"unique={len(draw_records):,}"
         )
 
@@ -1281,10 +1352,10 @@ def process_dataset(
 
         png_path = output_dir / f"heatmap_{qty}_{safe}.png"
         pdf_path = output_dir / f"heatmap_{qty}_{safe}.pdf"
+        pgf_path = output_dir / f"heatmap_{qty}_{safe}.pgf"
         npz_path = output_dir / f"heatmap_{qty}_{safe}.npz"
 
-        fig.savefig(png_path, dpi=220)
-        fig.savefig(pdf_path)
+        _save_figure_bundle(fig, output_dir / f"heatmap_{qty}_{safe}")
         plt.close(fig)
 
         np.savez_compressed(
@@ -1301,7 +1372,9 @@ def process_dataset(
             cache_misses=np.array([cache_misses], dtype=np.int64),
         )
 
-        print(f"  [{qty}] Saved: {png_path.name}, {pdf_path.name}, {npz_path.name}")
+        print(
+            f"  [{qty}] Saved: {png_path.name}, {pdf_path.name}, {pgf_path.name}, {npz_path.name}"
+        )
 
     print(
         f"Background cache usage: hit={cache_hits}, miss={cache_misses}, "
