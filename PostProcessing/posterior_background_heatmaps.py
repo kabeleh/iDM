@@ -76,6 +76,7 @@ class DrawRecord:
 @dataclass
 class TrajectoryResult:
     """Result from processing a single trajectory: interpolated quantities and stats."""
+
     qty_interps: dict[str, np.ndarray]
     multiplicity: int
     cache_hit: bool
@@ -125,19 +126,19 @@ _ALL_QUANTITIES: list[str] = [
     "swampland_expr",
     # Strong Scalar Weak Gravity Conjecture (SWGC / plot 6 in BestFitPlot.py)
     # Condition: (V'')^2 <= 2(V''')^2 - V''*V'''' i.e. swgc_residual >= 0
-    "swgc_lhs",       # (V'')^2
-    "swgc_rhs",       # 2(V''')^2 - V''*V''''
+    "swgc_lhs",  # (V'')^2
+    "swgc_rhs",  # 2(V''')^2 - V''*V''''
     "swgc_residual",  # rhs - lhs  (positive = SWGC satisfied)
 ]
 
 # Named presets for --preset; each expands to a list of quantities plotted in one pass.
 _PRESET_QUANTITIES: dict[str, list[str]] = {
-    "phi":       ["phi_scf"],
-    "eos":       ["w"],
-    "omega":     ["Omega_cdm", "Omega_scf"],
+    "phi": ["phi_scf"],
+    "eos": ["w"],
+    "omega": ["Omega_cdm", "Omega_scf"],
     "swampland": ["s1", "minus_s2", "swampland_expr"],
-    "swgc":      ["swgc_lhs", "swgc_rhs", "swgc_residual"],
-    "all":       list(_ALL_QUANTITIES),
+    "swgc": ["swgc_lhs", "swgc_rhs", "swgc_residual"],
+    "all": list(_ALL_QUANTITIES),
 }
 
 
@@ -839,15 +840,26 @@ def _process_single_trajectory(
     cache_dir: Path,
 ) -> TrajectoryResult | None:
     """Process a single trajectory: extract, run CLASS, interpolate quantities.
-    
+
     Returns TrajectoryResult if valid (>= 2 finite points per quantity), else None.
+    On CLASS failure, logs error and returns None (skipped).
     """
     i, rec = rec_index
     row_values = extracted_by_file[rec.file_index][rec.row_index_postburn]
     row_map = {name: float(row_values[j]) for j, name in enumerate(header)}
 
     class_params = _build_sample_class_params(row_map, bestfit_values, yaml_config)
-    bg, source, _ = get_or_compute_background(class_params, cache_dir)
+
+    try:
+        bg, source, _ = get_or_compute_background(class_params, cache_dir)
+    except RuntimeError as e:
+        # Log failure and skip this trajectory (CLASS numerical failure on edge case).
+        print(
+            f"    [WARNING] Trajectory {i}: CLASS background run failed (likely numerical edge case). "
+            f"Skipping. Error: {str(e)[:100]}"
+        )
+        return None
+
     cache_hit = source == "cache"
 
     qty_interps: dict[str, np.ndarray] = {}
@@ -1030,15 +1042,15 @@ def process_dataset(
     output_dir.mkdir(parents=True, exist_ok=True)
 
     y_label_map: dict[str, str] = {
-        "phi_scf":       r"$\phi$",
-        "w":             r"$w$",
-        "Omega_cdm":     r"$\Omega_{\rm cdm}$",
-        "Omega_scf":     r"$\Omega_{\phi}$",
-        "s1":            r"$\mathfrak{s}_1 = |V_{\phi}|/V$",
-        "minus_s2":      r"$\mathfrak{s}_2 = -V_{\phi\phi}/V$",
+        "phi_scf": r"$\phi$",
+        "w": r"$w$",
+        "Omega_cdm": r"$\Omega_{\rm cdm}$",
+        "Omega_scf": r"$\Omega_{\phi}$",
+        "s1": r"$\mathfrak{s}_1 = |V_{\phi}|/V$",
+        "minus_s2": r"$\mathfrak{s}_2 = -V_{\phi\phi}/V$",
         "swampland_expr": r"$1+w-0.15\,\mathfrak{s}_1^2$",
-        "swgc_lhs":      r"$(V'')^2$",
-        "swgc_rhs":      r"$2(V''')^2 - V''V''''$",
+        "swgc_lhs": r"$(V'')^2$",
+        "swgc_rhs": r"$2(V''')^2 - V''V''''$",
         "swgc_residual": r"$\Delta_{\rm SWGC} = 2(V''')^2 - V''V'''' - (V'')^2$",
     }
 
@@ -1170,7 +1182,7 @@ def _process_single_root_wrapper(
     output_dir: Path,
 ) -> None:
     """Process a single dataset root (for root-level parallelization).
-    
+
     Wraps process_dataset with per-root RNG seeding for reproducibility.
     """
     idx, root = root_index_tuple
