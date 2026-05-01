@@ -467,6 +467,15 @@ def parse_args() -> argparse.Namespace:
             "Set to 0 for all available cores."
         ),
     )
+    parser.add_argument(
+        "--zero-label-overlap-margin-px",
+        type=float,
+        default=0.6,
+        help=(
+            "Pixel margin for hiding y-axis labels that overlap the y=0 label "
+            "on phi_scf symlog plots. Smaller values hide fewer labels."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -1269,6 +1278,63 @@ def _symlog_inverse(values: np.ndarray, linthresh: float) -> np.ndarray:
     return np.sign(values) * linthresh * (np.power(10.0, np.abs(values)) - 1.0)
 
 
+def _hide_overlaps_with_zero_ytick_label(
+    fig: Figure,
+    ax: Axes,
+    overlap_margin_px: float = 0.6,
+) -> None:
+    """Keep the y=0 major label visible and hide only labels that overlap it.
+
+    This preserves Matplotlib's default symlog tick selection while resolving the
+    specific visual collision near zero.
+    """
+
+    fig.canvas.draw()
+    renderer_getter = getattr(fig.canvas, "get_renderer", None)
+    if renderer_getter is None:
+        return
+    renderer = renderer_getter()
+
+    ticks = np.asarray(ax.get_yticks(), dtype=float)
+    labels = list(ax.yaxis.get_majorticklabels())
+    n = min(len(ticks), len(labels))
+    if n < 2:
+        return
+
+    max_abs = float(np.nanmax(np.abs(ticks[:n]))) if n > 0 else 1.0
+    atol = max(1e-14, 1e-12 * max(max_abs, 1.0))
+
+    zero_idx: int | None = None
+    for i in range(n):
+        if bool(np.isclose(ticks[i], 0.0, atol=atol, rtol=0.0)):
+            zero_idx = i
+            break
+    if zero_idx is None:
+        return
+
+    zero_label = labels[zero_idx]
+    if not zero_label.get_text().strip():
+        return
+    zero_label.set_visible(True)
+
+    margin = max(0.0, float(overlap_margin_px))
+    x0, y0, x1, y1 = zero_label.get_window_extent(renderer=renderer).extents
+    zero_box = type(zero_label.get_window_extent(renderer=renderer)).from_extents(
+        x0 - margin,
+        y0 - margin,
+        x1 + margin,
+        y1 + margin,
+    )
+    for i in range(n):
+        if i == zero_idx:
+            continue
+        label = labels[i]
+        if not label.get_visible() or not label.get_text().strip():
+            continue
+        if zero_box.overlaps(label.get_window_extent(renderer=renderer)):
+            label.set_visible(False)
+
+
 def _build_quantity_y_edges(
     y_min: float,
     y_max: float,
@@ -1627,6 +1693,12 @@ def process_dataset(
             ax.set_yscale("symlog", linthresh=y_linthresh)
 
         fig.tight_layout()
+        if y_linthresh is not None and qty == "phi_scf":
+            _hide_overlaps_with_zero_ytick_label(
+                fig,
+                ax,
+                overlap_margin_px=args.zero_label_overlap_margin_px,
+            )
 
         png_path = output_dir / f"heatmap_{qty}_{safe}.png"
         pdf_path = output_dir / f"heatmap_{qty}_{safe}.pdf"
