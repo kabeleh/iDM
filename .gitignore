@@ -33,4 +33,5 @@ baseline/*.npy
 PostProcessing/Plots/
 PostProcessing/PosteriorHeatmaps/
 PostProcessing/background_posterior_cache/
+PostProcessing/failure_audit/
 analysis/
