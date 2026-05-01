@@ -114,6 +114,7 @@ import re
 import shutil
 import subprocess
 import uuid
+import zipfile
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -997,6 +998,28 @@ def _load_cached_background(npz_path: Path) -> dict[str, np.ndarray]:
         return {k: np.asarray(arr[k]) for k in arr.files if k in _FIELDS_TO_CACHE}
 
 
+def _write_npz_atomic(npz_path: Path, data: dict[str, np.ndarray]) -> None:
+    tmp_path = npz_path.with_name(f"{npz_path.name}.tmp.{uuid.uuid4().hex}")
+    try:
+        with open(tmp_path, "wb") as f:
+            np.savez_compressed(f, **data)
+        os.replace(tmp_path, npz_path)
+    finally:
+        if tmp_path.exists():
+            tmp_path.unlink()
+
+
+def _write_json_atomic(path: Path, payload: dict[str, Any]) -> None:
+    tmp_path = path.with_name(f"{path.name}.tmp.{uuid.uuid4().hex}")
+    try:
+        with open(tmp_path, "w") as f:
+            json.dump(payload, f, indent=2, sort_keys=True)
+        os.replace(tmp_path, path)
+    finally:
+        if tmp_path.exists():
+            tmp_path.unlink()
+
+
 def get_or_compute_background(
     class_params: dict[str, Any],
     cache_dir: Path,
@@ -1006,22 +1029,28 @@ def get_or_compute_background(
     meta_path = cache_dir / f"{cache_key}.meta.json"
 
     if npz_path.exists():
-        return _load_cached_background(npz_path), "cache", cache_key
+        try:
+            return _load_cached_background(npz_path), "cache", cache_key
+        except (zipfile.BadZipFile, OSError, ValueError, EOFError, KeyError) as exc:
+            # Heal corrupted or partially-written cache entries and recompute.
+            print(
+                f"  [WARNING] Corrupted cache entry {npz_path.name}: {exc}. "
+                "Deleting and recomputing."
+            )
+            npz_path.unlink(missing_ok=True)
+            meta_path.unlink(missing_ok=True)
 
     data = _run_class_background_only(class_params, cache_dir, cache_key)
 
-    np.savez_compressed(npz_path, **data)
-    with open(meta_path, "w") as f:
-        json.dump(
-            {
-                "cache_key": cache_key,
-                "class_params": {k: str(v) for k, v in sorted(class_params.items())},
-                "fields": sorted(list(data.keys())),
-            },
-            f,
-            indent=2,
-            sort_keys=True,
-        )
+    _write_npz_atomic(npz_path, data)
+    _write_json_atomic(
+        meta_path,
+        {
+            "cache_key": cache_key,
+            "class_params": {k: str(v) for k, v in sorted(class_params.items())},
+            "fields": sorted(list(data.keys())),
+        },
+    )
 
     return data, "computed", cache_key
 
