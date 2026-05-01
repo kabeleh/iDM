@@ -2,7 +2,7 @@
 """
 Posterior background heatmaps from MCMC chains.
 
-This script builds posterior-density heatmaps for background quantities (phi by default)
+This script builds posterior-density heatmaps for background quantities
 using a dedicated pipeline:
 
 1) HPD-like selection in parameter space (histogram-density surrogate)
@@ -13,10 +13,95 @@ using a dedicated pipeline:
 
 Designed for large chains where running CLASS for every accepted sample is infeasible.
 
-Example:
-  python3 PostProcessing/posterior_background_heatmaps.py \
-      --roots hyperbolic_PP_D_InitCond_MCMC hyperbolic_PP_S_D_InitCond_MCMC \
-      --max-samples 2000 --hpd-mass 0.68
+Available quantities (--quantity / --quantities):
+  phi_scf          scalar-field value phi(z)
+  w                dark-energy equation of state w(z)
+  Omega_cdm        cold dark-matter density fraction Omega_cdm(z)
+  Omega_scf        scalar-field density fraction Omega_scf(z)
+  s1               first slow-roll parameter epsilon_1(z)
+  minus_s2         -epsilon_2(z)
+  swampland_expr   swampland conjecture combination f(phi, dphi)
+  swgc_lhs         SWGC left-hand side |V'|/V
+  swgc_rhs         SWGC right-hand side c
+  swgc_residual    SWGC residual (lhs - rhs)
+
+Presets (--preset):
+  phi              phi_scf only (default when no --quantity/--quantities/--preset given)
+  eos              w
+  omega            Omega_cdm + Omega_scf
+  swampland        swampland_expr
+  swgc             swgc_lhs + swgc_rhs + swgc_residual
+  all              all quantities above
+
+Examples
+--------
+# Minimal: single chain, default quantity (phi_scf)
+python3 PostProcessing/posterior_background_heatmaps.py \\
+    --roots hyperbolic_PP_D_InitCond_MCMC \\
+    --max-samples 2000 --hpd-mass 0.68
+
+# Two chains, all quantities, parallelised over roots and trajectories
+python3 PostProcessing/posterior_background_heatmaps.py \\
+    --roots hyperbolic_PP_D_InitCond_MCMC hyperbolic_PP_S_D_InitCond_MCMC \\
+    --max-samples 5000 --hpd-mass 0.68 \\
+    --preset all \\
+    --num-roots 2 --num-threads 8
+
+# SWGC preset with custom axis bins and output location
+python3 PostProcessing/posterior_background_heatmaps.py \\
+    --roots hyperbolic_PP_D_InitCond_MCMC \\
+    --max-samples 3000 --hpd-mass 0.95 --hpd-bins 20 \\
+    --preset swgc \\
+    --x-bins 120 --y-bins 120 \\
+    --x-min 0 --x-max 3 \\
+    --output-dir PostProcessing/PosteriorHeatmaps_swgc \\
+    --cache-dir PostProcessing/background_cache
+
+# Inspect HPD selection only (no CLASS runs, no figures)
+python3 PostProcessing/posterior_background_heatmaps.py \\
+    --roots hyperbolic_PP_D_InitCond_MCMC \\
+    --max-samples 1000 --hpd-mass 0.68 \\
+    --dry-run
+
+# Select specific quantities by name
+python3 PostProcessing/posterior_background_heatmaps.py \\
+    --roots hyperbolic_PP_D_InitCond_MCMC \\
+    --max-samples 2000 \\
+    --quantities phi_scf w swgc_residual
+
+# Enable failure auditing (writes JSON + INI per failed trajectory)
+python3 PostProcessing/posterior_background_heatmaps.py \\
+    --roots hyperbolic_PP_D_InitCond_MCMC \\
+    --max-samples 2000 --hpd-mass 0.68 \\
+    --failure-audit-dir PostProcessing/failure_audit
+
+# Diff a failure audit artifact against a chain-derived reconstruction
+python3 PostProcessing/diff_failure_audit.py \\
+    PostProcessing/failure_audit/<uuid>.json \\
+    --show-matching
+
+Flag reference
+--------------
+--roots ROOT [ROOT ...]     GetDist root names (relative to chains/)
+--hpd-params P [P ...]      Parameters used for HPD selection (default: auto)
+--hpd-mass FLOAT            Posterior mass enclosed by HPD region (default: 0.68)
+--hpd-bins INT              Bins per axis for HPD histogram (default: 16)
+--ignore-rows FLOAT         GetDist ignore_rows fraction (default: 0.3)
+--max-samples INT           Maximum trajectories to run per root
+--quantity STR              Single quantity to plot (legacy form)
+--quantities STR [STR ...]  One or more quantity names to plot
+--preset STR                Named quantity preset (phi/eos/omega/swampland/swgc/all)
+--x-bins INT                Redshift axis bins (default: 80)
+--y-bins INT                Quantity axis bins (default: 80)
+--x-min FLOAT               Minimum redshift (default: 0)
+--x-max FLOAT               Maximum redshift (default: 3)
+--cache-dir PATH            Directory for persistent background cache
+--output-dir PATH           Directory for output figures (default: PostProcessing/PosteriorHeatmaps)
+--seed INT                  Random seed for reproducible resampling
+--dry-run                   Print HPD statistics and exit without running CLASS
+--num-threads INT           Threads per root for CLASS runs (0 = all cores)
+--num-roots INT             Roots processed in parallel (0 = all cores)
+--failure-audit-dir PATH    Write structured audit artifacts for CLASS failures
 """
 
 from __future__ import annotations
@@ -451,10 +536,17 @@ def discover_chain_bundle(root: str, hdm_root: Path) -> ChainBundle:
 
     for base in _ordered_chain_search_dirs(hdm_root):
         root_abs = base / resolved
-        chain_files = sorted(root_abs.parent.glob(f"{root_abs.name}.[0-9]*.txt"))
-        if chain_files:
-            bestfit_candidate = root_abs.with_suffix(".bestfit")
-            input_candidate = root_abs.with_suffix(".input.yaml")
+        segment_files = sorted(root_abs.parent.glob(f"{root_abs.name}.[0-9]*.txt"))
+        if segment_files:
+            # Keep the first discovered chain segment set and avoid resetting it
+            # in later base-directory iterations.
+            if not chain_files:
+                chain_files = segment_files
+
+            # Do not use with_suffix here: roots can contain dots (e.g. .post.Swamp),
+            # and with_suffix would incorrectly replace only the trailing component.
+            bestfit_candidate = root_abs.parent / f"{root_abs.name}.bestfit"
+            input_candidate = root_abs.parent / f"{root_abs.name}.input.yaml"
             if bestfit_candidate.exists():
                 bestfit_file = bestfit_candidate
             if input_candidate.exists():
@@ -1602,15 +1694,38 @@ def main() -> None:
     print(f"  Trajectory parallelization: --num-threads={args.num_threads}")
     print(f"  Root-level parallelization: --num-roots={args.num_roots}")
 
+    # Resolve bundles up front so missing roots are reported and skipped
+    # rather than aborting all remaining datasets.
+    resolved_bundles: list[ChainBundle] = []
+    skipped_roots: list[str] = []
+    for root in args.roots:
+        try:
+            resolved_bundles.append(discover_chain_bundle(root, hdm_root))
+        except FileNotFoundError as exc:
+            skipped_roots.append(root)
+            print(f"[WARNING] Skipping root '{root}': {exc}")
+
+    if not resolved_bundles:
+        roots_preview = ", ".join(args.roots)
+        raise FileNotFoundError(
+            "No valid chain roots found. Checked roots: "
+            f"{roots_preview}. Use --roots to pass available roots."
+        )
+
+    if skipped_roots:
+        print(
+            "Proceeding with "
+            f"{len(resolved_bundles)} valid root(s); skipped {len(skipped_roots)} missing root(s)."
+        )
+
     # Determine process pool size: 0 = use all cores, >0 = explicit limit.
     num_roots = args.num_roots if args.num_roots > 0 else None
 
     # Root-level parallelization: process multiple roots concurrently.
-    if num_roots == 1 or len(args.roots) == 1:
+    if num_roots == 1 or len(resolved_bundles) == 1:
         # Serial root processing.
         rng = np.random.default_rng(args.seed)
-        for root in args.roots:
-            bundle = discover_chain_bundle(root, hdm_root)
+        for bundle in resolved_bundles:
             process_dataset(
                 bundle,
                 args,
@@ -1626,7 +1741,7 @@ def main() -> None:
             futures = [
                 executor.submit(
                     _process_single_root_wrapper,
-                    (i, root),
+                    (i, bundle.root),
                     args,
                     quantities,
                     args.seed,
@@ -1635,7 +1750,7 @@ def main() -> None:
                     output_dir,
                     failure_audit_dir,
                 )
-                for i, root in enumerate(args.roots)
+                for i, bundle in enumerate(resolved_bundles)
             ]
             # Wait for all to complete.
             for future in futures:
