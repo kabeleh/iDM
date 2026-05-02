@@ -1699,7 +1699,6 @@ def process_dataset(
         )
 
     dataset_label = _dataset_label_from_root(bundle.root)
-    safe = _sanitize_label(bundle.root)
     output_dir.mkdir(parents=True, exist_ok=True)
 
     y_label_map: dict[str, str] = {
