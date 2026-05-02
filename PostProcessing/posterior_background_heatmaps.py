@@ -14,29 +14,55 @@ using a dedicated pipeline:
 Designed for large chains where running CLASS for every accepted sample is infeasible.
 
 Available quantities (--quantity / --quantities):
-  phi_scf          scalar-field value phi(z)
-  w                dark-energy equation of state w(z)
-  Omega_cdm        cold dark-matter density fraction Omega_cdm(z)
-  Omega_scf        scalar-field density fraction Omega_scf(z)
-  s1               first slow-roll parameter epsilon_1(z)
-  minus_s2         -epsilon_2(z)
-  swampland_expr   swampland conjecture combination f(phi, dphi)
-  swgc_lhs         SWGC left-hand side |V'|/V
-  swgc_rhs         SWGC right-hand side c
-  swgc_residual    SWGC residual (lhs - rhs)
+    phi_scf          scalar-field value phi(z)
+    w                dark-energy equation of state w(z)
+    Omega_cdm        cold dark-matter density fraction Omega_cdm(z)
+    Omega_scf        scalar-field density fraction Omega_scf(z)
+    s1               first de Sitter conjecture parameter
+    minus_s2         second de Sitter conjecture parameter s2 = -epsilon_2(z)
+    swampland_expr   swampland conjecture combination f(phi, dphi)
+    swgc_lhs         SWGC left-hand side
+    swgc_rhs         SWGC right-hand side
+    swgc_residual    SWGC residual
 
 Presets (--preset):
   phi              phi_scf only (default when no --quantity/--quantities/--preset given)
   eos              w
-  omega            Omega_cdm + Omega_scf
-  swampland        swampland_expr
+  omega            combined Omega plot from Omega_cdm + Omega_scf
+  swampland        combined dSC plot from s1 + minus_s2
   swgc             swgc_lhs + swgc_rhs + swgc_residual
-  all              all quantities above
+    all              phi + w + Omega + dSC + SWGC outputs
+
+Filename scheme
+---------------
+All outputs use:
+    <root>_heatmap_<quantity>
+
+where <root> is the chain root and <quantity> is one of:
+    phi
+    w
+    Omega
+    dSC_s1
+    dSC_s2
+    dSC
+    swgc_lhs
+    swgc_rhs
+    swgc
+
+Combined plots:
+    Omega            combined Omega_DM + Omega_phi panel
+    dSC              combined s1 + s2 panel
+
+Standalone aliases:
+    phi_scf          -> phi
+    s1               -> dSC_s1
+    minus_s2         -> dSC_s2
+    swgc_residual    -> swgc
 
 Examples
 --------
-# 2000 samples of phi for all roots, using all cores, with failure auditing
-python3 PostProcessing/posterior_background_heatmaps.py --max-samples 2000 --hpd-mass 0.68 --num-threads 0 --failure-audit-dir PostProcessing/failure_audit
+# 2000 samples for all documented outputs, using all cores, with failure auditing
+python3 PostProcessing/posterior_background_heatmaps.py --max-samples 2000 --hpd-mass 0.68 --num-threads 0 --failure-audit-dir PostProcessing/failure_audit --preset all
 
 # Minimal: single chain, default quantity (phi_scf)
 python3 PostProcessing/posterior_background_heatmaps.py \\
@@ -50,14 +76,30 @@ python3 PostProcessing/posterior_background_heatmaps.py \\
     --preset all \\
     --num-roots 2 --num-threads 8
 
-# SWGC preset with custom axis bins and output location
+# Combined Omega plot with fixed y-range [0, 1]
 python3 PostProcessing/posterior_background_heatmaps.py \\
     --roots hyperbolic_PP_D_InitCond_MCMC \\
-    --max-samples 3000 --hpd-mass 0.95 --hpd-bins 20 \\
-    --preset swgc \\
+    --preset omega \
+    --max-samples 3000 --hpd-mass 0.68 \
     --x-bins 120 --y-bins 120 \\
-    --x-min 0 --x-max 3 \\
-    --output-dir PostProcessing/PosteriorHeatmaps_swgc \\
+    --output-dir PostProcessing/PosteriorHeatmaps_omega \
+    --cache-dir PostProcessing/background_cache
+
+# Combined dSC plot with symlog y-axis
+python3 PostProcessing/posterior_background_heatmaps.py \
+    --roots hyperbolic_PP_D_InitCond_MCMC \
+    --preset swampland \
+    --max-samples 3000 --hpd-mass 0.68 \
+    --x-bins 120 --y-bins 120 \
+    --output-dir PostProcessing/PosteriorHeatmaps_dsc
+
+# SWGC history outputs
+python3 PostProcessing/posterior_background_heatmaps.py \
+    --roots hyperbolic_PP_D_InitCond_MCMC \
+    --preset swgc \
+    --max-samples 3000 --hpd-mass 0.95 --hpd-bins 20 \
+    --x-bins 120 --y-bins 120 \
+    --output-dir PostProcessing/PosteriorHeatmaps_swgc \
     --cache-dir PostProcessing/background_cache
 
 # Inspect HPD selection only (no CLASS runs, no figures)
@@ -66,11 +108,12 @@ python3 PostProcessing/posterior_background_heatmaps.py \\
     --max-samples 1000 --hpd-mass 0.68 \\
     --dry-run
 
-# Select specific quantities by name
+# Select specific quantities by name; when both Omega quantities or both dSC quantities
+# are present, the script emits only the combined Omega/dSC figure.
 python3 PostProcessing/posterior_background_heatmaps.py \\
     --roots hyperbolic_PP_D_InitCond_MCMC \\
     --max-samples 2000 \\
-    --quantities phi_scf w swgc_residual
+    --quantities phi_scf Omega_cdm Omega_scf s1 minus_s2 swgc_residual
 
 # Enable failure auditing (writes JSON + INI per failed trajectory)
 python3 PostProcessing/posterior_background_heatmaps.py \\
@@ -88,22 +131,24 @@ Flag reference
 --roots ROOT [ROOT ...]     GetDist root names (relative to chains/)
 --hpd-params P [P ...]      Parameters used for HPD selection (default: auto)
 --hpd-mass FLOAT            Posterior mass enclosed by HPD region (default: 0.68)
---hpd-bins INT              Bins per axis for HPD histogram (default: 16)
---ignore-rows FLOAT         GetDist ignore_rows fraction (default: 0.3)
+--hpd-bins INT              Bins per axis for HPD histogram (default: 48)
+--ignore-rows FLOAT         GetDist ignore_rows fraction (default: 0.33)
 --max-samples INT           Maximum trajectories to run per root
 --quantity STR              Single quantity to plot (legacy form)
 --quantities STR [STR ...]  One or more quantity names to plot
 --preset STR                Named quantity preset (phi/eos/omega/swampland/swgc/all)
---x-bins INT                Redshift axis bins (default: 80)
---y-bins INT                Quantity axis bins (default: 80)
+--x-bins INT                Redshift axis bins (default: 320)
+--y-bins INT                Quantity axis bins (default: 320)
 --x-min FLOAT               Minimum redshift (default: 0)
---x-max FLOAT               Maximum redshift (default: 3)
+--x-max FLOAT               Maximum redshift (default: 14)
 --cache-dir PATH            Directory for persistent background cache
 --output-dir PATH           Directory for output figures (default: PostProcessing/PosteriorHeatmaps)
 --seed INT                  Random seed for reproducible resampling
 --dry-run                   Print HPD statistics and exit without running CLASS
 --num-threads INT           Threads per root for CLASS runs (0 = all cores)
 --num-roots INT             Roots processed in parallel (0 = all cores)
+--zero-label-overlap-margin-px FLOAT
+                           Pixel overlap margin for phi symlog y-tick cleanup
 --failure-audit-dir PATH    Write structured audit artifacts for CLASS failures
 """
 
@@ -323,9 +368,32 @@ _PRESET_QUANTITIES: dict[str, list[str]] = {
     "phi": ["phi_scf"],
     "eos": ["w"],
     "omega": ["Omega_cdm", "Omega_scf"],
-    "swampland": ["s1", "minus_s2", "swampland_expr"],
+    "swampland": ["s1", "minus_s2"],
     "swgc": ["swgc_lhs", "swgc_rhs", "swgc_residual"],
-    "all": list(_ALL_QUANTITIES),
+    "all": [
+        "phi_scf",
+        "w",
+        "Omega_cdm",
+        "Omega_scf",
+        "s1",
+        "minus_s2",
+        "swgc_lhs",
+        "swgc_rhs",
+        "swgc_residual",
+    ],
+}
+
+_OUTPUT_QUANTITY_ALIASES: dict[str, str] = {
+    "phi_scf": "phi",
+    "w": "w",
+    "Omega_cdm": "Omega",
+    "Omega_scf": "Omega",
+    "s1": "dSC_s1",
+    "minus_s2": "dSC_s2",
+    "swampland_expr": "dSC_expr",
+    "swgc_lhs": "swgc_lhs",
+    "swgc_rhs": "swgc_rhs",
+    "swgc_residual": "swgc",
 }
 
 
@@ -1135,6 +1203,14 @@ def _sanitize_label(text: str) -> str:
     return re.sub(r"[^A-Za-z0-9._-]+", "_", text).strip("_")
 
 
+def _output_quantity_name(quantity: str) -> str:
+    return _OUTPUT_QUANTITY_ALIASES.get(quantity, quantity)
+
+
+def _output_base_path(output_dir: Path, root: str, quantity_name: str) -> Path:
+    return output_dir / f"{_sanitize_label(root)}_heatmap_{quantity_name}"
+
+
 def _save_figure_bundle(fig: Figure, base_path: Path) -> None:
     """Save each figure as PNG/PDF/PGF for quick view and LaTeX workflows."""
     fig.savefig(str(base_path.parent / f"{base_path.name}.png"))
@@ -1285,6 +1361,23 @@ def _symlog_inverse(values: np.ndarray, linthresh: float) -> np.ndarray:
     return np.sign(values) * linthresh * (np.power(10.0, np.abs(values)) - 1.0)
 
 
+def _build_symlog_y_edges(
+    y_min: float,
+    y_max: float,
+    y_bins: int,
+    pad_frac: float = 0.03,
+) -> tuple[np.ndarray, float]:
+    pad = pad_frac * (y_max - y_min)
+    y_low = y_min - pad
+    y_high = y_max + pad
+    max_abs = max(abs(y_low), abs(y_high))
+    linthresh = max(1e-6, 0.02 * max_abs)
+    t_low = _symlog_transform(np.array([y_low]), linthresh)[0]
+    t_high = _symlog_transform(np.array([y_high]), linthresh)[0]
+    t_edges = np.linspace(t_low, t_high, y_bins + 1)
+    return _symlog_inverse(t_edges, linthresh), linthresh
+
+
 def _hide_overlaps_with_zero_ytick_label(
     fig: Figure,
     ax: Axes,
@@ -1354,12 +1447,7 @@ def _build_quantity_y_edges(
     y_high = y_max + pad
 
     if qty == "phi_scf" and y_low < 0.0 < y_high:
-        max_abs = max(abs(y_low), abs(y_high))
-        linthresh = max(1e-6, 0.02 * max_abs)
-        t_low = _symlog_transform(np.array([y_low]), linthresh)[0]
-        t_high = _symlog_transform(np.array([y_high]), linthresh)[0]
-        t_edges = np.linspace(t_low, t_high, y_bins + 1)
-        return _symlog_inverse(t_edges, linthresh), linthresh
+        return _build_symlog_y_edges(y_min, y_max, y_bins)
 
     return np.linspace(y_low, y_high, y_bins + 1), None
 
@@ -1628,10 +1716,13 @@ def process_dataset(
     }
 
     omega_combined_only = {"Omega_cdm", "Omega_scf"}.issubset(set(quantities))
+    dsc_combined_only = {"s1", "minus_s2"}.issubset(set(quantities))
 
     # Pass 2: for each quantity, accumulate histogram and produce figure + NPZ.
     for qty in quantities:
         if omega_combined_only and qty in {"Omega_cdm", "Omega_scf"}:
+            continue
+        if dsc_combined_only and qty in {"s1", "minus_s2"}:
             continue
 
         y_min_qty, y_max_qty = y_ranges[qty]
@@ -1712,12 +1803,14 @@ def process_dataset(
                 overlap_margin_px=args.zero_label_overlap_margin_px,
             )
 
-        png_path = output_dir / f"heatmap_{qty}_{safe}.png"
-        pdf_path = output_dir / f"heatmap_{qty}_{safe}.pdf"
-        pgf_path = output_dir / f"heatmap_{qty}_{safe}.pgf"
-        npz_path = output_dir / f"heatmap_{qty}_{safe}.npz"
+        output_quantity = _output_quantity_name(qty)
+        output_base = _output_base_path(output_dir, bundle.root, output_quantity)
+        png_path = output_dir / f"{output_base.name}.png"
+        pdf_path = output_dir / f"{output_base.name}.pdf"
+        pgf_path = output_dir / f"{output_base.name}.pgf"
+        npz_path = output_dir / f"{output_base.name}.npz"
 
-        _save_figure_bundle(fig, output_dir / f"heatmap_{qty}_{safe}")
+        _save_figure_bundle(fig, output_base)
         plt.close(fig)
 
         np.savez_compressed(
@@ -1725,7 +1818,7 @@ def process_dataset(
             H=H,
             x_edges=x_edges,
             y_edges=y_edges,
-            quantity=np.array([qty], dtype=str),
+            quantity=np.array([output_quantity], dtype=str),
             root=np.array([bundle.root], dtype=str),
             dataset_label=np.array([dataset_label], dtype=str),
             total_draws=np.array([total_draws], dtype=np.int64),
@@ -1863,16 +1956,17 @@ def process_dataset(
 
             fig_omega.tight_layout()
 
-            omega_base = output_dir / f"heatmap_omega_combined_{safe}"
+            omega_base = _output_base_path(output_dir, bundle.root, "Omega")
             _save_figure_bundle(fig_omega, omega_base)
             plt.close(fig_omega)
 
-            omega_npz_path = output_dir / f"heatmap_omega_combined_{safe}.npz"
+            omega_npz_path = output_dir / f"{omega_base.name}.npz"
             save_payload: dict[str, Any] = {
                 "H_omega_dm": H_omega_dm,
                 "H_omega_scf": H_omega_scf,
                 "x_edges": x_edges,
                 "y_edges_omega": y_edges_omega,
+                "quantity": np.array(["Omega"], dtype=str),
                 "root": np.array([bundle.root], dtype=str),
                 "dataset_label": np.array([dataset_label], dtype=str),
                 "total_draws": np.array([total_draws], dtype=np.int64),
@@ -1886,6 +1980,165 @@ def process_dataset(
                 f"{omega_base.name}.png, {omega_base.name}.pdf, {omega_base.name}.pgf, "
                 f"{omega_npz_path.name}"
             )
+
+    # Combined dSC figure: s1 and s2 (minus_s2) overlaid in one symlog-y panel.
+    if dsc_combined_only:
+        x_edges = np.linspace(args.x_min, args.x_max, args.x_bins + 1)
+        z_edges = np.power(10.0, x_edges) - 1.0
+
+        y_min_dsc = min(y_ranges["s1"][0], y_ranges["minus_s2"][0])
+        y_max_dsc = max(y_ranges["s1"][1], y_ranges["minus_s2"][1])
+        if np.isfinite(y_min_dsc) and np.isfinite(y_max_dsc) and y_min_dsc < y_max_dsc:
+            y_edges_dsc, y_linthresh_dsc = _build_symlog_y_edges(
+                y_min_dsc,
+                y_max_dsc,
+                args.y_bins,
+            )
+
+            H_dsc_s1 = np.zeros((args.x_bins, args.y_bins), dtype=float)
+            H_dsc_s2 = np.zeros((args.x_bins, args.y_bins), dtype=float)
+
+            for qty_interps, multiplicity in trajectory_payload:
+                y_s1 = qty_interps.get("s1")
+                y_s2 = qty_interps.get("minus_s2")
+
+                if y_s1 is not None:
+                    valid_s1 = np.isfinite(y_s1)
+                    n_valid_s1 = int(np.count_nonzero(valid_s1))
+                    if n_valid_s1 >= 2:
+                        w_s1 = np.full(n_valid_s1, float(multiplicity), dtype=float)
+                        h_s1, _, _ = np.histogram2d(
+                            x_grid[valid_s1],
+                            y_s1[valid_s1],
+                            bins=(x_edges, y_edges_dsc),  # type: ignore[arg-type]
+                            weights=w_s1,
+                        )
+                        H_dsc_s1 += h_s1
+
+                if y_s2 is not None:
+                    valid_s2 = np.isfinite(y_s2)
+                    n_valid_s2 = int(np.count_nonzero(valid_s2))
+                    if n_valid_s2 >= 2:
+                        w_s2 = np.full(n_valid_s2, float(multiplicity), dtype=float)
+                        h_s2, _, _ = np.histogram2d(
+                            x_grid[valid_s2],
+                            y_s2[valid_s2],
+                            bins=(x_edges, y_edges_dsc),  # type: ignore[arg-type]
+                            weights=w_s2,
+                        )
+                        H_dsc_s2 += h_s2
+
+            if np.any(H_dsc_s1 > 0) or np.any(H_dsc_s2 > 0):
+                fig_dsc, ax_dsc = plt.subplots(figsize=(6.4, 4.1))
+                mesh_dsc_s1 = None
+                mesh_dsc_s2 = None
+                dsc_s1_limits: tuple[float, float] | None = None
+                dsc_s2_limits: tuple[float, float] | None = None
+
+                if np.any(H_dsc_s1 > 0):
+                    pos_s1 = H_dsc_s1[H_dsc_s1 > 0]
+                    vmin_s1 = max(float(np.percentile(pos_s1, 5.0)), 1e-12)
+                    vmax_s1 = float(np.percentile(pos_s1, 99.8))
+                    if vmax_s1 <= vmin_s1:
+                        vmax_s1 = float(np.max(pos_s1))
+                    mesh_dsc_s1 = ax_dsc.pcolormesh(
+                        z_edges,
+                        y_edges_dsc,
+                        H_dsc_s1.T,
+                        cmap=_OMEGA_PHI_CMAP,
+                        norm=LogNorm(vmin=vmin_s1, vmax=vmax_s1),
+                        shading="auto",
+                        alpha=0.64,
+                    )
+                    dsc_s1_limits = (vmin_s1, vmax_s1)
+
+                if np.any(H_dsc_s2 > 0):
+                    pos_s2 = H_dsc_s2[H_dsc_s2 > 0]
+                    vmin_s2 = max(float(np.percentile(pos_s2, 5.0)), 1e-12)
+                    vmax_s2 = float(np.percentile(pos_s2, 99.8))
+                    if vmax_s2 <= vmin_s2:
+                        vmax_s2 = float(np.max(pos_s2))
+                    mesh_dsc_s2 = ax_dsc.pcolormesh(
+                        z_edges,
+                        y_edges_dsc,
+                        H_dsc_s2.T,
+                        cmap=_OMEGA_DM_CMAP,
+                        norm=LogNorm(vmin=vmin_s2, vmax=vmax_s2),
+                        shading="auto",
+                        alpha=0.64,
+                    )
+                    dsc_s2_limits = (vmin_s2, vmax_s2)
+
+                _style_redshift_axis(ax_dsc, z_edges)
+                ax_dsc.set_yscale("symlog", linthresh=y_linthresh_dsc)
+                ax_dsc.set_ylabel(r"dSC Parameters")
+                ax_dsc.legend(
+                    handles=[
+                        Patch(
+                            facecolor=_OMEGA_PHI_CMAP(0.78),
+                            edgecolor="none",
+                            alpha=0.64,
+                            label=r"$\mathfrak{s}_1$",
+                        ),
+                        Patch(
+                            facecolor=_OMEGA_DM_CMAP(0.78),
+                            edgecolor="none",
+                            alpha=0.64,
+                            label=r"$\mathfrak{s}_2$",
+                        ),
+                    ],
+                    loc="best",
+                    frameon=False,
+                )
+
+                divider = make_axes_locatable(ax_dsc)
+                cax_s2 = None
+                dsc_s2_pad = 0.26
+                if mesh_dsc_s2 is not None and dsc_s2_limits is not None:
+                    cax_s2 = divider.append_axes("right", size="2.8%", pad=dsc_s2_pad)
+                    cb_s2 = fig_dsc.colorbar(mesh_dsc_s2, cax=cax_s2)
+                    cb_s2.set_label(r"$\mathfrak{s}_2$ Path Density")
+                    cb_s2.ax.yaxis.set_label_position("left")
+                    _style_colorbar(cb_s2, dsc_s2_limits[0], dsc_s2_limits[1])
+
+                if mesh_dsc_s1 is not None and dsc_s1_limits is not None:
+                    s1_pad = 0.8 - dsc_s2_pad if cax_s2 is not None else 0.20
+                    cax_s1 = divider.append_axes("right", size="2.8%", pad=s1_pad)
+                    cb_s1 = fig_dsc.colorbar(mesh_dsc_s1, cax=cax_s1)
+                    cb_s1.set_label(r"$\mathfrak{s}_1$ Path Density")
+                    cb_s1.ax.yaxis.set_label_position("left")
+                    _style_colorbar(cb_s1, dsc_s1_limits[0], dsc_s1_limits[1])
+
+                fig_dsc.tight_layout()
+                _hide_overlaps_with_zero_ytick_label(
+                    fig_dsc,
+                    ax_dsc,
+                    overlap_margin_px=args.zero_label_overlap_margin_px,
+                )
+
+                dsc_base = _output_base_path(output_dir, bundle.root, "dSC")
+                _save_figure_bundle(fig_dsc, dsc_base)
+                plt.close(fig_dsc)
+
+                dsc_npz_path = output_dir / f"{dsc_base.name}.npz"
+                np.savez_compressed(
+                    dsc_npz_path,
+                    H_dsc_s1=H_dsc_s1,
+                    H_dsc_s2=H_dsc_s2,
+                    x_edges=x_edges,
+                    y_edges_dsc=y_edges_dsc,
+                    quantity=np.array(["dSC"], dtype=str),
+                    root=np.array([bundle.root], dtype=str),
+                    dataset_label=np.array([dataset_label], dtype=str),
+                    total_draws=np.array([total_draws], dtype=np.int64),
+                    unique_trajectories=np.array([len(draw_records)], dtype=np.int64),
+                )
+
+                print(
+                    "  [dSC-combined] Saved: "
+                    f"{dsc_base.name}.png, {dsc_base.name}.pdf, {dsc_base.name}.pgf, "
+                    f"{dsc_npz_path.name}"
+                )
 
     print(
         f"Background cache usage: hit={cache_hits}, miss={cache_misses}, "
