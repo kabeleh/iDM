@@ -1105,7 +1105,7 @@ def run_class_background(
 #      - the scalar field potential fourth derivative d4V
 #      Based on these quantities, we then compute
 #      - the equation of state w = p_scf / rho_scf
-#      - the de Sitter conjecture s1=|dV|/V and -s2=d^2V/V
+#      - the de Sitter conjecture parameters s1=|dV|/V and -s2=d^2V/V
 #      - the swampland conjecture 1+w-0.15s1^2
 #      - the relative energy densities Omega_cdm = rho_cdm / rho_crit and Omega_scf = rho_scf / rho_crit
 
@@ -1248,7 +1248,11 @@ def load_background_dataset(background_file: str) -> Dict[str, Any]:
     d4V = data[:, idx["d4V"]]
     Omega_m_class = data[:, idx["Omega_m"]]
 
-    _validate_monotonic_increasing("background z (ascending)", np.sort(z), strict=False)
+    _validate_monotonic_increasing(
+        "background z (descending CLASS output)",
+        -z,
+        strict=False,
+    )
     _validate_finite_fraction(
         "background z", z, min_fraction=_MIN_BACKGROUND_FINITE_FRACTION
     )
