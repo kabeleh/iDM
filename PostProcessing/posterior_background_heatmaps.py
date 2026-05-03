@@ -213,6 +213,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from cmcrameri import cm as cmc
 from matplotlib import patheffects as pe
+from matplotlib.collections import QuadMesh
 from matplotlib.colorbar import Colorbar
 from matplotlib.colors import LogNorm
 from matplotlib.axes import Axes
@@ -4519,20 +4520,53 @@ def process_dataset(
                     axis.tick_params(axis="x", which="both", labelbottom=False)
                 _style_redshift_axis(ax_cross, z_edges)
 
-                if mesh_lhs is not None and lhs_limits is not None:
-                    cb_lhs = fig_swgc.colorbar(mesh_lhs, ax=ax_lhs, pad=0.01)
-                    cb_lhs.set_label(r"$\left(V_{\phi\phi}\right)^2$ Path Density")
-                    _style_colorbar(cb_lhs, lhs_limits[0], lhs_limits[1])
-                if mesh_rhs is not None and rhs_limits is not None:
-                    cb_rhs = fig_swgc.colorbar(mesh_rhs, ax=ax_rhs, pad=0.01)
-                    cb_rhs.set_label(
-                        r"$2\left(V_{\phi\phi\phi}\right)^2 - V_{\phi\phi}V_{\phi\phi\phi\phi}$ Path Density"
+                # Reserve a right-side strip for external colorbars so all four
+                # shared-x panels keep identical widths.
+                fig_swgc.subplots_adjust(left=0.10, right=0.86, top=0.98, bottom=0.08)
+
+                def _add_external_colorbar(
+                    mesh: QuadMesh,
+                    axis: Axes,
+                    label: str,
+                    vmin: float,
+                    vmax: float,
+                ) -> None:
+                    pos = axis.get_position()
+                    cax_rect: tuple[float, float, float, float] = (
+                        0.875,
+                        float(pos.y0),
+                        0.018,
+                        float(pos.height),
                     )
-                    _style_colorbar(cb_rhs, rhs_limits[0], rhs_limits[1])
+                    cax = fig_swgc.add_axes(cax_rect)
+                    cb = fig_swgc.colorbar(mesh, cax=cax)
+                    cb.set_label(label)
+                    _style_colorbar(cb, vmin, vmax)
+
+                if mesh_lhs is not None and lhs_limits is not None:
+                    _add_external_colorbar(
+                        mesh_lhs,
+                        ax_lhs,
+                        r"$\left(V_{\phi\phi}\right)^2$ Path Density",
+                        lhs_limits[0],
+                        lhs_limits[1],
+                    )
+                if mesh_rhs is not None and rhs_limits is not None:
+                    _add_external_colorbar(
+                        mesh_rhs,
+                        ax_rhs,
+                        r"$2\left(V_{\phi\phi\phi}\right)^2 - V_{\phi\phi}V_{\phi\phi\phi\phi}$ Path Density",
+                        rhs_limits[0],
+                        rhs_limits[1],
+                    )
                 if mesh_residual is not None and residual_limits is not None:
-                    cb_res = fig_swgc.colorbar(mesh_residual, ax=ax_res, pad=0.01)
-                    cb_res.set_label(r"$\Delta_{\rm SWGC}$ Path Density")
-                    _style_colorbar(cb_res, residual_limits[0], residual_limits[1])
+                    _add_external_colorbar(
+                        mesh_residual,
+                        ax_res,
+                        r"$\Delta_{\rm SWGC}$ Path Density",
+                        residual_limits[0],
+                        residual_limits[1],
+                    )
 
                 if args.include_legends_in_plots:
                     ax_lhs.legend(
@@ -4542,7 +4576,29 @@ def process_dataset(
                         fontsize=10,
                     )
 
-                fig_swgc.subplots_adjust(left=0.10, right=0.94, top=0.98, bottom=0.08)
+                # Tiny regression guard: stacked SWGC axes must keep identical x-span
+                # and left/right bounds to preserve a visually shared x-axis.
+                _swgc_axes = (ax_lhs, ax_rhs, ax_res, ax_cross)
+                _ref_xlim = ax_lhs.get_xlim()
+                _ref_pos = ax_lhs.get_position()
+                _xlim_ok = all(
+                    np.isclose(axis.get_xlim()[0], _ref_xlim[0], atol=1e-10)
+                    and np.isclose(axis.get_xlim()[1], _ref_xlim[1], atol=1e-10)
+                    for axis in _swgc_axes
+                )
+                _bounds_ok = all(
+                    np.isclose(axis.get_position().x0, _ref_pos.x0, atol=1e-10)
+                    and np.isclose(axis.get_position().x1, _ref_pos.x1, atol=1e-10)
+                    for axis in _swgc_axes
+                )
+                print(
+                    "  [DEBUG][SWGC-stacked] axis alignment: "
+                    f"xlim_ok={_xlim_ok}, bounds_ok={_bounds_ok}"
+                )
+                assert _xlim_ok and _bounds_ok, (
+                    "SWGC stacked subplot alignment regression detected "
+                    "(shared x-axis span or horizontal bounds differ)."
+                )
 
                 swgc_base = _output_base_path(output_dir, bundle.root, "swgc")
                 _save_figure_bundle(fig_swgc, swgc_base)
