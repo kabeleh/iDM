@@ -726,6 +726,43 @@ def parse_args() -> argparse.Namespace:
         ),
     )
     parser.add_argument(
+        "--swgc-layout",
+        choices=["stacked", "combined"],
+        default="stacked",
+        help=(
+            "Layout for SWGC outputs when swgc_lhs, swgc_rhs, and swgc_residual are "
+            "all requested: stacked=default four-panel layout (lhs, rhs, residual, "
+            "crossing probability); combined=legacy two-panel overlay."
+        ),
+    )
+    parser.add_argument(
+        "--swgc-crossing-epsilon-abs",
+        type=float,
+        default=1e-20,
+        help=(
+            "Absolute epsilon floor for robust SWGC residual sign classification "
+            "(default: 1e-20)."
+        ),
+    )
+    parser.add_argument(
+        "--swgc-crossing-epsilon-rel",
+        type=float,
+        default=0.02,
+        help=(
+            "Relative epsilon floor factor for SWGC residual crossing diagnostics; "
+            "multiplies the local median max(|lhs|,|rhs|) (default: 0.02)."
+        ),
+    )
+    parser.add_argument(
+        "--swgc-crossing-epsilon-quantile",
+        type=float,
+        default=0.02,
+        help=(
+            "Weighted quantile of |Delta_SWGC| used as an adaptive epsilon term at "
+            "each z for SWGC crossing diagnostics (default: 0.02)."
+        ),
+    )
+    parser.add_argument(
         "--phi-crossing-overlay",
         choices=["none", "probability", "binary"],
         default="probability",
@@ -2281,6 +2318,111 @@ def _compute_phi_sign_branch_summary(
     }
 
 
+def _compute_swgc_crossing_profile(
+    trajectory_payload: list[tuple[dict[str, np.ndarray], int]],
+    *,
+    epsilon_abs: float,
+    epsilon_rel: float,
+    epsilon_quantile: float,
+) -> dict[str, np.ndarray] | None:
+    residual_matrix_and_weights = _build_quantity_matrix(
+        trajectory_payload, "swgc_residual"
+    )
+    lhs_matrix_and_weights = _build_quantity_matrix(trajectory_payload, "swgc_lhs")
+    rhs_matrix_and_weights = _build_quantity_matrix(trajectory_payload, "swgc_rhs")
+
+    if (
+        residual_matrix_and_weights is None
+        or lhs_matrix_and_weights is None
+        or rhs_matrix_and_weights is None
+    ):
+        return None
+
+    matrix_res, weights = residual_matrix_and_weights
+    matrix_lhs, _ = lhs_matrix_and_weights
+    matrix_rhs, _ = rhs_matrix_and_weights
+    if matrix_res.shape != matrix_lhs.shape or matrix_res.shape != matrix_rhs.shape:
+        return None
+
+    n_grid = matrix_res.shape[1]
+    eps_abs = float(max(0.0, epsilon_abs))
+    eps_rel = float(max(0.0, epsilon_rel))
+    q = float(np.clip(epsilon_quantile, 0.0, 0.5))
+
+    eps = np.full(n_grid, np.nan, dtype=float)
+    p_pos = np.full(n_grid, np.nan, dtype=float)
+    p_neg = np.full(n_grid, np.nan, dtype=float)
+    p_near = np.full(n_grid, np.nan, dtype=float)
+    p_lt_zero = np.full(n_grid, np.nan, dtype=float)
+    kappa_median = np.full(n_grid, np.nan, dtype=float)
+    valid_weight = np.zeros(n_grid, dtype=float)
+
+    for ix in range(n_grid):
+        col_res = matrix_res[:, ix]
+        col_lhs = matrix_lhs[:, ix]
+        col_rhs = matrix_rhs[:, ix]
+
+        valid = (
+            np.isfinite(col_res)
+            & np.isfinite(col_lhs)
+            & np.isfinite(col_rhs)
+            & np.isfinite(weights)
+            & (weights > 0.0)
+        )
+        if np.count_nonzero(valid) == 0:
+            continue
+
+        res_v = col_res[valid]
+        lhs_v = col_lhs[valid]
+        rhs_v = col_rhs[valid]
+        w_v = weights[valid]
+        w_sum = float(np.sum(w_v))
+        if w_sum <= 0.0:
+            continue
+
+        scale_v = np.maximum(np.abs(lhs_v), np.abs(rhs_v))
+        scale_med = float(
+            _weighted_quantile_1d(scale_v, w_v, np.asarray([0.5], dtype=float))[0]
+        )
+        eps_q = float(
+            _weighted_quantile_1d(np.abs(res_v), w_v, np.asarray([q], dtype=float))[0]
+        )
+        eps_i = max(eps_abs, eps_rel * max(0.0, scale_med), eps_q)
+
+        pos = res_v > eps_i
+        neg = res_v < -eps_i
+        near = ~(pos | neg)
+
+        p_pos_i = float(np.sum(w_v[pos]) / w_sum)
+        p_neg_i = float(np.sum(w_v[neg]) / w_sum)
+        p_near_i = float(np.sum(w_v[near]) / w_sum)
+        p_lt_zero_i = p_neg_i
+
+        ratio_v = scale_v / np.maximum(np.abs(res_v), eps_i)
+        kappa_i = float(
+            _weighted_quantile_1d(ratio_v, w_v, np.asarray([0.5], dtype=float))[0]
+        )
+
+        eps[ix] = eps_i
+        p_pos[ix] = p_pos_i
+        p_neg[ix] = p_neg_i
+        p_near[ix] = p_near_i
+        p_lt_zero[ix] = p_lt_zero_i
+        kappa_median[ix] = kappa_i
+        valid_weight[ix] = w_sum
+
+    return {
+        "epsilon": eps,
+        "p_pos": p_pos,
+        "p_neg": p_neg,
+        "p_near": p_near,
+        "p_lt_zero": p_lt_zero,
+        "p_cross": p_lt_zero,
+        "kappa_median": kappa_median,
+        "valid_weight": valid_weight,
+    }
+
+
 def _overlay_phi_crossing_diagnostic(
     ax: Axes,
     z_grid: np.ndarray,
@@ -3133,9 +3275,9 @@ def process_dataset(
     omega_combined_only = {"Omega_cdm", "Omega_scf"}.issubset(set(quantities))
     dsc_requested = {"s1", "minus_s2"}.issubset(set(quantities))
     dsc_combined_only = dsc_requested and args.dsc_layout == "combined"
-    swgc_combined_only = {"swgc_lhs", "swgc_rhs", "swgc_residual"}.issubset(
-        set(quantities)
-    )
+    swgc_requested = {"swgc_lhs", "swgc_rhs", "swgc_residual"}.issubset(set(quantities))
+    swgc_combined_only = swgc_requested and args.swgc_layout == "combined"
+    swgc_stacked_only = swgc_requested and args.swgc_layout == "stacked"
 
     # Pass 2: for each quantity, accumulate histogram and produce figure + NPZ.
     for qty in quantities:
@@ -3143,7 +3285,7 @@ def process_dataset(
             continue
         if dsc_combined_only and qty in {"s1", "minus_s2"}:
             continue
-        if swgc_combined_only and qty in {"swgc_lhs", "swgc_rhs", "swgc_residual"}:
+        if swgc_requested and qty in {"swgc_lhs", "swgc_rhs", "swgc_residual"}:
             continue
 
         dsc_split_minus_s2 = (
@@ -4087,6 +4229,434 @@ def process_dataset(
                     f"{dsc_npz_path.name}"
                 )
 
+    # Stacked SWGC layout (default): lhs, rhs, residual, crossing probability.
+    if swgc_stacked_only:
+        x_edges = np.linspace(args.x_min, args.x_max, args.x_bins + 1)
+        z_edges = np.power(10.0, x_edges) - 1.0
+
+        lhs_positive_parts: list[np.ndarray] = []
+        rhs_positive_parts: list[np.ndarray] = []
+        for qty_interps, _ in trajectory_payload:
+            lhs_vals = qty_interps.get("swgc_lhs")
+            if lhs_vals is not None:
+                lhs_valid = np.isfinite(lhs_vals) & (lhs_vals > 0.0)
+                if np.any(lhs_valid):
+                    lhs_positive_parts.append(
+                        np.asarray(lhs_vals[lhs_valid], dtype=float)
+                    )
+            rhs_vals = qty_interps.get("swgc_rhs")
+            if rhs_vals is not None:
+                rhs_valid = np.isfinite(rhs_vals) & (rhs_vals > 0.0)
+                if np.any(rhs_valid):
+                    rhs_positive_parts.append(
+                        np.asarray(rhs_vals[rhs_valid], dtype=float)
+                    )
+
+        y_min_lhs = (
+            float(np.nanmin(np.concatenate(lhs_positive_parts)))
+            if lhs_positive_parts
+            else np.nan
+        )
+        y_max_lhs = (
+            float(np.nanmax(np.concatenate(lhs_positive_parts)))
+            if lhs_positive_parts
+            else np.nan
+        )
+        y_min_rhs = (
+            float(np.nanmin(np.concatenate(rhs_positive_parts)))
+            if rhs_positive_parts
+            else np.nan
+        )
+        y_max_rhs = (
+            float(np.nanmax(np.concatenate(rhs_positive_parts)))
+            if rhs_positive_parts
+            else np.nan
+        )
+        y_min_res = y_ranges["swgc_residual"][0]
+        y_max_res = y_ranges["swgc_residual"][1]
+
+        if (
+            np.isfinite(y_min_lhs)
+            and np.isfinite(y_max_lhs)
+            and y_min_lhs > 0.0
+            and y_max_lhs > y_min_lhs
+            and np.isfinite(y_min_rhs)
+            and np.isfinite(y_max_rhs)
+            and y_min_rhs > 0.0
+            and y_max_rhs > y_min_rhs
+            and np.isfinite(y_min_res)
+            and np.isfinite(y_max_res)
+            and y_max_res > y_min_res
+        ):
+            y_edges_lhs = _build_positive_log_y_edges(y_min_lhs, y_max_lhs, args.y_bins)
+            y_edges_rhs = _build_positive_log_y_edges(y_min_rhs, y_max_rhs, args.y_bins)
+            y_edges_res, y_linthresh_res = _build_symlog_y_edges(
+                y_min_res,
+                y_max_res,
+                args.y_bins,
+            )
+
+            H_swgc_lhs = np.zeros((args.x_bins, args.y_bins), dtype=float)
+            H_swgc_rhs = np.zeros((args.x_bins, args.y_bins), dtype=float)
+            H_swgc_residual = np.zeros((args.x_bins, args.y_bins), dtype=float)
+
+            for qty_interps, multiplicity in trajectory_payload:
+                lhs_vals = qty_interps.get("swgc_lhs")
+                if lhs_vals is not None:
+                    valid_lhs = np.isfinite(lhs_vals) & (lhs_vals > 0.0)
+                    n_valid_lhs = int(np.count_nonzero(valid_lhs))
+                    if n_valid_lhs >= 2:
+                        h_lhs, _, _ = np.histogram2d(
+                            x_grid[valid_lhs],
+                            lhs_vals[valid_lhs],
+                            bins=(x_edges, y_edges_lhs),  # type: ignore[arg-type]
+                            weights=np.full(
+                                n_valid_lhs, float(multiplicity), dtype=float
+                            ),
+                        )
+                        H_swgc_lhs += h_lhs
+
+                rhs_vals = qty_interps.get("swgc_rhs")
+                if rhs_vals is not None:
+                    valid_rhs = np.isfinite(rhs_vals) & (rhs_vals > 0.0)
+                    n_valid_rhs = int(np.count_nonzero(valid_rhs))
+                    if n_valid_rhs >= 2:
+                        h_rhs, _, _ = np.histogram2d(
+                            x_grid[valid_rhs],
+                            rhs_vals[valid_rhs],
+                            bins=(x_edges, y_edges_rhs),  # type: ignore[arg-type]
+                            weights=np.full(
+                                n_valid_rhs, float(multiplicity), dtype=float
+                            ),
+                        )
+                        H_swgc_rhs += h_rhs
+
+                residual_vals = qty_interps.get("swgc_residual")
+                if residual_vals is not None:
+                    valid_res = np.isfinite(residual_vals)
+                    n_valid_res = int(np.count_nonzero(valid_res))
+                    if n_valid_res >= 2:
+                        h_res, _, _ = np.histogram2d(
+                            x_grid[valid_res],
+                            residual_vals[valid_res],
+                            bins=(x_edges, y_edges_res),  # type: ignore[arg-type]
+                            weights=np.full(
+                                n_valid_res, float(multiplicity), dtype=float
+                            ),
+                        )
+                        H_swgc_residual += h_res
+
+            swgc_crossing_profile = _compute_swgc_crossing_profile(
+                trajectory_payload,
+                epsilon_abs=args.swgc_crossing_epsilon_abs,
+                epsilon_rel=args.swgc_crossing_epsilon_rel,
+                epsilon_quantile=args.swgc_crossing_epsilon_quantile,
+            )
+
+            if (
+                np.any(H_swgc_lhs > 0)
+                or np.any(H_swgc_rhs > 0)
+                or np.any(H_swgc_residual > 0)
+            ):
+                fig_swgc = plt.figure(figsize=(7.2, 8.4))
+                gs_swgc = fig_swgc.add_gridspec(
+                    4,
+                    1,
+                    height_ratios=[2.2, 2.2, 2.6, 0.9],
+                    hspace=0.04,
+                )
+                ax_lhs = fig_swgc.add_subplot(gs_swgc[0, 0])
+                ax_rhs = fig_swgc.add_subplot(gs_swgc[1, 0], sharex=ax_lhs)
+                ax_res = fig_swgc.add_subplot(gs_swgc[2, 0], sharex=ax_lhs)
+                ax_cross = fig_swgc.add_subplot(gs_swgc[3, 0], sharex=ax_lhs)
+
+                mesh_lhs = None
+                mesh_rhs = None
+                mesh_residual = None
+                lhs_limits: tuple[float, float] | None = None
+                rhs_limits: tuple[float, float] | None = None
+                residual_limits: tuple[float, float] | None = None
+
+                if np.any(H_swgc_lhs > 0):
+                    lhs_positive = H_swgc_lhs[H_swgc_lhs > 0]
+                    vmin_lhs = max(float(np.percentile(lhs_positive, 5.0)), 1e-12)
+                    vmax_lhs = float(np.percentile(lhs_positive, 99.8))
+                    if vmax_lhs <= vmin_lhs:
+                        vmax_lhs = float(np.max(lhs_positive))
+                    lhs_limits = (vmin_lhs, vmax_lhs)
+                    mesh_lhs = ax_lhs.pcolormesh(
+                        z_edges,
+                        y_edges_lhs,
+                        H_swgc_lhs.T,
+                        cmap=_OMEGA_PHI_CMAP,
+                        norm=LogNorm(vmin=vmin_lhs, vmax=vmax_lhs),
+                        shading="auto",
+                    )
+
+                if np.any(H_swgc_rhs > 0):
+                    rhs_positive = H_swgc_rhs[H_swgc_rhs > 0]
+                    vmin_rhs = max(float(np.percentile(rhs_positive, 5.0)), 1e-12)
+                    vmax_rhs = float(np.percentile(rhs_positive, 99.8))
+                    if vmax_rhs <= vmin_rhs:
+                        vmax_rhs = float(np.max(rhs_positive))
+                    rhs_limits = (vmin_rhs, vmax_rhs)
+                    mesh_rhs = ax_rhs.pcolormesh(
+                        z_edges,
+                        y_edges_rhs,
+                        H_swgc_rhs.T,
+                        cmap=_OMEGA_DM_CMAP,
+                        norm=LogNorm(vmin=vmin_rhs, vmax=vmax_rhs),
+                        shading="auto",
+                    )
+
+                if np.any(H_swgc_residual > 0):
+                    residual_positive = H_swgc_residual[H_swgc_residual > 0]
+                    vmin_res = max(float(np.percentile(residual_positive, 5.0)), 1e-12)
+                    vmax_res = float(np.percentile(residual_positive, 99.8))
+                    if vmax_res <= vmin_res:
+                        vmax_res = float(np.max(residual_positive))
+                    residual_limits = (vmin_res, vmax_res)
+                    mesh_residual = ax_res.pcolormesh(
+                        z_edges,
+                        y_edges_res,
+                        H_swgc_residual.T,
+                        cmap=_HEATMAP_CMAP,
+                        norm=LogNorm(vmin=vmin_res, vmax=vmax_res),
+                        shading="auto",
+                    )
+
+                ax_lhs.set_yscale("log")
+                ax_lhs.set_ylabel(r"$(V'')^2$")
+                ax_rhs.set_yscale("log")
+                ax_rhs.set_ylabel(r"$2(V''')^2 - V''V''''$")
+                ax_res.set_ylabel(r"$\Delta_{\rm SWGC}$")
+                if y_linthresh_res is not None:
+                    ax_res.set_yscale("symlog", linthresh=y_linthresh_res)
+                ax_res.axhline(
+                    0.0,
+                    color=_HIGH_CONTRAST_PALETTE["black"],
+                    linestyle=(0, (5, 2.5)),
+                    linewidth=1.0,
+                    alpha=0.9,
+                    zorder=2.0,
+                )
+
+                _overlay_summary_on_axis(
+                    ax_lhs,
+                    z_grid,
+                    quantity_summaries.get("swgc_lhs"),
+                    bestfit=bestfit_interps.get("swgc_lhs"),
+                    band_color=_OMEGA_PHI_CMAP(0.58),
+                    band_alpha=0.22,
+                    median_color=_OMEGA_PHI_CMAP(0.22),
+                    bestfit_color=_OMEGA_PHI_CMAP(0.10),
+                )
+                _overlay_summary_on_axis(
+                    ax_rhs,
+                    z_grid,
+                    quantity_summaries.get("swgc_rhs"),
+                    bestfit=bestfit_interps.get("swgc_rhs"),
+                    band_color=_OMEGA_DM_CMAP(0.58),
+                    band_alpha=0.22,
+                    median_color=_OMEGA_DM_CMAP(0.22),
+                    bestfit_color=_OMEGA_DM_CMAP(0.10),
+                )
+                _overlay_summary_on_axis(
+                    ax_res,
+                    z_grid,
+                    quantity_summaries.get("swgc_residual"),
+                    bestfit=bestfit_interps.get("swgc_residual"),
+                    band_color=_HEATMAP_CMAP(0.58),
+                    band_alpha=0.22,
+                    median_color=_HIGH_CONTRAST_PALETTE["white"],
+                    bestfit_color=_HIGH_CONTRAST_PALETTE["black"],
+                )
+
+                p_lt_zero = np.asarray(
+                    (
+                        swgc_crossing_profile["p_lt_zero"]
+                        if swgc_crossing_profile is not None
+                        else np.full_like(z_grid, np.nan)
+                    ),
+                    dtype=float,
+                )
+                p_near = np.asarray(
+                    (
+                        swgc_crossing_profile["p_near"]
+                        if swgc_crossing_profile is not None
+                        else np.full_like(z_grid, np.nan)
+                    ),
+                    dtype=float,
+                )
+                valid_lt_zero = np.isfinite(z_grid) & np.isfinite(p_lt_zero)
+                if np.count_nonzero(valid_lt_zero) >= 2:
+                    ax_cross.plot(
+                        z_grid[valid_lt_zero],
+                        p_lt_zero[valid_lt_zero],
+                        color=_HIGH_CONTRAST_PALETTE["red"],
+                        linewidth=1.25,
+                        linestyle="-",
+                        alpha=0.95,
+                        zorder=3.0,
+                    )
+                valid_near = np.isfinite(z_grid) & np.isfinite(p_near)
+                if np.count_nonzero(valid_near) >= 2:
+                    ax_cross.fill_between(
+                        z_grid[valid_near],
+                        0.0,
+                        p_near[valid_near],
+                        color=_HIGH_CONTRAST_PALETTE["yellow"],
+                        alpha=0.20,
+                        linewidth=0.0,
+                        zorder=2.0,
+                    )
+                ax_cross.set_ylim(0.0, 1.0)
+                ax_cross.set_ylabel(r"$P_{<0}$")
+                ax_cross.tick_params(axis="y", which="major", labelsize=10)
+
+                for axis in (ax_lhs, ax_rhs, ax_res):
+                    axis.set_xlabel("")
+                    axis.tick_params(axis="x", which="both", labelbottom=False)
+                _style_redshift_axis(ax_cross, z_edges)
+
+                if mesh_lhs is not None and lhs_limits is not None:
+                    cb_lhs = fig_swgc.colorbar(mesh_lhs, ax=ax_lhs, pad=0.01)
+                    cb_lhs.set_label(r"$\left(V_{\phi\phi}\right)^2$ Path Density")
+                    _style_colorbar(cb_lhs, lhs_limits[0], lhs_limits[1])
+                if mesh_rhs is not None and rhs_limits is not None:
+                    cb_rhs = fig_swgc.colorbar(mesh_rhs, ax=ax_rhs, pad=0.01)
+                    cb_rhs.set_label(
+                        r"$2\left(V_{\phi\phi\phi}\right)^2 - V_{\phi\phi}V_{\phi\phi\phi\phi}$ Path Density"
+                    )
+                    _style_colorbar(cb_rhs, rhs_limits[0], rhs_limits[1])
+                if mesh_residual is not None and residual_limits is not None:
+                    cb_res = fig_swgc.colorbar(mesh_residual, ax=ax_res, pad=0.01)
+                    cb_res.set_label(r"$\Delta_{\rm SWGC}$ Path Density")
+                    _style_colorbar(cb_res, residual_limits[0], residual_limits[1])
+
+                if args.include_legends_in_plots:
+                    ax_lhs.legend(
+                        handles=_get_swgc_legend_handles(),
+                        loc="upper left",
+                        frameon=False,
+                        fontsize=10,
+                    )
+
+                fig_swgc.subplots_adjust(left=0.10, right=0.94, top=0.98, bottom=0.08)
+
+                swgc_base = _output_base_path(output_dir, bundle.root, "swgc")
+                _save_figure_bundle(fig_swgc, swgc_base)
+                plt.close(fig_swgc)
+
+                swgc_npz_path = output_dir / f"{swgc_base.name}.npz"
+                np.savez_compressed(
+                    swgc_npz_path,
+                    H_swgc_lhs=H_swgc_lhs,
+                    H_swgc_rhs=H_swgc_rhs,
+                    H_swgc_residual=H_swgc_residual,
+                    x_edges=x_edges,
+                    y_edges_swgc_lhs=y_edges_lhs,
+                    y_edges_swgc_rhs=y_edges_rhs,
+                    y_edges_swgc_residual=y_edges_res,
+                    x_grid=x_grid,
+                    z_grid=z_grid,
+                    quantity=np.array(["swgc"], dtype=str),
+                    root=np.array([bundle.root], dtype=str),
+                    dataset_label=np.array([dataset_label], dtype=str),
+                    total_draws=np.array([total_draws], dtype=np.int64),
+                    unique_trajectories=np.array([len(draw_records)], dtype=np.int64),
+                    swgc_layout=np.array(["stacked"], dtype=str),
+                    swgc_lhs_bestfit=np.asarray(
+                        bestfit_interps.get("swgc_lhs", np.full_like(x_grid, np.nan)),
+                        dtype=float,
+                    ),
+                    swgc_rhs_bestfit=np.asarray(
+                        bestfit_interps.get("swgc_rhs", np.full_like(x_grid, np.nan)),
+                        dtype=float,
+                    ),
+                    swgc_residual_bestfit=np.asarray(
+                        bestfit_interps.get(
+                            "swgc_residual", np.full_like(x_grid, np.nan)
+                        ),
+                        dtype=float,
+                    ),
+                    swgc_crossing_probability=np.asarray(
+                        (
+                            swgc_crossing_profile["p_lt_zero"]
+                            if swgc_crossing_profile is not None
+                            else np.full_like(x_grid, np.nan)
+                        ),
+                        dtype=float,
+                    ),
+                    swgc_probability_lt_zero=np.asarray(
+                        (
+                            swgc_crossing_profile["p_lt_zero"]
+                            if swgc_crossing_profile is not None
+                            else np.full_like(x_grid, np.nan)
+                        ),
+                        dtype=float,
+                    ),
+                    swgc_probability_positive=np.asarray(
+                        (
+                            swgc_crossing_profile["p_pos"]
+                            if swgc_crossing_profile is not None
+                            else np.full_like(x_grid, np.nan)
+                        ),
+                        dtype=float,
+                    ),
+                    swgc_probability_negative=np.asarray(
+                        (
+                            swgc_crossing_profile["p_neg"]
+                            if swgc_crossing_profile is not None
+                            else np.full_like(x_grid, np.nan)
+                        ),
+                        dtype=float,
+                    ),
+                    swgc_probability_near_zero=np.asarray(
+                        (
+                            swgc_crossing_profile["p_near"]
+                            if swgc_crossing_profile is not None
+                            else np.full_like(x_grid, np.nan)
+                        ),
+                        dtype=float,
+                    ),
+                    swgc_crossing_epsilon=np.asarray(
+                        (
+                            swgc_crossing_profile["epsilon"]
+                            if swgc_crossing_profile is not None
+                            else np.full_like(x_grid, np.nan)
+                        ),
+                        dtype=float,
+                    ),
+                    swgc_cancellation_kappa_median=np.asarray(
+                        (
+                            swgc_crossing_profile["kappa_median"]
+                            if swgc_crossing_profile is not None
+                            else np.full_like(x_grid, np.nan)
+                        ),
+                        dtype=float,
+                    ),
+                    swgc_crossing_valid_weight=np.asarray(
+                        (
+                            swgc_crossing_profile["valid_weight"]
+                            if swgc_crossing_profile is not None
+                            else np.zeros_like(x_grid, dtype=float)
+                        ),
+                        dtype=float,
+                    ),
+                    sample_plan_fingerprint=np.array([sampling_fp], dtype=str),
+                    bestfit_background_source=np.array([bestfit_source], dtype=str),
+                    bestfit_background_cache_key=np.array(
+                        [bestfit_cache_key], dtype=str
+                    ),
+                )
+
+                print(
+                    "  [SWGC-stacked] Saved: "
+                    f"{swgc_base.name}.png, {swgc_base.name}.pdf, {swgc_base.name}.pgf, "
+                    f"{swgc_npz_path.name}"
+                )
+
     # Combined SWGC history figure: lhs/rhs terms on top, residual on bottom.
     if swgc_combined_only:
         x_edges = np.linspace(args.x_min, args.x_max, args.x_bins + 1)
@@ -4684,6 +5254,15 @@ def main() -> None:
         or args.phi_crossing_epsilon_quantile > 0.5
     ):
         raise ValueError("--phi-crossing-epsilon-quantile must be in [0, 0.5]")
+    if args.swgc_crossing_epsilon_abs < 0.0:
+        raise ValueError("--swgc-crossing-epsilon-abs must be >= 0")
+    if args.swgc_crossing_epsilon_rel < 0.0:
+        raise ValueError("--swgc-crossing-epsilon-rel must be >= 0")
+    if (
+        args.swgc_crossing_epsilon_quantile < 0.0
+        or args.swgc_crossing_epsilon_quantile > 0.5
+    ):
+        raise ValueError("--swgc-crossing-epsilon-quantile must be in [0, 0.5]")
 
     mode_tuning = _resolve_mode_sampling_tuning(args)
 
