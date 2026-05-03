@@ -716,6 +716,16 @@ def parse_args() -> argparse.Namespace:
         ),
     )
     parser.add_argument(
+        "--dsc-layout",
+        choices=["split", "combined"],
+        default="split",
+        help=(
+            "Layout for dSC outputs when both s1 and minus_s2 are requested: "
+            "split=default, produce separate s1 and -s2 figures with their "
+            "assigned colormaps; combined=legacy single-panel overlay."
+        ),
+    )
+    parser.add_argument(
         "--phi-crossing-overlay",
         choices=["none", "probability", "binary"],
         default="probability",
@@ -2505,6 +2515,32 @@ def _overlay_summary_on_axis(
         )
 
 
+def _transform_summary_for_scale(
+    summary: dict[str, np.ndarray] | None,
+    *,
+    scale: float,
+) -> dict[str, np.ndarray] | None:
+    """Apply a linear scale to summary curves while preserving q16<=q84."""
+    if summary is None:
+        return None
+    if np.isclose(scale, 1.0):
+        return summary
+
+    q16_raw = np.asarray(summary["q16"], dtype=float) * scale
+    q50 = np.asarray(summary["q50"], dtype=float) * scale
+    q84_raw = np.asarray(summary["q84"], dtype=float) * scale
+    q16 = np.minimum(q16_raw, q84_raw)
+    q84 = np.maximum(q16_raw, q84_raw)
+    valid_weight = np.asarray(summary.get("valid_weight", np.array([])), dtype=float)
+
+    return {
+        "q16": q16,
+        "q50": q50,
+        "q84": q84,
+        "valid_weight": valid_weight,
+    }
+
+
 def _summary_legend_handles() -> list[Any]:
     return [
         Line2D(
@@ -3095,7 +3131,8 @@ def process_dataset(
     }
 
     omega_combined_only = {"Omega_cdm", "Omega_scf"}.issubset(set(quantities))
-    dsc_combined_only = {"s1", "minus_s2"}.issubset(set(quantities))
+    dsc_requested = {"s1", "minus_s2"}.issubset(set(quantities))
+    dsc_combined_only = dsc_requested and args.dsc_layout == "combined"
     swgc_combined_only = {"swgc_lhs", "swgc_rhs", "swgc_residual"}.issubset(
         set(quantities)
     )
@@ -3109,7 +3146,14 @@ def process_dataset(
         if swgc_combined_only and qty in {"swgc_lhs", "swgc_rhs", "swgc_residual"}:
             continue
 
+        dsc_split_minus_s2 = (
+            qty == "minus_s2" and dsc_requested and args.dsc_layout == "split"
+        )
+        qty_scale = -1.0 if dsc_split_minus_s2 else 1.0
+
         y_min_qty, y_max_qty = y_ranges[qty]
+        if dsc_split_minus_s2:
+            y_min_qty, y_max_qty = (-y_max_qty, -y_min_qty)
         if (
             not np.isfinite(y_min_qty)
             or not np.isfinite(y_max_qty)
@@ -3159,7 +3203,7 @@ def process_dataset(
         for qty_interps, multiplicity in trajectory_payload:
             if qty not in qty_interps:
                 continue
-            y_interp = qty_interps[qty]
+            y_interp = np.asarray(qty_interps[qty], dtype=float) * qty_scale
             y_for_hist = np.asarray(y_interp, dtype=float)
             if qty == "phi_scf":
                 y_for_hist = _transform_phi_for_histogram(
@@ -3203,11 +3247,18 @@ def process_dataset(
         if vmax <= vmin:
             vmax = float(np.max(positive))
 
+        quantity_cmap = _HEATMAP_CMAP
+        if dsc_requested and args.dsc_layout == "split":
+            if qty == "s1":
+                quantity_cmap = _OMEGA_PHI_CMAP
+            elif qty == "minus_s2":
+                quantity_cmap = _OMEGA_DM_CMAP
+
         mesh = ax.pcolormesh(
             z_edges,
             y_edges,
             H_plot,
-            cmap=_HEATMAP_CMAP,
+            cmap=quantity_cmap,
             norm=LogNorm(vmin=vmin, vmax=vmax),
             shading="auto",
         )
@@ -3233,6 +3284,8 @@ def process_dataset(
         _style_colorbar(cb, vmin, vmax)
 
         qty_label = y_label_map.get(qty, qty)
+        if dsc_split_minus_s2:
+            qty_label = r"$-\mathfrak{s}_2 = V_{\phi\phi}/V$"
         ax.set_ylabel(qty_label)
         if not (
             qty == "phi_scf"
@@ -3265,13 +3318,34 @@ def process_dataset(
             single_band_color = _HIGH_CONTRAST_PALETTE["blue"]
             single_band_alpha = 0.40
             single_median_color = _HIGH_CONTRAST_PALETTE["black"]
+        if dsc_requested and args.dsc_layout == "split":
+            if qty == "s1":
+                single_band_color = _OMEGA_PHI_CMAP(0.58)
+                single_band_alpha = 0.22
+                single_median_color = _OMEGA_PHI_CMAP(0.97)
+                single_bestfit_color = _OMEGA_PHI_CMAP(0.32)
+            elif qty == "minus_s2":
+                single_band_color = _OMEGA_DM_CMAP(0.58)
+                single_band_alpha = 0.22
+                single_median_color = _OMEGA_DM_CMAP(0.97)
+                single_bestfit_color = _OMEGA_DM_CMAP(0.28)
+
+        summary_for_plot = _transform_summary_for_scale(
+            quantity_summaries.get(qty),
+            scale=qty_scale,
+        )
+        bestfit_for_plot = (
+            (np.asarray(bestfit_interps.get(qty), dtype=float) * qty_scale)
+            if bestfit_interps.get(qty) is not None
+            else None
+        )
 
         if qty == "phi_scf":
             _overlay_summary_on_axis(
                 ax,
                 z_grid,
                 None,
-                bestfit=bestfit_interps.get(qty),
+                bestfit=bestfit_for_plot,
                 band_color=single_band_color,
                 band_alpha=single_band_alpha,
                 median_color=single_median_color,
@@ -3322,8 +3396,8 @@ def process_dataset(
             _overlay_summary_on_axis(
                 ax,
                 z_grid,
-                quantity_summaries.get(qty),
-                bestfit=bestfit_interps.get(qty),
+                summary_for_plot,
+                bestfit=bestfit_for_plot,
                 band_color=single_band_color,
                 band_alpha=single_band_alpha,
                 median_color=single_median_color,
@@ -3370,29 +3444,27 @@ def process_dataset(
             cache_hits=np.array([cache_hits], dtype=np.int64),
             cache_misses=np.array([cache_misses], dtype=np.int64),
             bestfit_curve=np.asarray(
-                bestfit_interps.get(qty, np.full_like(x_grid, np.nan)),
+                (
+                    bestfit_for_plot
+                    if bestfit_for_plot is not None
+                    else np.full_like(x_grid, np.nan)
+                ),
                 dtype=float,
             ),
             q16=np.asarray(
-                quantity_summaries.get(qty, {}).get(
-                    "q16", np.full_like(x_grid, np.nan)
-                ),
+                (summary_for_plot or {}).get("q16", np.full_like(x_grid, np.nan)),
                 dtype=float,
             ),
             q50=np.asarray(
-                quantity_summaries.get(qty, {}).get(
-                    "q50", np.full_like(x_grid, np.nan)
-                ),
+                (summary_for_plot or {}).get("q50", np.full_like(x_grid, np.nan)),
                 dtype=float,
             ),
             q84=np.asarray(
-                quantity_summaries.get(qty, {}).get(
-                    "q84", np.full_like(x_grid, np.nan)
-                ),
+                (summary_for_plot or {}).get("q84", np.full_like(x_grid, np.nan)),
                 dtype=float,
             ),
             summary_valid_weight=np.asarray(
-                quantity_summaries.get(qty, {}).get(
+                (summary_for_plot or {}).get(
                     "valid_weight", np.zeros_like(x_grid, dtype=float)
                 ),
                 dtype=float,
