@@ -2187,6 +2187,82 @@ def _compute_phi_crossing_profile(
     }
 
 
+def _compute_phi_sign_branch_summary(
+    trajectory_payload: list[tuple[dict[str, np.ndarray], int]],
+    crossing_profile: dict[str, np.ndarray] | None,
+) -> dict[str, np.ndarray] | None:
+    if crossing_profile is None:
+        return None
+
+    matrix_and_weights = _build_quantity_matrix(trajectory_payload, "phi_scf")
+    if matrix_and_weights is None:
+        return None
+
+    matrix, weights = matrix_and_weights
+    eps = np.asarray(crossing_profile.get("epsilon", np.array([])), dtype=float)
+    if eps.size != matrix.shape[1]:
+        return None
+
+    n_grid = matrix.shape[1]
+    pos_q16 = np.full(n_grid, np.nan, dtype=float)
+    pos_q50 = np.full(n_grid, np.nan, dtype=float)
+    pos_q84 = np.full(n_grid, np.nan, dtype=float)
+    neg_q16 = np.full(n_grid, np.nan, dtype=float)
+    neg_q50 = np.full(n_grid, np.nan, dtype=float)
+    neg_q84 = np.full(n_grid, np.nan, dtype=float)
+    pos_valid_weight = np.zeros(n_grid, dtype=float)
+    neg_valid_weight = np.zeros(n_grid, dtype=float)
+
+    for ix in range(n_grid):
+        eps_i = eps[ix]
+        if not np.isfinite(eps_i):
+            continue
+
+        col = matrix[:, ix]
+        valid = np.isfinite(col) & np.isfinite(weights) & (weights > 0.0)
+        if np.count_nonzero(valid) == 0:
+            continue
+
+        col_v = col[valid]
+        w_v = weights[valid]
+
+        pos = col_v > eps_i
+        neg = col_v < -eps_i
+
+        if np.any(pos):
+            w_pos = w_v[pos]
+            v_pos = col_v[pos]
+            pos_valid_weight[ix] = float(np.sum(w_pos))
+            q_pos = _weighted_quantile_1d(
+                v_pos,
+                w_pos,
+                np.asarray([0.16, 0.5, 0.84], dtype=float),
+            )
+            pos_q16[ix], pos_q50[ix], pos_q84[ix] = q_pos
+
+        if np.any(neg):
+            w_neg = w_v[neg]
+            v_neg = col_v[neg]
+            neg_valid_weight[ix] = float(np.sum(w_neg))
+            q_neg = _weighted_quantile_1d(
+                v_neg,
+                w_neg,
+                np.asarray([0.16, 0.5, 0.84], dtype=float),
+            )
+            neg_q16[ix], neg_q50[ix], neg_q84[ix] = q_neg
+
+    return {
+        "pos_q16": pos_q16,
+        "pos_q50": pos_q50,
+        "pos_q84": pos_q84,
+        "pos_valid_weight": pos_valid_weight,
+        "neg_q16": neg_q16,
+        "neg_q50": neg_q50,
+        "neg_q84": neg_q84,
+        "neg_valid_weight": neg_valid_weight,
+    }
+
+
 def _overlay_phi_crossing_diagnostic(
     ax: Axes,
     z_grid: np.ndarray,
@@ -2236,6 +2312,86 @@ def _overlay_phi_crossing_diagnostic(
         linewidth=0.0,
         zorder=5.1,
     )
+
+
+def _overlay_phi_sign_branch_summary(
+    ax: Axes,
+    z_grid: np.ndarray,
+    branch_summary: dict[str, np.ndarray] | None,
+) -> None:
+    if branch_summary is None:
+        return
+
+    pos_q16 = np.asarray(branch_summary["pos_q16"], dtype=float)
+    pos_q50 = np.asarray(branch_summary["pos_q50"], dtype=float)
+    pos_q84 = np.asarray(branch_summary["pos_q84"], dtype=float)
+    neg_q16 = np.asarray(branch_summary["neg_q16"], dtype=float)
+    neg_q50 = np.asarray(branch_summary["neg_q50"], dtype=float)
+    neg_q84 = np.asarray(branch_summary["neg_q84"], dtype=float)
+
+    pos_band = np.isfinite(z_grid) & np.isfinite(pos_q16) & np.isfinite(pos_q84)
+    if np.count_nonzero(pos_band) >= 2:
+        ax.fill_between(
+            z_grid[pos_band],
+            pos_q16[pos_band],
+            pos_q84[pos_band],
+            color="#1f77b4",
+            alpha=0.22,
+            linewidth=0.0,
+            zorder=3.25,
+        )
+
+    neg_band = np.isfinite(z_grid) & np.isfinite(neg_q16) & np.isfinite(neg_q84)
+    if np.count_nonzero(neg_band) >= 2:
+        ax.fill_between(
+            z_grid[neg_band],
+            neg_q16[neg_band],
+            neg_q84[neg_band],
+            color="#d62728",
+            alpha=0.22,
+            linewidth=0.0,
+            zorder=3.25,
+        )
+
+    _line_with_contrast(
+        ax,
+        z_grid,
+        pos_q50,
+        color="#1f77b4",
+        linewidth=1.15,
+        linestyle="--",
+        zorder=3.95,
+        outline_color="white",
+        outline_width=1.0,
+    )
+    _line_with_contrast(
+        ax,
+        z_grid,
+        neg_q50,
+        color="#d62728",
+        linewidth=1.15,
+        linestyle="--",
+        zorder=3.95,
+        outline_color="white",
+        outline_width=1.0,
+    )
+
+
+def _transform_phi_for_histogram(
+    values: np.ndarray,
+    *,
+    y_scale: str | None,
+    y_linthresh: float | None,
+) -> np.ndarray:
+    arr = np.asarray(values, dtype=float)
+    if y_scale is None or y_linthresh is None:
+        return arr
+    linthresh = float(y_linthresh)
+    if y_scale == "symlog":
+        return _symlog_transform(arr, linthresh)
+    if y_scale == "symlog2":
+        return _symlog2_transform(arr, linthresh)
+    return arr
 
 
 def _compute_bestfit_interpolations(
@@ -2418,7 +2574,39 @@ def _save_legend_figure(
 
 def _get_phi_legend_handles() -> list[Any]:
     """Legend handles for phi_scf plot."""
-    return _summary_legend_handles()
+    return [
+        Line2D([0], [0], color="black", linewidth=1.15, label="Best-fit trajectory"),
+        Line2D(
+            [0],
+            [0],
+            color="#1f77b4",
+            linewidth=1.15,
+            linestyle="--",
+            label=r"Positive-branch median $\phi>0$",
+        ),
+        Line2D(
+            [0],
+            [0],
+            color="#d62728",
+            linewidth=1.15,
+            linestyle="--",
+            label=r"Negative-branch median $\phi<0$",
+        ),
+        Patch(
+            facecolor="#1f77b4",
+            edgecolor="#1f77b4",
+            linewidth=0.8,
+            alpha=0.22,
+            label=r"68\% band $\phi>0$",
+        ),
+        Patch(
+            facecolor="#d62728",
+            edgecolor="#d62728",
+            linewidth=0.8,
+            alpha=0.22,
+            label=r"68\% band $\phi<0$",
+        ),
+    ]
 
 
 def _get_eos_legend_handles() -> list[Any]:
@@ -2905,6 +3093,7 @@ def process_dataset(
             args.phi_y_scale,
         )
         phi_crossing_profile: dict[str, np.ndarray] | None = None
+        phi_branch_summary: dict[str, np.ndarray] | None = None
         if qty == "phi_scf":
             phi_crossing_profile = _compute_phi_crossing_profile(
                 trajectory_payload,
@@ -2914,23 +3103,44 @@ def process_dataset(
                 epsilon_quantile=args.phi_crossing_epsilon_quantile,
                 y_linthresh=y_linthresh,
             )
+            phi_branch_summary = _compute_phi_sign_branch_summary(
+                trajectory_payload,
+                phi_crossing_profile,
+            )
         x_edges = np.linspace(args.x_min, args.x_max, args.x_bins + 1)
         z_edges = np.power(10.0, x_edges) - 1.0
+
+        # For phi, accumulate directly in transformed y-space so density and display
+        # live in the same coordinate system.
+        y_edges_hist = np.asarray(y_edges, dtype=float)
+        if qty == "phi_scf":
+            y_edges_hist = _transform_phi_for_histogram(
+                y_edges_hist,
+                y_scale=y_scale,
+                y_linthresh=y_linthresh,
+            )
 
         H = np.zeros((args.x_bins, args.y_bins), dtype=float)
         for qty_interps, multiplicity in trajectory_payload:
             if qty not in qty_interps:
                 continue
             y_interp = qty_interps[qty]
-            valid = np.isfinite(y_interp)
+            y_for_hist = np.asarray(y_interp, dtype=float)
+            if qty == "phi_scf":
+                y_for_hist = _transform_phi_for_histogram(
+                    y_for_hist,
+                    y_scale=y_scale,
+                    y_linthresh=y_linthresh,
+                )
+            valid = np.isfinite(y_for_hist)
             n_valid = int(np.count_nonzero(valid))
             if n_valid < 2:
                 continue
             w = np.full(n_valid, float(multiplicity), dtype=float)
             h2d, _, _ = np.histogram2d(
                 x_grid[valid],
-                y_interp[valid],
-                bins=(x_edges, y_edges),  # type: ignore[arg-type]
+                y_for_hist[valid],
+                bins=(x_edges, y_edges_hist),  # type: ignore[arg-type]
                 weights=w,
             )
             H += h2d
@@ -2990,18 +3200,22 @@ def process_dataset(
             single_band_alpha = 0.40
             single_median_color = "0.05"
 
-        _overlay_summary_on_axis(
-            ax,
-            z_grid,
-            quantity_summaries.get(qty),
-            bestfit=bestfit_interps.get(qty),
-            band_color=single_band_color,
-            band_alpha=single_band_alpha,
-            median_color=single_median_color,
-            bestfit_color=single_bestfit_color,
-        )
-
         if qty == "phi_scf":
+            _overlay_summary_on_axis(
+                ax,
+                z_grid,
+                None,
+                bestfit=bestfit_interps.get(qty),
+                band_color=single_band_color,
+                band_alpha=single_band_alpha,
+                median_color=single_median_color,
+                bestfit_color=single_bestfit_color,
+            )
+            _overlay_phi_sign_branch_summary(
+                ax,
+                z_grid,
+                phi_branch_summary,
+            )
             _overlay_phi_crossing_diagnostic(
                 ax,
                 z_grid,
@@ -3009,9 +3223,23 @@ def process_dataset(
                 overlay_mode=args.phi_crossing_overlay,
                 binary_threshold=args.phi_crossing_binary_threshold,
             )
+        else:
+            _overlay_summary_on_axis(
+                ax,
+                z_grid,
+                quantity_summaries.get(qty),
+                bestfit=bestfit_interps.get(qty),
+                band_color=single_band_color,
+                band_alpha=single_band_alpha,
+                median_color=single_median_color,
+                bestfit_color=single_bestfit_color,
+            )
 
         if args.include_legends_in_plots:
-            ax.legend(handles=_summary_legend_handles(), loc="best", frameon=False)
+            if qty == "phi_scf":
+                ax.legend(handles=_get_phi_legend_handles(), loc="best", frameon=False)
+            else:
+                ax.legend(handles=_summary_legend_handles(), loc="best", frameon=False)
 
         fig.tight_layout()
         if y_scale in {"symlog", "symlog2"} and qty == "phi_scf":
@@ -3153,6 +3381,80 @@ def process_dataset(
                 (
                     phi_crossing_profile["valid_weight"]
                     if (qty == "phi_scf" and phi_crossing_profile is not None)
+                    else np.zeros_like(x_grid, dtype=float)
+                ),
+                dtype=float,
+            ),
+            phi_histogram_space=np.array(
+                [
+                    (
+                        "transformed"
+                        if (qty == "phi_scf" and y_scale in {"symlog", "symlog2"})
+                        else "physical"
+                    )
+                ],
+                dtype=str,
+            ),
+            phi_branch_pos_q16=np.asarray(
+                (
+                    phi_branch_summary["pos_q16"]
+                    if (qty == "phi_scf" and phi_branch_summary is not None)
+                    else np.full_like(x_grid, np.nan)
+                ),
+                dtype=float,
+            ),
+            phi_branch_pos_q50=np.asarray(
+                (
+                    phi_branch_summary["pos_q50"]
+                    if (qty == "phi_scf" and phi_branch_summary is not None)
+                    else np.full_like(x_grid, np.nan)
+                ),
+                dtype=float,
+            ),
+            phi_branch_pos_q84=np.asarray(
+                (
+                    phi_branch_summary["pos_q84"]
+                    if (qty == "phi_scf" and phi_branch_summary is not None)
+                    else np.full_like(x_grid, np.nan)
+                ),
+                dtype=float,
+            ),
+            phi_branch_neg_q16=np.asarray(
+                (
+                    phi_branch_summary["neg_q16"]
+                    if (qty == "phi_scf" and phi_branch_summary is not None)
+                    else np.full_like(x_grid, np.nan)
+                ),
+                dtype=float,
+            ),
+            phi_branch_neg_q50=np.asarray(
+                (
+                    phi_branch_summary["neg_q50"]
+                    if (qty == "phi_scf" and phi_branch_summary is not None)
+                    else np.full_like(x_grid, np.nan)
+                ),
+                dtype=float,
+            ),
+            phi_branch_neg_q84=np.asarray(
+                (
+                    phi_branch_summary["neg_q84"]
+                    if (qty == "phi_scf" and phi_branch_summary is not None)
+                    else np.full_like(x_grid, np.nan)
+                ),
+                dtype=float,
+            ),
+            phi_branch_pos_valid_weight=np.asarray(
+                (
+                    phi_branch_summary["pos_valid_weight"]
+                    if (qty == "phi_scf" and phi_branch_summary is not None)
+                    else np.zeros_like(x_grid, dtype=float)
+                ),
+                dtype=float,
+            ),
+            phi_branch_neg_valid_weight=np.asarray(
+                (
+                    phi_branch_summary["neg_valid_weight"]
+                    if (qty == "phi_scf" and phi_branch_summary is not None)
                     else np.zeros_like(x_grid, dtype=float)
                 ),
                 dtype=float,
