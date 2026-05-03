@@ -2547,7 +2547,7 @@ def _save_legend_figure(
     """
     fig, ax = plt.subplots(figsize=(6.0, 1.0))
     ax.axis("off")
-    legend = ax.legend(
+    ax.legend(
         handles=handles,
         loc="center",
         ncol=max(1, len(handles) // 3),
@@ -3184,7 +3184,13 @@ def process_dataset(
             y0 = min(pos_top.y0, pos_bottom.y0)
             y1 = max(pos_top.y1, pos_bottom.y1)
             x1 = max(pos_top.x1, pos_bottom.x1)
-            cax = fig.add_axes([x1 + 0.018, y0, 0.030, y1 - y0])
+            cbar_rect: tuple[float, float, float, float] = (
+                float(x1) + 0.018,
+                float(y0),
+                0.030,
+                float(y1 - y0),
+            )
+            cax = fig.add_axes(cbar_rect)
             cb = fig.colorbar(mesh, cax=cax)
         else:
             cb = fig.colorbar(mesh, ax=ax, pad=0.02)
