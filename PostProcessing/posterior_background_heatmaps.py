@@ -688,6 +688,15 @@ def parse_args() -> argparse.Namespace:
             "on phi_scf symlog plots. Smaller values hide fewer labels."
         ),
     )
+    parser.add_argument(
+        "--include-legends-in-plots",
+        action="store_true",
+        help=(
+            "Include legends inside plots (default: False). "
+            "When False, legends are extracted to separate PNG/PDF/PGF files "
+            "suitable for inclusion as standalone subfigures in LaTeX layouts."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -1003,7 +1012,7 @@ def _draw_mode_aware_indices(
     mode_masses: dict[int, float] = {}
     valid_mode_rows = mode_ids >= 0
     if np.any(valid_mode_rows):
-        uniq_modes, mode_mass_vals = (
+        uniq_modes, _ = (
             np.unique(
                 mode_ids[valid_mode_rows],
                 return_counts=False,
@@ -2119,6 +2128,200 @@ def _summary_line_legend_handles() -> list[Any]:
     ]
 
 
+def _save_legend_figure(
+    handles: list[Any],
+    preset: str,
+    output_dir: Path,
+) -> None:
+    """Save legend as standalone figure(s) for inclusion in LaTeX layouts.
+
+    Args:
+        handles: List of matplotlib legend handles (Patch, Line2D, etc.)
+        preset: Preset name (phi, eos, omega, swampland, swgc)
+        output_dir: Directory to save legend files
+    """
+    fig, ax = plt.subplots(figsize=(6.0, 1.0))
+    ax.axis("off")
+    legend = ax.legend(
+        handles=handles,
+        loc="center",
+        ncol=max(1, len(handles) // 3),
+        frameon=False,
+        fontsize=11,
+        handlelength=2.2,
+    )
+    fig.patch.set_facecolor("white")
+    fig.tight_layout(pad=0.2)
+
+    base_name = f"legend_{preset}"
+    png_path = output_dir / f"{base_name}.png"
+    pdf_path = output_dir / f"{base_name}.pdf"
+    pgf_path = output_dir / f"{base_name}.pgf"
+
+    try:
+        fig.savefig(str(png_path), dpi=150, bbox_inches="tight", facecolor="white")
+        fig.savefig(str(pdf_path), bbox_inches="tight", facecolor="white")
+        fig.savefig(str(pgf_path), bbox_inches="tight")
+        print(f"  Saved legend: {png_path.name}, {pdf_path.name}, {pgf_path.name}")
+    finally:
+        plt.close(fig)
+
+
+def _get_phi_legend_handles() -> list[Any]:
+    """Legend handles for phi_scf plot."""
+    return _summary_legend_handles()
+
+
+def _get_eos_legend_handles() -> list[Any]:
+    """Legend handles for w (equation of state) plot."""
+    return _summary_legend_handles()
+
+
+def _get_omega_legend_handles() -> list[Any]:
+    """Legend handles for combined Omega (Omega_dm + Omega_scf) plot."""
+    return [
+        Patch(
+            facecolor=_OMEGA_PHI_CMAP(0.78),
+            edgecolor="none",
+            alpha=0.64,
+            label=r"$\Omega_{\phi}$",
+        ),
+        Patch(
+            facecolor=_OMEGA_DM_CMAP(0.78),
+            edgecolor="none",
+            alpha=0.64,
+            label=r"$\Omega_{\rm DM}$",
+        ),
+        Patch(
+            facecolor=_OMEGA_PHI_CMAP(0.58),
+            edgecolor="none",
+            alpha=0.22,
+            label=r"68\% confidence band $\Omega_{\phi}$",
+        ),
+        Patch(
+            facecolor=_OMEGA_DM_CMAP(0.58),
+            edgecolor="none",
+            alpha=0.22,
+            label=r"68\% confidence band $\Omega_{\rm DM}$",
+        ),
+        *_summary_line_legend_handles(),
+    ]
+
+
+def _get_dsc_legend_handles() -> list[Any]:
+    """Legend handles for combined dSC (swampland coupling s1 + s2) plot."""
+    return [
+        Patch(
+            facecolor=_OMEGA_PHI_CMAP(0.78),
+            edgecolor="none",
+            alpha=0.64,
+            label=r"$\mathfrak{s}_1$",
+        ),
+        Patch(
+            facecolor=_OMEGA_DM_CMAP(0.78),
+            edgecolor="none",
+            alpha=0.64,
+            label=r"$\mathfrak{s}_2$",
+        ),
+        Patch(
+            facecolor=_OMEGA_PHI_CMAP(0.58),
+            edgecolor="none",
+            alpha=0.22,
+            label=r"68\% confidence band $\mathfrak{s}_1$",
+        ),
+        Patch(
+            facecolor=_OMEGA_DM_CMAP(0.58),
+            edgecolor="none",
+            alpha=0.22,
+            label=r"68\% confidence band $\mathfrak{s}_2$",
+        ),
+        *_summary_line_legend_handles(),
+    ]
+
+
+def _get_swgc_legend_handles() -> list[Any]:
+    """Legend handles for combined SWGC (3-component, 2-panel) plot."""
+    return [
+        Patch(
+            facecolor=_OMEGA_PHI_CMAP(0.78),
+            edgecolor="none",
+            alpha=0.64,
+            label=r"$\left(V_{\phi\phi}\right)^2$",
+        ),
+        Patch(
+            facecolor=_OMEGA_DM_CMAP(0.78),
+            edgecolor="none",
+            alpha=0.64,
+            label=r"$2\left(V_{\phi\phi\phi}\right)^2 - V_{\phi\phi}V_{\phi\phi\phi\phi}$",
+        ),
+        Patch(
+            facecolor=_OMEGA_PHI_CMAP(0.58),
+            edgecolor="none",
+            alpha=0.22,
+            label=r"68\% confidence band $\left(V_{\phi\phi}\right)^2$",
+        ),
+        Patch(
+            facecolor=_OMEGA_DM_CMAP(0.58),
+            edgecolor="none",
+            alpha=0.22,
+            label=r"68\% confidence band $2\left(V_{\phi\phi\phi}\right)^2 - V_{\phi\phi}V_{\phi\phi\phi\phi}$",
+        ),
+        Patch(
+            facecolor=_HEATMAP_CMAP(0.58),
+            edgecolor="none",
+            linewidth=0.8,
+            alpha=0.22,
+            label=r"68\% confidence band $\Delta_{\rm SWGC}$",
+        ),
+        Line2D(
+            [0],
+            [0],
+            color="0.20",
+            linewidth=1.3,
+            label=(
+                r"$\Delta_{\rm SWGC}$"
+                r"$=2\left(V_{\phi\phi\phi}\right)^2 - V_{\phi\phi}V_{\phi\phi\phi\phi}"
+                r"-\left(V_{\phi\phi}\right)^2$"
+            ),
+        ),
+        *_summary_line_legend_handles(),
+    ]
+
+
+def _legend_presets_for_quantities(quantities: list[str]) -> list[str]:
+    """Return ordered legend presets needed for the requested quantities."""
+    qset = set(quantities)
+    presets: list[str] = []
+
+    if "phi_scf" in qset:
+        presets.append("phi")
+    if "w" in qset:
+        presets.append("eos")
+    if {"Omega_cdm", "Omega_scf"} & qset:
+        presets.append("omega")
+    if {"s1", "minus_s2"} & qset:
+        presets.append("swampland")
+    if {"swgc_lhs", "swgc_rhs", "swgc_residual"} & qset:
+        presets.append("swgc")
+
+    return presets
+
+
+def _save_requested_legends_once(quantities: list[str], output_dir: Path) -> None:
+    """Save standalone legends once per preset for the requested quantity set."""
+    for preset in _legend_presets_for_quantities(quantities):
+        if preset == "phi":
+            _save_legend_figure(_get_phi_legend_handles(), preset, output_dir)
+        elif preset == "eos":
+            _save_legend_figure(_get_eos_legend_handles(), preset, output_dir)
+        elif preset == "omega":
+            _save_legend_figure(_get_omega_legend_handles(), preset, output_dir)
+        elif preset == "swampland":
+            _save_legend_figure(_get_dsc_legend_handles(), preset, output_dir)
+        elif preset == "swgc":
+            _save_legend_figure(_get_swgc_legend_handles(), preset, output_dir)
+
+
 def _build_sample_class_params(
     row_map: dict[str, float],
     bestfit_values: dict[str, float],
@@ -2525,7 +2728,8 @@ def process_dataset(
             bestfit_color=single_bestfit_color,
         )
 
-        ax.legend(handles=_summary_legend_handles(), loc="best", frameon=False)
+        if args.include_legends_in_plots:
+            ax.legend(handles=_summary_legend_handles(), loc="best", frameon=False)
 
         fig.tight_layout()
         if y_linthresh is not None and qty == "phi_scf":
@@ -2705,37 +2909,12 @@ def process_dataset(
                 bestfit_color=_OMEGA_DM_CMAP(0.28),
             )
 
-            ax_top.legend(
-                handles=[
-                    Patch(
-                        facecolor=_OMEGA_PHI_CMAP(0.78),
-                        edgecolor="none",
-                        alpha=0.64,
-                        label=r"$\Omega_{\phi}$",
-                    ),
-                    Patch(
-                        facecolor=_OMEGA_DM_CMAP(0.78),
-                        edgecolor="none",
-                        alpha=0.64,
-                        label=r"$\Omega_{\rm DM}$",
-                    ),
-                    Patch(
-                        facecolor=_OMEGA_PHI_CMAP(0.58),
-                        edgecolor="none",
-                        alpha=0.22,
-                        label=r"68\% confidence band $\Omega_{\phi}$",
-                    ),
-                    Patch(
-                        facecolor=_OMEGA_DM_CMAP(0.58),
-                        edgecolor="none",
-                        alpha=0.22,
-                        label=r"68\% confidence band $\Omega_{\rm DM}$",
-                    ),
-                    *_summary_line_legend_handles(),
-                ],
-                loc="best",
-                frameon=False,
-            )
+            if args.include_legends_in_plots:
+                ax_top.legend(
+                    handles=_get_omega_legend_handles(),
+                    loc="best",
+                    frameon=False,
+                )
 
             # Add both reference colorbars (one per overlaid Omega component).
             divider = make_axes_locatable(ax_top)
@@ -2960,37 +3139,12 @@ def process_dataset(
                     bestfit_color=_OMEGA_DM_CMAP(0.28),
                 )
 
-                ax_dsc.legend(
-                    handles=[
-                        Patch(
-                            facecolor=_OMEGA_PHI_CMAP(0.78),
-                            edgecolor="none",
-                            alpha=0.64,
-                            label=r"$\mathfrak{s}_1$",
-                        ),
-                        Patch(
-                            facecolor=_OMEGA_DM_CMAP(0.78),
-                            edgecolor="none",
-                            alpha=0.64,
-                            label=r"$\mathfrak{s}_2$",
-                        ),
-                        Patch(
-                            facecolor=_OMEGA_PHI_CMAP(0.58),
-                            edgecolor="none",
-                            alpha=0.22,
-                            label=r"68\% confidence band $\mathfrak{s}_1$",
-                        ),
-                        Patch(
-                            facecolor=_OMEGA_DM_CMAP(0.58),
-                            edgecolor="none",
-                            alpha=0.22,
-                            label=r"68\% confidence band $\mathfrak{s}_2$",
-                        ),
-                        *_summary_line_legend_handles(),
-                    ],
-                    loc="center left",
-                    frameon=False,
-                )
+                if args.include_legends_in_plots:
+                    ax_dsc.legend(
+                        handles=_get_dsc_legend_handles(),
+                        loc="center left",
+                        frameon=False,
+                    )
 
                 divider = make_axes_locatable(ax_dsc)
                 cax_s1 = None
@@ -3393,15 +3547,16 @@ def process_dataset(
                     ),
                     *_summary_line_legend_handles(),
                 ]
-                ax_top.legend(
-                    handles=shared_swgc_legend_handles,
-                    loc="upper left",
-                    ncol=1,
-                    frameon=False,
-                    fontsize=10,
-                    handlelength=2.2,
-                    borderaxespad=0.35,
-                )
+                if args.include_legends_in_plots:
+                    ax_top.legend(
+                        handles=shared_swgc_legend_handles,
+                        loc="upper left",
+                        ncol=1,
+                        frameon=False,
+                        fontsize=10,
+                        handlelength=2.2,
+                        borderaxespad=0.35,
+                    )
 
                 ax_top.set_xlabel("")
                 ax_top.tick_params(axis="x", which="both", labelbottom=False)
@@ -3712,6 +3867,7 @@ def main() -> None:
     print(f"  Output dir: {output_dir}")
     print(f"  Audit dir:  {failure_audit_dir}")
     print(f"  Quantities: {quantities}")
+    print(f"  Include legends in plots: {args.include_legends_in_plots}")
     print(f"  Max draws:  {args.max_samples}")
     print(f"  Sampling-plan cache mode: {args.sample_plan_cache_mode}")
     print("  Mode-aware sampling defaults:")
@@ -3742,6 +3898,9 @@ def main() -> None:
     )
     print(f"  Trajectory parallelization: --num-threads={args.num_threads}")
     print(f"  Root-level parallelization: --num-roots={args.num_roots}")
+
+    if not args.include_legends_in_plots:
+        _save_requested_legends_once(quantities, output_dir)
 
     # Resolve bundles up front so missing roots are reported and skipped
     # rather than aborting all remaining datasets.
