@@ -2,193 +2,205 @@
 """
 Posterior background heatmaps from MCMC chains.
 
-This script builds posterior-density heatmaps for background quantities
-using a dedicated pipeline:
-
-1) Load all post-burn MCMC rows from every chain segment (full posterior,
-    no HPD prefilter).
-2) Mode-aware weighted resampling: detect connected modes in a low-resolution
-    3D histogram of the control-parameter space (scf_c2, cdm_c, phi_ini_scf_ic
-    by default), guarantee a minimum floor of draws for each eligible mode, then
-    fill the remaining budget by systematic resampling from the full posterior.
-3) Sampling-plan cache: the draw plan (unique global indices + multiplicities)
-    is fingerprinted by chain file metadata and sampling settings and persisted
-    as a JSON file under cache-dir/sampling_plans/.  Subsequent runs with the
-    same chains and settings reload the plan without redrawing, making plot-only
-    reruns free.
-4) Background-only CLASS runs (no C_l / P(k)).  Results are persisted in a
-    per-key NPZ cache keyed by SHA-256 of the CLASS parameter dict.
-5) Streaming 2D histogram accumulation: each trajectory's interpolated quantity
-    is binned on a fixed (x_bins × y_bins) grid weighted by its draw multiplicity.
-6) Pointwise posterior summaries on the common redshift grid: weighted median and
-    16th/84th percentile bands are computed from the same resampled trajectories.
-7) Best-fit replay: the chain best-fit parameters are run once through the same
-    background-only CLASS/cache path and overlaid as a thin reference curve.
-8) One figure (PNG + PDF + PGF) and one NPZ array per requested quantity / preset,
-    including the histogram and the saved summary/best-fit curves.
-
-Designed for large chains where running CLASS for every accepted sample is
-infeasible.  ~2 000 CLASS runs typically suffice for a well-resolved heatmap.
-
-Available quantities (--quantity / --quantities):
-    phi_scf          scalar-field value phi(z)
-    w                dark-energy equation of state w(z)
-    Omega_cdm        cold dark-matter density fraction Omega_cdm(z)
-    Omega_scf        scalar-field density fraction Omega_scf(z)
-    s1               first de Sitter conjecture parameter
-    minus_s2         second de Sitter conjecture parameter s2 = -epsilon_2(z)
-    swampland_expr   swampland conjecture combination f(phi, dphi)
-    swgc_lhs         SWGC left-hand side
-    swgc_rhs         SWGC right-hand side
-    swgc_residual    SWGC residual
-
-Presets (--preset):
-    phi              phi_scf only
-  eos              w
-  omega            combined Omega plot from Omega_cdm + Omega_scf
-  swampland        combined dSC plot from s1 + minus_s2
-    swgc             combined SWGC history plot from swgc_lhs + swgc_rhs + swgc_residual
-    all              phi + w + Omega + dSC + combined SWGC outputs
-
-Default behavior (when no --preset/--quantities/--quantity is passed):
-    Publication default == --preset all
-
-Filename scheme
----------------
-All outputs use:
-    <root>_heatmap_<quantity>
-
-where <root> is the chain root and <quantity> is one of:
-    phi
-    w
-    Omega
-    dSC_s1
-    dSC_s2
-    dSC
-    swgc_lhs
-    swgc_rhs
-    swgc
-
-Combined plots:
-    Omega            combined Omega_DM + Omega_phi panel
-    dSC              combined s1 + s2 panel
-    swgc             combined SWGC history panel(s): lhs/rhs terms plus residual
-
-Standalone aliases:
-    phi_scf          -> phi
-    s1               -> dSC_s1
-    minus_s2         -> dSC_s2
-    swgc_residual    -> swgc
-
-Examples
+Overview
 --------
-# 2000 samples for all documented outputs, using all cores, with failure auditing
-python3 PostProcessing/posterior_background_heatmaps.py --max-samples 2000 --hpd-mass 0.68 --num-threads 0 --failure-audit-dir PostProcessing/failure_audit --preset all
+This script builds posterior-density heatmaps for background quantities from
+chain samples using mode-aware resampling plus persistent CLASS background
+caching. For each requested dataset root, the pipeline is:
 
-# Minimal: single chain, publication default outputs
-python3 PostProcessing/posterior_background_heatmaps.py \\
-    --roots hyperbolic_PP_D_InitCond_MCMC \\
-    --max-samples 2000 --hpd-mass 0.68
+1. Load post-burn rows from chain files.
+2. Build or reuse a sampling plan (mode-aware weighted resampling).
+3. Replay trajectories through background-only CLASS (with cache).
+4. Accumulate 2D histograms and pointwise weighted summaries.
+5. Overlay best-fit trajectory and save figure bundle (.png/.pdf/.pgf).
+6. Save NPZ payload with histogram and summary arrays.
 
-# Two chains, all quantities, parallelised over roots and trajectories
-python3 PostProcessing/posterior_background_heatmaps.py \\
-    --roots hyperbolic_PP_D_InitCond_MCMC hyperbolic_PP_S_D_InitCond_MCMC \\
-    --max-samples 5000 --hpd-mass 0.68 \\
-    --preset all \\
-    --num-roots 2 --num-threads 8
+Default behavior
+----------------
+If none of --preset, --quantities, --quantity is provided, the script uses
+the publication default preset: --preset all.
 
-# Combined Omega plot with fixed y-range [0, 1]
-python3 PostProcessing/posterior_background_heatmaps.py \\
-    --roots hyperbolic_PP_D_InitCond_MCMC \\
-    --preset omega \
-    --max-samples 3000 --hpd-mass 0.68 \
-    --x-bins 120 --y-bins 120 \\
-    --output-dir PostProcessing/PosteriorHeatmaps_omega \
-    --cache-dir PostProcessing/background_cache
+Precedence is:
+1) --preset
+2) --quantities
+3) --quantity
+4) implicit default --preset all
 
-# Combined dSC plot with symlog y-axis
-python3 PostProcessing/posterior_background_heatmaps.py \
-    --roots hyperbolic_PP_D_InitCond_MCMC \
-    --preset swampland \
-    --max-samples 3000 --hpd-mass 0.68 \
-    --x-bins 120 --y-bins 120 \
-    --output-dir PostProcessing/PosteriorHeatmaps_dsc
+Layout defaults for multi-panel diagnostics:
+- dSC pair (s1 + minus_s2): --dsc-layout split
+- SWGC triplet (swgc_lhs + swgc_rhs + swgc_residual): --swgc-layout stacked
 
-# Combined SWGC history output
-python3 PostProcessing/posterior_background_heatmaps.py \
-    --roots hyperbolic_PP_D_InitCond_MCMC \
-    --preset swgc \
-    --max-samples 3000 --hpd-mass 0.95 --hpd-bins 20 \
-    --x-bins 120 --y-bins 120 \
-    --output-dir PostProcessing/PosteriorHeatmaps_swgc \
-    --cache-dir PostProcessing/background_cache
-
-# Inspect chain statistics and the sampling plan only (no CLASS runs, no figures)
-python3 PostProcessing/posterior_background_heatmaps.py \\
-    --roots hyperbolic_PP_D_InitCond_MCMC \\
-    --max-samples 1000 --hpd-mass 0.68 \\
-    --dry-run
-
-# Select specific quantities by name; when both Omega quantities, both dSC quantities,
-# or all three SWGC quantities are present, the script emits only the corresponding
-# combined figure.
-python3 PostProcessing/posterior_background_heatmaps.py \\
-    --roots hyperbolic_PP_D_InitCond_MCMC \\
-    --max-samples 2000 \\
-    --quantities phi_scf Omega_cdm Omega_scf s1 minus_s2 swgc_residual
-
-# Enable failure auditing (writes JSON + INI per failed trajectory)
-python3 PostProcessing/posterior_background_heatmaps.py \\
-    --roots hyperbolic_PP_D_InitCond_MCMC \\
-    --max-samples 2000 --hpd-mass 0.68 \\
-    --failure-audit-dir PostProcessing/failure_audit
-
-# Diff a failure audit artifact against a chain-derived reconstruction
-python3 PostProcessing/diff_failure_audit.py \\
-    PostProcessing/failure_audit/<uuid>.json \\
-    --show-matching
-
-Flag reference
+Quantity names
 --------------
---roots ROOT [ROOT ...]          GetDist root names (relative to chains/)
---ignore-rows FLOAT              Burn-in fraction removed from each chain file (default: 0.33)
---max-samples INT                Maximum resampled trajectories per dataset
---quantity STR                   Single quantity to plot (legacy; overridden by --quantities/--preset)
---quantities STR [STR ...]       One or more quantity names to plot
---preset STR                     Named quantity preset (phi/eos/omega/swampland/swgc/all)
---x-bins INT                     Redshift axis bins (default: 320)
---y-bins INT                     Quantity axis bins (default: 320)
---x-min FLOAT                    Minimum log10(1+z) (default: 0)
---x-max FLOAT                    Maximum log10(1+z) (default: 14)
---cache-dir PATH                 Directory for persistent background cache
---output-dir PATH                Directory for output figures
---seed INT                       Random seed for reproducible resampling (default: 12345)
---dry-run                        Print chain and sampling-plan statistics; skip CLASS runs and figures
---num-threads INT                Threads per dataset for CLASS runs (0 = all cores, default: 1)
---num-roots INT                  Datasets processed in parallel (0 = all cores, default: 1)
---zero-label-overlap-margin-px FLOAT
-                                 Pixel overlap margin for phi symlog y-tick cleanup (default: 0.6)
---failure-audit-dir PATH         Write structured audit artifacts for CLASS failures
+Valid quantity tokens for --quantity/--quantities:
+- phi_scf
+- w
+- Omega_cdm
+- Omega_scf
+- s1
+- minus_s2
+- swampland_expr
+- swgc_lhs
+- swgc_rhs
+- swgc_residual
 
-Mode-aware sampling:
---mode-detect-bins INT           Bins per axis for 3D connected-component mode detection
-                                 in the control-parameter space (default: 20)
---mode-min-mass-frac FLOAT       Minimum posterior mass fraction for floor allocation (default: 0.003)
---mode-floor-abs INT             Absolute minimum draws guaranteed per eligible mode (default: 12)
---mode-floor-frac FLOAT          Per-mode floor as a fraction of --max-samples;
-                                 effective floor = max(mode-floor-abs, round(frac*N)) (default: 0.003)
---mode-floor-cap-frac FLOAT      Upper cap on total floor allocation as a fraction of
-                                 --max-samples (default: 0.20)
---sample-plan-cache-mode STR     Sampling-plan cache policy:
-                                   auto    — reuse cached plan when fingerprint matches (default)
-                                   refresh — always redraw and overwrite the cached plan
-                                   locked  — require a matching cached plan; fail if absent
+Preset names
+------------
+Valid --preset options:
+- phi
+- eos
+- omega
+- swampland
+- swgc
+- all
 
-Backward-compatible flags (still parsed and fingerprinted, no longer drive sampling):
---hpd-params P [P ...]           Three-parameter control space for mode detection.
-                                 Default: scf_c2 cdm_c phi_ini_scf_ic
---hpd-mass FLOAT                 Backward-compatible parse/fingerprint input; no prefiltering (default: 0.68)
---hpd-bins INT                   Backward-compatible parse/fingerprint input; no prefiltering (default: 48)
+Clean examples
+--------------
+Minimal (uses default preset=all):
+python3 PostProcessing/posterior_background_heatmaps.py \
+        --roots hyperbolic_PP_D_InitCond_MCMC
+
+Single preset:
+python3 PostProcessing/posterior_background_heatmaps.py \
+        --roots hyperbolic_PP_D_InitCond_MCMC \
+        --preset swgc \
+        --max-samples 3000 \
+        --num-threads 0
+
+Explicit quantities (single pass with shared cached trajectories):
+python3 PostProcessing/posterior_background_heatmaps.py \
+        --roots hyperbolic_PP_D_InitCond_MCMC \
+        --quantities phi_scf w swgc_lhs swgc_rhs swgc_residual \
+        --max-samples 2000
+
+Two roots with parallel root and trajectory workers:
+python3 PostProcessing/posterior_background_heatmaps.py \
+        --roots hyperbolic_PP_D_InitCond_MCMC hyperbolic_PP_S_D_InitCond_MCMC \
+        --preset all \
+        --num-roots 2 \
+        --num-threads 8 \
+        --max-samples 5000
+
+Dry-run (inspect sampling stats, skip CLASS/figures):
+python3 PostProcessing/posterior_background_heatmaps.py \
+        --roots hyperbolic_PP_D_InitCond_MCMC \
+        --dry-run
+
+Complete flag reference
+-----------------------
+Core selection and geometry:
+- --roots ROOT [ROOT ...]
+    Chain roots to process (without extension). Default: DEFAULT_ROOTS.
+- --quantity {phi_scf,w,Omega_cdm,Omega_scf,s1,minus_s2,swampland_expr,swgc_lhs,swgc_rhs,swgc_residual}
+    Single quantity (legacy override).
+- --quantities QUANTITY [QUANTITY ...]
+    One or more quantities (same choices as --quantity); overrides --quantity.
+- --preset {phi,eos,omega,swampland,swgc,all}
+    Named preset; overrides --quantity and --quantities.
+- --x-bins INT
+    Number of bins in x=log10(1+z). Default: 320.
+- --y-bins INT
+    Number of bins in y. Default: 320.
+- --x-min FLOAT
+    Minimum x=log10(1+z). Default: 0.0.
+- --x-max FLOAT
+    Maximum x=log10(1+z). Default: 14.0.
+
+Resampling and chain handling:
+- --ignore-rows FLOAT
+    Burn-in fraction removed from each chain file. Default: 0.33.
+- --max-samples INT
+    Number of posterior-resampled trajectories per dataset. Default: 2000.
+- --seed INT
+    Random seed for weighted posterior resampling. Default: 12345.
+
+Mode-aware sampling controls:
+- --mode-detect-bins INT
+    Bins per axis for connected-component mode detection. Default: 20.
+- --mode-min-mass-frac FLOAT
+    Minimum posterior mass for guaranteed floor allocation. Default: 0.003.
+- --mode-floor-abs INT
+    Absolute guaranteed draws per eligible mode. Default: 12.
+- --mode-floor-frac FLOAT
+    Fractional guaranteed draws per mode as a fraction of --max-samples.
+    Default: 0.003.
+- --mode-floor-cap-frac FLOAT
+    Cap on total guaranteed floor allocation (fraction of --max-samples).
+    Default: 0.20.
+- --sample-plan-cache-mode {auto,refresh,locked}
+    Sampling-plan cache policy:
+    auto    -> reuse plan when fingerprint matches (default)
+    refresh -> force redraw and overwrite cached plan
+    locked  -> require matching cached plan, fail otherwise
+
+Backward-compatible HPD parse/fingerprint inputs (no HPD prefiltering):
+- --hpd-params P1 P2 P3
+    Default: scf_c2 cdm_c phi_ini_scf_ic.
+- --hpd-mass FLOAT
+    Default: 0.68.
+- --hpd-bins INT
+    Default: 48.
+
+I/O and execution:
+- --cache-dir PATH
+    Persistent background cache directory.
+    Default: PostProcessing/background_posterior_cache.
+- --output-dir PATH
+    Output directory for figure bundles and NPZ files.
+    Default: PostProcessing/PosteriorHeatmaps.
+- --failure-audit-dir PATH
+    Directory for structured failure audit artifacts (.ini + .json).
+    Default: PostProcessing/background_failure_audit.
+- --dry-run
+    Print selection/sampling stats only; skip CLASS runs and plotting.
+- --num-threads INT
+    Trajectory-level workers per dataset. 0 means all cores. Default: 1.
+- --num-roots INT
+    Root-level worker processes. 0 means all cores. Default: 1.
+
+Plot styling and overlays:
+- --zero-label-overlap-margin-px FLOAT
+    Pixel margin for pruning overlapping y labels near zero on phi symlog axes.
+    Default: 0.6.
+- --phi-y-scale {symlog,symlog2}
+    y-scaling policy for phi_scf when sign changes occur. Default: symlog2.
+- --include-legends-in-plots
+    If set, draw legends inside plots. Otherwise save standalone legend files.
+
+dSC and SWGC layout options:
+- --dsc-layout {split,combined}
+    split    -> separate s1 and -s2 outputs (default)
+    combined -> legacy overlay panel
+- --swgc-layout {stacked,combined}
+    stacked  -> four-panel SWGC layout (lhs, rhs, residual, probability) (default)
+    combined -> legacy SWGC combined figure
+
+SWGC robust sign/probability controls:
+- --swgc-crossing-epsilon-abs FLOAT
+    Absolute epsilon floor for SWGC residual sign classification. Default: 1e-20.
+- --swgc-crossing-epsilon-rel FLOAT
+    Relative epsilon multiplier applied to local median max(|lhs|,|rhs|).
+    Default: 0.02.
+- --swgc-crossing-epsilon-quantile FLOAT
+    Weighted quantile term for adaptive epsilon from |Delta_SWGC|. Default: 0.02.
+
+Phi crossing diagnostics:
+- --phi-crossing-overlay {none,probability,binary}
+    none        -> no overlay
+    probability -> overlay crossing probability curve (default)
+    binary      -> highlight intervals above threshold
+- --phi-crossing-binary-threshold FLOAT
+    Threshold used by binary mode. Default: 0.5.
+- --phi-crossing-epsilon-mode {adaptive,fixed,linthresh}
+    adaptive  -> max(abs floor, linthresh-scaled floor, weighted quantile)
+    fixed     -> absolute epsilon only
+    linthresh -> linthresh-scaled epsilon floor
+- --phi-crossing-epsilon-abs FLOAT
+    Absolute epsilon floor for phi sign classification. Default: 1e-14.
+- --phi-crossing-epsilon-linthresh-frac FLOAT
+    Linthresh multiplier used in linthresh/adaptive modes. Default: 0.02.
+- --phi-crossing-epsilon-quantile FLOAT
+    Weighted |phi| quantile used in adaptive mode. Default: 0.02.
 """
 
 from __future__ import annotations
