@@ -3149,7 +3149,17 @@ def process_dataset(
             print(f"  [WARN] Empty histogram for {qty}, skipping.")
             continue
 
-        fig, ax = plt.subplots(figsize=(6.4, 4.1))
+        ax_cross: Axes | None = None
+        if qty == "phi_scf" and args.phi_crossing_overlay == "probability":
+            fig, (ax, ax_cross) = plt.subplots(
+                2,
+                1,
+                figsize=(6.4, 5.25),
+                sharex=True,
+                gridspec_kw={"height_ratios": [4.2, 1.15], "hspace": 0.06},
+            )
+        else:
+            fig, ax = plt.subplots(figsize=(6.4, 4.1))
 
         H_plot = H.T
         positive = H_plot[H_plot > 0]
@@ -3167,13 +3177,28 @@ def process_dataset(
             shading="auto",
         )
 
-        cb = fig.colorbar(mesh, ax=ax, pad=0.02)
+        if ax_cross is not None:
+            # Place one shared colorbar strictly spanning the combined subplot stack.
+            pos_top = ax.get_position()
+            pos_bottom = ax_cross.get_position()
+            y0 = min(pos_top.y0, pos_bottom.y0)
+            y1 = max(pos_top.y1, pos_bottom.y1)
+            x1 = max(pos_top.x1, pos_bottom.x1)
+            cax = fig.add_axes([x1 + 0.018, y0, 0.030, y1 - y0])
+            cb = fig.colorbar(mesh, cax=cax)
+        else:
+            cb = fig.colorbar(mesh, ax=ax, pad=0.02)
         cb.set_label("Posterior Path Density")
         _style_colorbar(cb, vmin, vmax)
 
         qty_label = y_label_map.get(qty, qty)
         ax.set_ylabel(qty_label)
-        _style_redshift_axis(ax, z_edges)
+        if not (
+            qty == "phi_scf"
+            and args.phi_crossing_overlay == "probability"
+            and ax_cross is not None
+        ):
+            _style_redshift_axis(ax, z_edges)
         if y_scale == "symlog" and y_linthresh is not None:
             ax.set_yscale("symlog", linthresh=y_linthresh)
         elif y_scale == "symlog2" and y_linthresh is not None:
@@ -3216,13 +3241,42 @@ def process_dataset(
                 z_grid,
                 phi_branch_summary,
             )
-            _overlay_phi_crossing_diagnostic(
-                ax,
-                z_grid,
-                phi_crossing_profile,
-                overlay_mode=args.phi_crossing_overlay,
-                binary_threshold=args.phi_crossing_binary_threshold,
-            )
+            if args.phi_crossing_overlay == "probability" and ax_cross is not None:
+                p_cross = np.asarray(
+                    (
+                        phi_crossing_profile["p_cross"]
+                        if phi_crossing_profile is not None
+                        else np.full_like(z_grid, np.nan)
+                    ),
+                    dtype=float,
+                )
+                valid_cross = np.isfinite(z_grid) & np.isfinite(p_cross)
+                if np.count_nonzero(valid_cross) >= 2:
+                    ax_cross.plot(
+                        z_grid[valid_cross],
+                        p_cross[valid_cross],
+                        color="#7f0000",
+                        linewidth=1.25,
+                        linestyle="-",
+                        alpha=0.95,
+                        zorder=3.0,
+                    )
+                ax_cross.set_ylim(0.0, 1.0)
+                ax_cross.set_ylabel(r"$P_{\rm cross}$")
+                ax_cross.tick_params(axis="y", which="major", labelsize=10)
+
+                # Use one common shared redshift axis definition (lower panel only).
+                ax.set_xlabel("")
+                ax.tick_params(axis="x", which="both", labelbottom=False)
+                _style_redshift_axis(ax_cross, z_edges)
+            else:
+                _overlay_phi_crossing_diagnostic(
+                    ax,
+                    z_grid,
+                    phi_crossing_profile,
+                    overlay_mode=args.phi_crossing_overlay,
+                    binary_threshold=args.phi_crossing_binary_threshold,
+                )
         else:
             _overlay_summary_on_axis(
                 ax,
@@ -3241,7 +3295,8 @@ def process_dataset(
             else:
                 ax.legend(handles=_summary_legend_handles(), loc="best", frameon=False)
 
-        fig.tight_layout()
+        if not (qty == "phi_scf" and args.phi_crossing_overlay == "probability"):
+            fig.tight_layout()
         if y_scale in {"symlog", "symlog2"} and qty == "phi_scf":
             _hide_overlaps_with_zero_ytick_label(
                 fig,
