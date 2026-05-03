@@ -300,6 +300,14 @@ mpl.rcParams.update(
 _HEATMAP_CMAP = getattr(cmc, "batlowK")
 _OMEGA_DM_CMAP = getattr(cmc, "lajolla", _HEATMAP_CMAP)
 _OMEGA_PHI_CMAP = getattr(cmc, "oslo", _HEATMAP_CMAP)
+_HIGH_CONTRAST_PALETTE: dict[str, str] = {
+    "black": "#000000",
+    "blue": "#004488",
+    "red": "#BB5566",
+    "teal": "#009988",
+    "yellow": "#DDAA33",
+    "white": "#FFFFFF",
+}
 
 
 @dataclass
@@ -2284,7 +2292,7 @@ def _overlay_phi_crossing_diagnostic(
         ax_prob.plot(
             z_grid[valid],
             p_cross[valid],
-            color="#7f0000",
+            color=_HIGH_CONTRAST_PALETTE["red"],
             linewidth=1.2,
             linestyle="-",
             alpha=0.95,
@@ -2307,7 +2315,7 @@ def _overlay_phi_crossing_diagnostic(
         1.00,
         where=mask.tolist(),
         transform=ax.get_xaxis_transform(),
-        color="#7f0000",
+        color=_HIGH_CONTRAST_PALETTE["red"],
         alpha=0.22,
         linewidth=0.0,
         zorder=5.1,
@@ -2335,7 +2343,7 @@ def _overlay_phi_sign_branch_summary(
             z_grid[pos_band],
             pos_q16[pos_band],
             pos_q84[pos_band],
-            color="#1f77b4",
+            color=_HIGH_CONTRAST_PALETTE["blue"],
             alpha=0.22,
             linewidth=0.0,
             zorder=3.25,
@@ -2347,7 +2355,7 @@ def _overlay_phi_sign_branch_summary(
             z_grid[neg_band],
             neg_q16[neg_band],
             neg_q84[neg_band],
-            color="#d62728",
+            color=_HIGH_CONTRAST_PALETTE["red"],
             alpha=0.22,
             linewidth=0.0,
             zorder=3.25,
@@ -2357,22 +2365,22 @@ def _overlay_phi_sign_branch_summary(
         ax,
         z_grid,
         pos_q50,
-        color="#1f77b4",
+        color=_HIGH_CONTRAST_PALETTE["blue"],
         linewidth=1.15,
         linestyle="--",
         zorder=3.95,
-        outline_color="white",
+        outline_color=_HIGH_CONTRAST_PALETTE["white"],
         outline_width=1.0,
     )
     _line_with_contrast(
         ax,
         z_grid,
         neg_q50,
-        color="#d62728",
+        color=_HIGH_CONTRAST_PALETTE["red"],
         linewidth=1.15,
         linestyle="--",
         zorder=3.95,
-        outline_color="white",
+        outline_color=_HIGH_CONTRAST_PALETTE["white"],
         outline_width=1.0,
     )
 
@@ -2479,7 +2487,7 @@ def _overlay_summary_on_axis(
             linewidth=1.35,
             linestyle="--",
             zorder=3.8,
-            outline_color="black",
+            outline_color=_HIGH_CONTRAST_PALETTE["black"],
             outline_width=1.2,
         )
 
@@ -2492,25 +2500,31 @@ def _overlay_summary_on_axis(
             linewidth=1.15,
             linestyle="-",
             zorder=4.5,
-            outline_color="white",
+            outline_color=_HIGH_CONTRAST_PALETTE["white"],
             outline_width=1.6,
         )
 
 
 def _summary_legend_handles() -> list[Any]:
     return [
-        Line2D([0], [0], color="black", linewidth=1.15, label="Best-fit trajectory"),
         Line2D(
             [0],
             [0],
-            color="0.20",
+            color=_HIGH_CONTRAST_PALETTE["black"],
+            linewidth=1.15,
+            label="Best-fit trajectory",
+        ),
+        Line2D(
+            [0],
+            [0],
+            color=_HIGH_CONTRAST_PALETTE["teal"],
             linewidth=1.35,
             linestyle="--",
             label="Posterior median",
         ),
         Patch(
-            facecolor="0.75",
-            edgecolor="0.35",
+            facecolor=_HIGH_CONTRAST_PALETTE["teal"],
+            edgecolor=_HIGH_CONTRAST_PALETTE["blue"],
             linewidth=0.8,
             alpha=0.35,
             label=r"68\% confidence band",
@@ -2521,11 +2535,17 @@ def _summary_legend_handles() -> list[Any]:
 def _summary_line_legend_handles() -> list[Any]:
     """Legend handles for shared line semantics without a generic band patch."""
     return [
-        Line2D([0], [0], color="black", linewidth=1.15, label="Best-fit trajectory"),
         Line2D(
             [0],
             [0],
-            color="0.20",
+            color=_HIGH_CONTRAST_PALETTE["black"],
+            linewidth=1.15,
+            label="Best-fit trajectory",
+        ),
+        Line2D(
+            [0],
+            [0],
+            color=_HIGH_CONTRAST_PALETTE["teal"],
             linewidth=1.35,
             linestyle="--",
             label="Posterior median",
@@ -2555,7 +2575,7 @@ def _save_legend_figure(
         fontsize=11,
         handlelength=2.2,
     )
-    fig.patch.set_facecolor("white")
+    fig.patch.set_facecolor(_HIGH_CONTRAST_PALETTE["white"])
     fig.tight_layout(pad=0.2)
 
     base_name = f"legend_{preset}"
@@ -2564,8 +2584,17 @@ def _save_legend_figure(
     pgf_path = output_dir / f"{base_name}.pgf"
 
     try:
-        fig.savefig(str(png_path), dpi=150, bbox_inches="tight", facecolor="white")
-        fig.savefig(str(pdf_path), bbox_inches="tight", facecolor="white")
+        fig.savefig(
+            str(png_path),
+            dpi=150,
+            bbox_inches="tight",
+            facecolor=_HIGH_CONTRAST_PALETTE["white"],
+        )
+        fig.savefig(
+            str(pdf_path),
+            bbox_inches="tight",
+            facecolor=_HIGH_CONTRAST_PALETTE["white"],
+        )
         fig.savefig(str(pgf_path), bbox_inches="tight")
         print(f"  Saved legend: {png_path.name}, {pdf_path.name}, {pgf_path.name}")
     finally:
@@ -2575,11 +2604,17 @@ def _save_legend_figure(
 def _get_phi_legend_handles() -> list[Any]:
     """Legend handles for phi_scf plot."""
     return [
-        Line2D([0], [0], color="black", linewidth=1.15, label="Best-fit trajectory"),
         Line2D(
             [0],
             [0],
-            color="#1f77b4",
+            color=_HIGH_CONTRAST_PALETTE["black"],
+            linewidth=1.15,
+            label="Best-fit trajectory",
+        ),
+        Line2D(
+            [0],
+            [0],
+            color=_HIGH_CONTRAST_PALETTE["blue"],
             linewidth=1.15,
             linestyle="--",
             label=r"Positive-branch median $\phi>0$",
@@ -2587,21 +2622,21 @@ def _get_phi_legend_handles() -> list[Any]:
         Line2D(
             [0],
             [0],
-            color="#d62728",
+            color=_HIGH_CONTRAST_PALETTE["red"],
             linewidth=1.15,
             linestyle="--",
             label=r"Negative-branch median $\phi<0$",
         ),
         Patch(
-            facecolor="#1f77b4",
-            edgecolor="#1f77b4",
+            facecolor=_HIGH_CONTRAST_PALETTE["blue"],
+            edgecolor=_HIGH_CONTRAST_PALETTE["blue"],
             linewidth=0.8,
             alpha=0.22,
             label=r"68\% band $\phi>0$",
         ),
         Patch(
-            facecolor="#d62728",
-            edgecolor="#d62728",
+            facecolor=_HIGH_CONTRAST_PALETTE["red"],
+            edgecolor=_HIGH_CONTRAST_PALETTE["red"],
             linewidth=0.8,
             alpha=0.22,
             label=r"68\% band $\phi<0$",
@@ -2713,7 +2748,7 @@ def _get_swgc_legend_handles() -> list[Any]:
         Line2D(
             [0],
             [0],
-            color="0.20",
+            color=_HIGH_CONTRAST_PALETTE["black"],
             linewidth=1.3,
             label=(
                 r"$\Delta_{\rm SWGC}$"
@@ -3221,15 +3256,15 @@ def process_dataset(
                 ),
             )
 
-        single_band_color = "0.50"
+        single_band_color = _HIGH_CONTRAST_PALETTE["teal"]
         single_band_alpha = 0.30
-        single_median_color = "white"
-        single_bestfit_color = "black"
+        single_median_color = _HIGH_CONTRAST_PALETTE["white"]
+        single_bestfit_color = _HIGH_CONTRAST_PALETTE["black"]
         if qty == "w":
             # Improve contrast for w(z): dark band stands out on the warm heatmap.
-            single_band_color = "0.12"
+            single_band_color = _HIGH_CONTRAST_PALETTE["blue"]
             single_band_alpha = 0.40
-            single_median_color = "0.05"
+            single_median_color = _HIGH_CONTRAST_PALETTE["black"]
 
         if qty == "phi_scf":
             _overlay_summary_on_axis(
@@ -3261,7 +3296,7 @@ def process_dataset(
                     ax_cross.plot(
                         z_grid[valid_cross],
                         p_cross[valid_cross],
-                        color="#7f0000",
+                        color=_HIGH_CONTRAST_PALETTE["red"],
                         linewidth=1.25,
                         linestyle="-",
                         alpha=0.95,
@@ -4213,12 +4248,12 @@ def process_dataset(
                     bestfit=bestfit_interps.get("swgc_residual"),
                     band_color=_HEATMAP_CMAP(0.58),
                     band_alpha=0.22,
-                    median_color="white",
-                    bestfit_color="black",
+                    median_color=_HIGH_CONTRAST_PALETTE["white"],
+                    bestfit_color=_HIGH_CONTRAST_PALETTE["black"],
                 )
                 ax_bottom.axhline(
                     0.0,
-                    color="0.20",
+                    color=_HIGH_CONTRAST_PALETTE["black"],
                     linestyle=(0, (5, 2.5)),
                     linewidth=1.0,
                     alpha=0.9,
@@ -4260,7 +4295,7 @@ def process_dataset(
                     Line2D(
                         [0],
                         [0],
-                        color="0.20",
+                        color=_HIGH_CONTRAST_PALETTE["black"],
                         linewidth=1.3,
                         label=(
                             r"$\Delta_{\rm SWGC}$"
