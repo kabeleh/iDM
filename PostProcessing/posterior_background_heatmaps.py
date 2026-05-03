@@ -707,6 +707,63 @@ def parse_args() -> argparse.Namespace:
             "suitable for inclusion as standalone subfigures in LaTeX layouts."
         ),
     )
+    parser.add_argument(
+        "--phi-crossing-overlay",
+        choices=["none", "probability", "binary"],
+        default="probability",
+        help=(
+            "Overlay robust zero-crossing diagnostics on phi plots: "
+            "none=disable overlay, probability=plot crossing probability vs z, "
+            "binary=highlight redshift intervals where crossing probability exceeds "
+            "--phi-crossing-binary-threshold."
+        ),
+    )
+    parser.add_argument(
+        "--phi-crossing-binary-threshold",
+        type=float,
+        default=0.5,
+        help=(
+            "Threshold for binary crossing overlay mode (default: 0.5). "
+            "Intervals with crossing probability >= threshold are highlighted."
+        ),
+    )
+    parser.add_argument(
+        "--phi-crossing-epsilon-mode",
+        choices=["adaptive", "fixed", "linthresh"],
+        default="adaptive",
+        help=(
+            "Robust sign threshold policy for phi crossing diagnostics: "
+            "adaptive=max(abs floor, linthresh-scaled floor, weighted |phi| quantile), "
+            "fixed=constant absolute floor, linthresh=linthresh-scaled floor."
+        ),
+    )
+    parser.add_argument(
+        "--phi-crossing-epsilon-abs",
+        type=float,
+        default=1e-14,
+        help=(
+            "Absolute epsilon floor for robust sign classification in phi crossing "
+            "diagnostics (default: 1e-14)."
+        ),
+    )
+    parser.add_argument(
+        "--phi-crossing-epsilon-linthresh-frac",
+        type=float,
+        default=0.02,
+        help=(
+            "Fraction of the phi symlog linthresh used as an epsilon floor in "
+            "linthresh/adaptive modes (default: 0.02)."
+        ),
+    )
+    parser.add_argument(
+        "--phi-crossing-epsilon-quantile",
+        type=float,
+        default=0.02,
+        help=(
+            "Weighted quantile of |phi| used as an adaptive epsilon term at each z "
+            "(default: 0.02)."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -2033,6 +2090,154 @@ def _build_quantity_summary(
     return _compute_pointwise_weighted_summary(matrix, np.asarray(weights, dtype=float))
 
 
+def _build_quantity_matrix(
+    trajectory_payload: list[tuple[dict[str, np.ndarray], int]],
+    qty: str,
+) -> tuple[np.ndarray, np.ndarray] | None:
+    series_list: list[np.ndarray] = []
+    weights: list[float] = []
+
+    for qty_interps, multiplicity in trajectory_payload:
+        y = qty_interps.get(qty)
+        if y is None:
+            continue
+        series_list.append(np.asarray(y, dtype=float))
+        weights.append(float(multiplicity))
+
+    if not series_list:
+        return None
+
+    return np.vstack(series_list), np.asarray(weights, dtype=float)
+
+
+def _compute_phi_crossing_profile(
+    trajectory_payload: list[tuple[dict[str, np.ndarray], int]],
+    *,
+    epsilon_mode: str,
+    epsilon_abs: float,
+    epsilon_linthresh_frac: float,
+    epsilon_quantile: float,
+    y_linthresh: float | None,
+) -> dict[str, np.ndarray] | None:
+    matrix_and_weights = _build_quantity_matrix(trajectory_payload, "phi_scf")
+    if matrix_and_weights is None:
+        return None
+
+    matrix, weights = matrix_and_weights
+    n_grid = matrix.shape[1]
+
+    q = float(np.clip(epsilon_quantile, 0.0, 0.5))
+    eps_abs = float(max(0.0, epsilon_abs))
+    eps_linthresh = float(
+        max(0.0, epsilon_linthresh_frac) * max(0.0, float(y_linthresh or 0.0))
+    )
+
+    eps = np.full(n_grid, np.nan, dtype=float)
+    p_pos = np.full(n_grid, np.nan, dtype=float)
+    p_neg = np.full(n_grid, np.nan, dtype=float)
+    p_near = np.full(n_grid, np.nan, dtype=float)
+    p_cross = np.full(n_grid, np.nan, dtype=float)
+    valid_weight = np.zeros(n_grid, dtype=float)
+
+    for ix in range(n_grid):
+        col = matrix[:, ix]
+        valid = np.isfinite(col) & np.isfinite(weights) & (weights > 0.0)
+        if np.count_nonzero(valid) == 0:
+            continue
+
+        col_v = col[valid]
+        w_v = weights[valid]
+        w_sum = float(np.sum(w_v))
+        if w_sum <= 0.0:
+            continue
+
+        eps_q = float(
+            _weighted_quantile_1d(np.abs(col_v), w_v, np.asarray([q], dtype=float))[0]
+        )
+        if epsilon_mode == "fixed":
+            eps_i = eps_abs
+        elif epsilon_mode == "linthresh":
+            eps_i = max(eps_abs, eps_linthresh)
+        else:
+            eps_i = max(eps_abs, eps_linthresh, eps_q)
+
+        pos = col_v > eps_i
+        neg = col_v < -eps_i
+        near = ~(pos | neg)
+
+        p_pos_i = float(np.sum(w_v[pos]) / w_sum)
+        p_neg_i = float(np.sum(w_v[neg]) / w_sum)
+        p_near_i = float(np.sum(w_v[near]) / w_sum)
+        p_cross_i = float(np.clip(2.0 * min(p_pos_i, p_neg_i), 0.0, 1.0))
+
+        eps[ix] = eps_i
+        p_pos[ix] = p_pos_i
+        p_neg[ix] = p_neg_i
+        p_near[ix] = p_near_i
+        p_cross[ix] = p_cross_i
+        valid_weight[ix] = w_sum
+
+    return {
+        "epsilon": eps,
+        "p_pos": p_pos,
+        "p_neg": p_neg,
+        "p_near": p_near,
+        "p_cross": p_cross,
+        "valid_weight": valid_weight,
+    }
+
+
+def _overlay_phi_crossing_diagnostic(
+    ax: Axes,
+    z_grid: np.ndarray,
+    crossing_profile: dict[str, np.ndarray] | None,
+    *,
+    overlay_mode: str,
+    binary_threshold: float,
+) -> None:
+    if crossing_profile is None or overlay_mode == "none":
+        return
+
+    p_cross = np.asarray(crossing_profile["p_cross"], dtype=float)
+    valid = np.isfinite(z_grid) & np.isfinite(p_cross)
+    if np.count_nonzero(valid) < 2:
+        return
+
+    if overlay_mode == "probability":
+        ax_prob = ax.twinx()
+        ax_prob.plot(
+            z_grid[valid],
+            p_cross[valid],
+            color="#7f0000",
+            linewidth=1.2,
+            linestyle="-",
+            alpha=0.95,
+            zorder=5.2,
+        )
+        ax_prob.set_ylim(0.0, 1.0)
+        ax_prob.set_ylabel(r"$P_{\rm cross}$")
+        ax_prob.grid(False)
+        ax_prob.tick_params(axis="y", which="major", labelsize=10)
+        return
+
+    thresh = float(np.clip(binary_threshold, 0.0, 1.0))
+    mask = valid & (p_cross >= thresh)
+    if not np.any(mask):
+        return
+
+    ax.fill_between(
+        z_grid,
+        0.96,
+        1.00,
+        where=mask.tolist(),
+        transform=ax.get_xaxis_transform(),
+        color="#7f0000",
+        alpha=0.22,
+        linewidth=0.0,
+        zorder=5.1,
+    )
+
+
 def _compute_bestfit_interpolations(
     bestfit_values: dict[str, float],
     yaml_config: dict[str, Any],
@@ -2699,6 +2904,16 @@ def process_dataset(
             qty,
             args.phi_y_scale,
         )
+        phi_crossing_profile: dict[str, np.ndarray] | None = None
+        if qty == "phi_scf":
+            phi_crossing_profile = _compute_phi_crossing_profile(
+                trajectory_payload,
+                epsilon_mode=args.phi_crossing_epsilon_mode,
+                epsilon_abs=args.phi_crossing_epsilon_abs,
+                epsilon_linthresh_frac=args.phi_crossing_epsilon_linthresh_frac,
+                epsilon_quantile=args.phi_crossing_epsilon_quantile,
+                y_linthresh=y_linthresh,
+            )
         x_edges = np.linspace(args.x_min, args.x_max, args.x_bins + 1)
         z_edges = np.power(10.0, x_edges) - 1.0
 
@@ -2786,6 +3001,15 @@ def process_dataset(
             bestfit_color=single_bestfit_color,
         )
 
+        if qty == "phi_scf":
+            _overlay_phi_crossing_diagnostic(
+                ax,
+                z_grid,
+                phi_crossing_profile,
+                overlay_mode=args.phi_crossing_overlay,
+                binary_threshold=args.phi_crossing_binary_threshold,
+            )
+
         if args.include_legends_in_plots:
             ax.legend(handles=_summary_legend_handles(), loc="best", frameon=False)
 
@@ -2855,6 +3079,84 @@ def process_dataset(
             ),
             bestfit_background_source=np.array([bestfit_source], dtype=str),
             bestfit_background_cache_key=np.array([bestfit_cache_key], dtype=str),
+            phi_crossing_overlay_mode=np.array(
+                [args.phi_crossing_overlay if qty == "phi_scf" else "none"],
+                dtype=str,
+            ),
+            phi_crossing_epsilon_mode=np.array(
+                [args.phi_crossing_epsilon_mode if qty == "phi_scf" else "none"],
+                dtype=str,
+            ),
+            phi_crossing_binary_threshold=np.array(
+                [args.phi_crossing_binary_threshold if qty == "phi_scf" else np.nan],
+                dtype=float,
+            ),
+            phi_crossing_epsilon_abs=np.array(
+                [args.phi_crossing_epsilon_abs if qty == "phi_scf" else np.nan],
+                dtype=float,
+            ),
+            phi_crossing_epsilon_linthresh_frac=np.array(
+                [
+                    (
+                        args.phi_crossing_epsilon_linthresh_frac
+                        if qty == "phi_scf"
+                        else np.nan
+                    )
+                ],
+                dtype=float,
+            ),
+            phi_crossing_epsilon_quantile=np.array(
+                [args.phi_crossing_epsilon_quantile if qty == "phi_scf" else np.nan],
+                dtype=float,
+            ),
+            phi_crossing_probability=np.asarray(
+                (
+                    phi_crossing_profile["p_cross"]
+                    if (qty == "phi_scf" and phi_crossing_profile is not None)
+                    else np.full_like(x_grid, np.nan)
+                ),
+                dtype=float,
+            ),
+            phi_probability_positive=np.asarray(
+                (
+                    phi_crossing_profile["p_pos"]
+                    if (qty == "phi_scf" and phi_crossing_profile is not None)
+                    else np.full_like(x_grid, np.nan)
+                ),
+                dtype=float,
+            ),
+            phi_probability_negative=np.asarray(
+                (
+                    phi_crossing_profile["p_neg"]
+                    if (qty == "phi_scf" and phi_crossing_profile is not None)
+                    else np.full_like(x_grid, np.nan)
+                ),
+                dtype=float,
+            ),
+            phi_probability_near_zero=np.asarray(
+                (
+                    phi_crossing_profile["p_near"]
+                    if (qty == "phi_scf" and phi_crossing_profile is not None)
+                    else np.full_like(x_grid, np.nan)
+                ),
+                dtype=float,
+            ),
+            phi_crossing_epsilon=np.asarray(
+                (
+                    phi_crossing_profile["epsilon"]
+                    if (qty == "phi_scf" and phi_crossing_profile is not None)
+                    else np.full_like(x_grid, np.nan)
+                ),
+                dtype=float,
+            ),
+            phi_crossing_valid_weight=np.asarray(
+                (
+                    phi_crossing_profile["valid_weight"]
+                    if (qty == "phi_scf" and phi_crossing_profile is not None)
+                    else np.zeros_like(x_grid, dtype=float)
+                ),
+                dtype=float,
+            ),
         )
 
         print(
@@ -3898,6 +4200,20 @@ def main() -> None:
         raise ValueError("--mode-floor-frac must be in [0, 1)")
     if args.mode_floor_cap_frac <= 0.0 or args.mode_floor_cap_frac > 1.0:
         raise ValueError("--mode-floor-cap-frac must be in (0, 1]")
+    if (
+        args.phi_crossing_binary_threshold < 0.0
+        or args.phi_crossing_binary_threshold > 1.0
+    ):
+        raise ValueError("--phi-crossing-binary-threshold must be in [0, 1]")
+    if args.phi_crossing_epsilon_abs < 0.0:
+        raise ValueError("--phi-crossing-epsilon-abs must be >= 0")
+    if args.phi_crossing_epsilon_linthresh_frac < 0.0:
+        raise ValueError("--phi-crossing-epsilon-linthresh-frac must be >= 0")
+    if (
+        args.phi_crossing_epsilon_quantile < 0.0
+        or args.phi_crossing_epsilon_quantile > 0.5
+    ):
+        raise ValueError("--phi-crossing-epsilon-quantile must be in [0, 0.5]")
 
     mode_tuning = _resolve_mode_sampling_tuning(args)
 
@@ -3927,6 +4243,15 @@ def main() -> None:
     print(f"  Quantities: {quantities}")
     print(f"  Include legends in plots: {args.include_legends_in_plots}")
     print(f"  Phi y-scale mode: {args.phi_y_scale}")
+    print(
+        "  Phi crossing diagnostic: "
+        f"overlay={args.phi_crossing_overlay}, "
+        f"eps_mode={args.phi_crossing_epsilon_mode}, "
+        f"eps_abs={args.phi_crossing_epsilon_abs:.3e}, "
+        f"eps_linthresh_frac={args.phi_crossing_epsilon_linthresh_frac:.4f}, "
+        f"eps_quantile={args.phi_crossing_epsilon_quantile:.4f}, "
+        f"binary_threshold={args.phi_crossing_binary_threshold:.3f}"
+    )
     print(f"  Max draws:  {args.max_samples}")
     print(f"  Sampling-plan cache mode: {args.sample_plan_cache_mode}")
     print("  Mode-aware sampling defaults:")
