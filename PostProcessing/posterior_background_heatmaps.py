@@ -206,7 +206,7 @@ from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import matplotlib as mpl
 import matplotlib.pyplot as plt
@@ -686,6 +686,16 @@ def parse_args() -> argparse.Namespace:
         help=(
             "Pixel margin for hiding y-axis labels that overlap the y=0 label "
             "on phi_scf symlog plots. Smaller values hide fewer labels."
+        ),
+    )
+    parser.add_argument(
+        "--phi-y-scale",
+        choices=["symlog", "symlog2"],
+        default="symlog2",
+        help=(
+            "Y-axis scale for phi_scf when the range crosses zero. "
+            "symlog=single symmetric log (default), "
+            "symlog2=stronger far-outlier compression using a nested symmetric log."
         ),
     )
     parser.add_argument(
@@ -1776,6 +1786,22 @@ def _symlog_inverse(values: np.ndarray, linthresh: float) -> np.ndarray:
     return np.sign(values) * linthresh * (np.power(10.0, np.abs(values)) - 1.0)
 
 
+def _symlog2_transform(values: np.ndarray, linthresh: float) -> np.ndarray:
+    inner = np.log10(1.0 + np.abs(values) / linthresh)
+    return np.sign(values) * np.log10(1.0 + inner)
+
+
+def _symlog2_inverse(values: np.ndarray, linthresh: float) -> np.ndarray:
+    inner = np.power(10.0, np.abs(values)) - 1.0
+    return np.sign(values) * linthresh * (np.power(10.0, inner) - 1.0)
+
+
+def _phi_linthresh_from_range(y_low: float, y_high: float) -> float:
+    max_abs = max(abs(y_low), abs(y_high))
+    # Keep the linear core tied to the dynamic range while avoiding collapse.
+    return max(1e-18, 0.02 * max_abs)
+
+
 def _build_symlog_y_edges(
     y_min: float,
     y_max: float,
@@ -1785,14 +1811,27 @@ def _build_symlog_y_edges(
     pad = pad_frac * (y_max - y_min)
     y_low = y_min - pad
     y_high = y_max + pad
-    max_abs = max(abs(y_low), abs(y_high))
-    # Keep symlog linear core proportional to data scale; a large absolute floor
-    # (e.g. 1e-6) collapses tiny-valued residual axes near zero.
-    linthresh = max(1e-18, 0.02 * max_abs)
+    linthresh = _phi_linthresh_from_range(y_low, y_high)
     t_low = _symlog_transform(np.array([y_low]), linthresh)[0]
     t_high = _symlog_transform(np.array([y_high]), linthresh)[0]
     t_edges = np.linspace(t_low, t_high, y_bins + 1)
     return _symlog_inverse(t_edges, linthresh), linthresh
+
+
+def _build_symlog2_y_edges(
+    y_min: float,
+    y_max: float,
+    y_bins: int,
+    pad_frac: float = 0.03,
+) -> tuple[np.ndarray, float]:
+    pad = pad_frac * (y_max - y_min)
+    y_low = y_min - pad
+    y_high = y_max + pad
+    linthresh = _phi_linthresh_from_range(y_low, y_high)
+    t_low = _symlog2_transform(np.array([y_low]), linthresh)[0]
+    t_high = _symlog2_transform(np.array([y_high]), linthresh)[0]
+    t_edges = np.linspace(t_low, t_high, y_bins + 1)
+    return _symlog2_inverse(t_edges, linthresh), linthresh
 
 
 def _hide_overlaps_with_zero_ytick_label(
@@ -1889,16 +1928,21 @@ def _build_quantity_y_edges(
     y_max: float,
     y_bins: int,
     qty: str,
-) -> tuple[np.ndarray, float | None]:
-    """Construct y-bin edges and optional y-axis symlog threshold."""
+    phi_y_scale: str,
+) -> tuple[np.ndarray, str | None, float | None]:
+    """Construct y-bin edges and optional y-axis scale metadata."""
     pad = 0.03 * (y_max - y_min)
     y_low = y_min - pad
     y_high = y_max + pad
 
     if qty == "phi_scf" and y_low < 0.0 < y_high:
-        return _build_symlog_y_edges(y_min, y_max, y_bins)
+        if phi_y_scale == "symlog2":
+            edges, linthresh = _build_symlog2_y_edges(y_min, y_max, y_bins)
+            return edges, "symlog2", linthresh
+        edges, linthresh = _build_symlog_y_edges(y_min, y_max, y_bins)
+        return edges, "symlog", linthresh
 
-    return np.linspace(y_low, y_high, y_bins + 1), None
+    return np.linspace(y_low, y_high, y_bins + 1), None, None
 
 
 def _build_positive_log_y_edges(
@@ -2648,11 +2692,12 @@ def process_dataset(
             )
             continue
 
-        y_edges, y_linthresh = _build_quantity_y_edges(
+        y_edges, y_scale, y_linthresh = _build_quantity_y_edges(
             y_min_qty,
             y_max_qty,
             args.y_bins,
             qty,
+            args.phi_y_scale,
         )
         x_edges = np.linspace(args.x_min, args.x_max, args.x_bins + 1)
         z_edges = np.power(10.0, x_edges) - 1.0
@@ -2704,8 +2749,21 @@ def process_dataset(
         qty_label = y_label_map.get(qty, qty)
         ax.set_ylabel(qty_label)
         _style_redshift_axis(ax, z_edges)
-        if y_linthresh is not None:
+        if y_scale == "symlog" and y_linthresh is not None:
             ax.set_yscale("symlog", linthresh=y_linthresh)
+        elif y_scale == "symlog2" and y_linthresh is not None:
+            linthresh_value = cast(float, y_linthresh)
+            ax.set_yscale(
+                "function",
+                functions=(
+                    lambda values: _symlog2_transform(
+                        np.asarray(values), linthresh_value
+                    ),
+                    lambda values: _symlog2_inverse(
+                        np.asarray(values), linthresh_value
+                    ),
+                ),
+            )
 
         single_band_color = "0.50"
         single_band_alpha = 0.30
@@ -2732,7 +2790,7 @@ def process_dataset(
             ax.legend(handles=_summary_legend_handles(), loc="best", frameon=False)
 
         fig.tight_layout()
-        if y_linthresh is not None and qty == "phi_scf":
+        if y_scale in {"symlog", "symlog2"} and qty == "phi_scf":
             _hide_overlaps_with_zero_ytick_label(
                 fig,
                 ax,
@@ -3868,6 +3926,7 @@ def main() -> None:
     print(f"  Audit dir:  {failure_audit_dir}")
     print(f"  Quantities: {quantities}")
     print(f"  Include legends in plots: {args.include_legends_in_plots}")
+    print(f"  Phi y-scale mode: {args.phi_y_scale}")
     print(f"  Max draws:  {args.max_samples}")
     print(f"  Sampling-plan cache mode: {args.sample_plan_cache_mode}")
     print("  Mode-aware sampling defaults:")
