@@ -2187,6 +2187,13 @@ def _compute_phi_crossing_profile(
     epsilon_quantile: float,
     y_linthresh: float | None,
 ) -> dict[str, np.ndarray] | None:
+    """Build robust phi sign and crossing diagnostics on the interpolation grid.
+
+    The returned ``p_cross[ix]`` answers: weighted posterior probability that a
+    trajectory crosses zero over the interval [ix-1, ix] in the common redshift
+    grid. This is an interval crossing metric (trajectory-level), not a pointwise
+    sign-mixture metric.
+    """
     matrix_and_weights = _build_quantity_matrix(trajectory_payload, "phi_scf")
     if matrix_and_weights is None:
         return None
@@ -2236,14 +2243,49 @@ def _compute_phi_crossing_profile(
         p_pos_i = float(np.sum(w_v[pos]) / w_sum)
         p_neg_i = float(np.sum(w_v[neg]) / w_sum)
         p_near_i = float(np.sum(w_v[near]) / w_sum)
-        p_cross_i = float(np.clip(2.0 * min(p_pos_i, p_neg_i), 0.0, 1.0))
-
         eps[ix] = eps_i
         p_pos[ix] = p_pos_i
         p_neg[ix] = p_neg_i
         p_near[ix] = p_near_i
-        p_cross[ix] = p_cross_i
-        valid_weight[ix] = w_sum
+
+    for ix in range(1, n_grid):
+        eps_left = eps[ix - 1]
+        eps_right = eps[ix]
+        if not (np.isfinite(eps_left) and np.isfinite(eps_right)):
+            continue
+
+        col_left = matrix[:, ix - 1]
+        col_right = matrix[:, ix]
+        valid_pair = (
+            np.isfinite(col_left)
+            & np.isfinite(col_right)
+            & np.isfinite(weights)
+            & (weights > 0.0)
+        )
+        if np.count_nonzero(valid_pair) == 0:
+            continue
+
+        w_pair = weights[valid_pair]
+        w_sum_pair = float(np.sum(w_pair))
+        if w_sum_pair <= 0.0:
+            continue
+
+        left_v = col_left[valid_pair]
+        right_v = col_right[valid_pair]
+        eps_edge = max(float(eps_left), float(eps_right))
+
+        # A robust interval crossing requires the segment to span both signs
+        # beyond the epsilon safety band around zero.
+        crosses = (np.minimum(left_v, right_v) <= -eps_edge) & (
+            np.maximum(left_v, right_v) >= eps_edge
+        )
+
+        p_cross[ix] = float(np.sum(w_pair[crosses]) / w_sum_pair)
+        valid_weight[ix] = w_sum_pair
+
+    if n_grid >= 2 and np.isfinite(p_cross[1]):
+        p_cross[0] = p_cross[1]
+        valid_weight[0] = valid_weight[1]
 
     return {
         "epsilon": eps,
