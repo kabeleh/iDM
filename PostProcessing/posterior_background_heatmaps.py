@@ -5,13 +5,30 @@ Posterior background heatmaps from MCMC chains.
 This script builds posterior-density heatmaps for background quantities
 using a dedicated pipeline:
 
-1) HPD-like selection in parameter space (histogram-density surrogate)
-2) Weighted posterior resampling from the selected HPD region
-3) Background-only CLASS runs (no C_l / P(k))
-4) Persistent background cache keyed by CLASS parameter hash
-5) Streaming 2D histogram accumulation and one figure per dataset
+1) Load all post-burn MCMC rows from every chain segment (full posterior,
+    no HPD prefilter).
+2) Mode-aware weighted resampling: detect connected modes in a low-resolution
+    3D histogram of the control-parameter space (scf_c2, cdm_c, phi_ini_scf_ic
+    by default), guarantee a minimum floor of draws for each eligible mode, then
+    fill the remaining budget by systematic resampling from the full posterior.
+3) Sampling-plan cache: the draw plan (unique global indices + multiplicities)
+    is fingerprinted by chain file metadata and sampling settings and persisted
+    as a JSON file under cache-dir/sampling_plans/.  Subsequent runs with the
+    same chains and settings reload the plan without redrawing, making plot-only
+    reruns free.
+4) Background-only CLASS runs (no C_l / P(k)).  Results are persisted in a
+    per-key NPZ cache keyed by SHA-256 of the CLASS parameter dict.
+5) Streaming 2D histogram accumulation: each trajectory's interpolated quantity
+    is binned on a fixed (x_bins × y_bins) grid weighted by its draw multiplicity.
+6) Pointwise posterior summaries on the common redshift grid: weighted median and
+    16th/84th percentile bands are computed from the same resampled trajectories.
+7) Best-fit replay: the chain best-fit parameters are run once through the same
+    background-only CLASS/cache path and overlaid as a thin reference curve.
+8) One figure (PNG + PDF + PGF) and one NPZ array per requested quantity / preset,
+    including the histogram and the saved summary/best-fit curves.
 
-Designed for large chains where running CLASS for every accepted sample is infeasible.
+Designed for large chains where running CLASS for every accepted sample is
+infeasible.  ~2 000 CLASS runs typically suffice for a well-resolved heatmap.
 
 Available quantities (--quantity / --quantities):
     phi_scf          scalar-field value phi(z)
@@ -26,12 +43,15 @@ Available quantities (--quantity / --quantities):
     swgc_residual    SWGC residual
 
 Presets (--preset):
-  phi              phi_scf only (default when no --quantity/--quantities/--preset given)
+    phi              phi_scf only
   eos              w
   omega            combined Omega plot from Omega_cdm + Omega_scf
   swampland        combined dSC plot from s1 + minus_s2
-  swgc             swgc_lhs + swgc_rhs + swgc_residual
-    all              phi + w + Omega + dSC + SWGC outputs
+    swgc             combined SWGC history plot from swgc_lhs + swgc_rhs + swgc_residual
+    all              phi + w + Omega + dSC + combined SWGC outputs
+
+Default behavior (when no --preset/--quantities/--quantity is passed):
+    Publication default == --preset all
 
 Filename scheme
 ---------------
@@ -52,6 +72,7 @@ where <root> is the chain root and <quantity> is one of:
 Combined plots:
     Omega            combined Omega_DM + Omega_phi panel
     dSC              combined s1 + s2 panel
+    swgc             combined SWGC history panel(s): lhs/rhs terms plus residual
 
 Standalone aliases:
     phi_scf          -> phi
@@ -64,7 +85,7 @@ Examples
 # 2000 samples for all documented outputs, using all cores, with failure auditing
 python3 PostProcessing/posterior_background_heatmaps.py --max-samples 2000 --hpd-mass 0.68 --num-threads 0 --failure-audit-dir PostProcessing/failure_audit --preset all
 
-# Minimal: single chain, default quantity (phi_scf)
+# Minimal: single chain, publication default outputs
 python3 PostProcessing/posterior_background_heatmaps.py \\
     --roots hyperbolic_PP_D_InitCond_MCMC \\
     --max-samples 2000 --hpd-mass 0.68
@@ -93,7 +114,7 @@ python3 PostProcessing/posterior_background_heatmaps.py \
     --x-bins 120 --y-bins 120 \
     --output-dir PostProcessing/PosteriorHeatmaps_dsc
 
-# SWGC history outputs
+# Combined SWGC history output
 python3 PostProcessing/posterior_background_heatmaps.py \
     --roots hyperbolic_PP_D_InitCond_MCMC \
     --preset swgc \
@@ -102,14 +123,15 @@ python3 PostProcessing/posterior_background_heatmaps.py \
     --output-dir PostProcessing/PosteriorHeatmaps_swgc \
     --cache-dir PostProcessing/background_cache
 
-# Inspect HPD selection only (no CLASS runs, no figures)
+# Inspect chain statistics and the sampling plan only (no CLASS runs, no figures)
 python3 PostProcessing/posterior_background_heatmaps.py \\
     --roots hyperbolic_PP_D_InitCond_MCMC \\
     --max-samples 1000 --hpd-mass 0.68 \\
     --dry-run
 
-# Select specific quantities by name; when both Omega quantities or both dSC quantities
-# are present, the script emits only the combined Omega/dSC figure.
+# Select specific quantities by name; when both Omega quantities, both dSC quantities,
+# or all three SWGC quantities are present, the script emits only the corresponding
+# combined figure.
 python3 PostProcessing/posterior_background_heatmaps.py \\
     --roots hyperbolic_PP_D_InitCond_MCMC \\
     --max-samples 2000 \\
@@ -128,28 +150,45 @@ python3 PostProcessing/diff_failure_audit.py \\
 
 Flag reference
 --------------
---roots ROOT [ROOT ...]     GetDist root names (relative to chains/)
---hpd-params P [P ...]      Parameters used for HPD selection (default: auto)
---hpd-mass FLOAT            Posterior mass enclosed by HPD region (default: 0.68)
---hpd-bins INT              Bins per axis for HPD histogram (default: 48)
---ignore-rows FLOAT         GetDist ignore_rows fraction (default: 0.33)
---max-samples INT           Maximum trajectories to run per root
---quantity STR              Single quantity to plot (legacy form)
---quantities STR [STR ...]  One or more quantity names to plot
---preset STR                Named quantity preset (phi/eos/omega/swampland/swgc/all)
---x-bins INT                Redshift axis bins (default: 320)
---y-bins INT                Quantity axis bins (default: 320)
---x-min FLOAT               Minimum redshift (default: 0)
---x-max FLOAT               Maximum redshift (default: 14)
---cache-dir PATH            Directory for persistent background cache
---output-dir PATH           Directory for output figures (default: PostProcessing/PosteriorHeatmaps)
---seed INT                  Random seed for reproducible resampling
---dry-run                   Print HPD statistics and exit without running CLASS
---num-threads INT           Threads per root for CLASS runs (0 = all cores)
---num-roots INT             Roots processed in parallel (0 = all cores)
+--roots ROOT [ROOT ...]          GetDist root names (relative to chains/)
+--ignore-rows FLOAT              Burn-in fraction removed from each chain file (default: 0.33)
+--max-samples INT                Maximum resampled trajectories per dataset
+--quantity STR                   Single quantity to plot (legacy; overridden by --quantities/--preset)
+--quantities STR [STR ...]       One or more quantity names to plot
+--preset STR                     Named quantity preset (phi/eos/omega/swampland/swgc/all)
+--x-bins INT                     Redshift axis bins (default: 320)
+--y-bins INT                     Quantity axis bins (default: 320)
+--x-min FLOAT                    Minimum log10(1+z) (default: 0)
+--x-max FLOAT                    Maximum log10(1+z) (default: 14)
+--cache-dir PATH                 Directory for persistent background cache
+--output-dir PATH                Directory for output figures
+--seed INT                       Random seed for reproducible resampling (default: 12345)
+--dry-run                        Print chain and sampling-plan statistics; skip CLASS runs and figures
+--num-threads INT                Threads per dataset for CLASS runs (0 = all cores, default: 1)
+--num-roots INT                  Datasets processed in parallel (0 = all cores, default: 1)
 --zero-label-overlap-margin-px FLOAT
-                           Pixel overlap margin for phi symlog y-tick cleanup
---failure-audit-dir PATH    Write structured audit artifacts for CLASS failures
+                                 Pixel overlap margin for phi symlog y-tick cleanup (default: 0.6)
+--failure-audit-dir PATH         Write structured audit artifacts for CLASS failures
+
+Mode-aware sampling:
+--mode-detect-bins INT           Bins per axis for 3D connected-component mode detection
+                                 in the control-parameter space (default: 20)
+--mode-min-mass-frac FLOAT       Minimum posterior mass fraction for floor allocation (default: 0.003)
+--mode-floor-abs INT             Absolute minimum draws guaranteed per eligible mode (default: 12)
+--mode-floor-frac FLOAT          Per-mode floor as a fraction of --max-samples;
+                                 effective floor = max(mode-floor-abs, round(frac*N)) (default: 0.003)
+--mode-floor-cap-frac FLOAT      Upper cap on total floor allocation as a fraction of
+                                 --max-samples (default: 0.20)
+--sample-plan-cache-mode STR     Sampling-plan cache policy:
+                                   auto    — reuse cached plan when fingerprint matches (default)
+                                   refresh — always redraw and overwrite the cached plan
+                                   locked  — require a matching cached plan; fail if absent
+
+Backward-compatible flags (still parsed and fingerprinted, no longer drive sampling):
+--hpd-params P [P ...]           Three-parameter control space for mode detection.
+                                 Default: scf_c2 cdm_c phi_ini_scf_ic
+--hpd-mass FLOAT                 Backward-compatible parse/fingerprint input; no prefiltering (default: 0.68)
+--hpd-bins INT                   Backward-compatible parse/fingerprint input; no prefiltering (default: 48)
 """
 
 from __future__ import annotations
@@ -173,18 +212,22 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
 from cmcrameri import cm as cmc
+from matplotlib import patheffects as pe
 from matplotlib.colorbar import Colorbar
 from matplotlib.colors import LogNorm
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
+from matplotlib.lines import Line2D
 from matplotlib.patches import Patch
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from matplotlib.ticker import (
     FixedFormatter,
     FixedLocator,
+    FuncFormatter,
     LogLocator,
     MaxNLocator,
     NullFormatter,
+    ScalarFormatter,
 )
 
 from BestFitPlot import (
@@ -202,6 +245,7 @@ mpl.rcParams.update(
         "font.family": "serif",
         "font.size": 11.5,
         "axes.labelsize": 12,
+        "axes.formatter.useoffset": False,
         "xtick.labelsize": 11,
         "ytick.labelsize": 11,
         "legend.fontsize": 11,
@@ -396,12 +440,46 @@ _OUTPUT_QUANTITY_ALIASES: dict[str, str] = {
     "swgc_residual": "swgc",
 }
 
+_MODE_SAMPLING_SCHEMA_VERSION = "mode-aware-defaults-v1-20260502"
+
+
+def _resolve_mode_sampling_tuning(args: argparse.Namespace) -> dict[str, Any]:
+    """Resolve concrete mode-aware sampling defaults from CLI knobs.
+
+    These diagnostics are logged at startup so tuning is transparent and
+    reproducible across reruns.
+    """
+    max_samples = int(max(1, args.max_samples))
+    floor_abs = int(max(1, args.mode_floor_abs))
+    floor_frac = float(max(0.0, args.mode_floor_frac))
+    floor_cap_frac = float(min(1.0, max(0.0, args.mode_floor_cap_frac)))
+
+    floor_from_frac = int(np.round(floor_frac * max_samples))
+    floor_per_mode = int(max(floor_abs, floor_from_frac))
+    floor_total_cap = int(max(1, np.floor(floor_cap_frac * max_samples)))
+    max_floor_modes = int(max(1, floor_total_cap // max(floor_per_mode, 1)))
+
+    return {
+        "schema_version": _MODE_SAMPLING_SCHEMA_VERSION,
+        "max_samples": max_samples,
+        "mode_detect_bins": int(max(4, args.mode_detect_bins)),
+        "mode_min_mass_frac": float(max(0.0, args.mode_min_mass_frac)),
+        "mode_floor_abs": floor_abs,
+        "mode_floor_frac": floor_frac,
+        "mode_floor_from_frac": floor_from_frac,
+        "mode_floor_per_mode": floor_per_mode,
+        "mode_floor_cap_frac": floor_cap_frac,
+        "mode_floor_total_cap": floor_total_cap,
+        "mode_floor_max_modes": max_floor_modes,
+    }
+
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
             "Generate per-dataset posterior heatmaps for background quantities "
-            "using HPD-like selection + weighted resampling + persistent CLASS cache."
+            "using mode-aware posterior resampling, persistent CLASS caching, "
+            "best-fit overlays, and pointwise credible bands."
         )
     )
     parser.add_argument(
@@ -444,10 +522,69 @@ def parse_args() -> argparse.Namespace:
         ),
     )
     parser.add_argument(
+        "--mode-detect-bins",
+        type=int,
+        default=20,
+        help=(
+            "Bins per axis for connected-component mode detection in the "
+            "3-parameter control space (default: 20)."
+        ),
+    )
+    parser.add_argument(
+        "--mode-min-mass-frac",
+        type=float,
+        default=0.003,
+        help=(
+            "Minimum posterior mass fraction for a mode to receive a guaranteed "
+            "floor allocation (default: 0.003)."
+        ),
+    )
+    parser.add_argument(
+        "--mode-floor-abs",
+        type=int,
+        default=12,
+        help=(
+            "Absolute floor for guaranteed per-mode draws before mass-proportional "
+            "allocation (default: 12)."
+        ),
+    )
+    parser.add_argument(
+        "--mode-floor-frac",
+        type=float,
+        default=0.003,
+        help=(
+            "Fractional floor for guaranteed per-mode draws, as a fraction of "
+            "--max-samples (default: 0.003)."
+        ),
+    )
+    parser.add_argument(
+        "--mode-floor-cap-frac",
+        type=float,
+        default=0.20,
+        help=(
+            "Upper cap on total guaranteed floor allocation as a fraction of "
+            "--max-samples (default: 0.20)."
+        ),
+    )
+    parser.add_argument(
+        "--sample-plan-cache-mode",
+        choices=["auto", "refresh", "locked"],
+        default="auto",
+        help=(
+            "Sampling-plan cache policy: auto=reuse when chain fingerprint matches, "
+            "refresh=force redraw and overwrite cached plan, "
+            "locked=require matching cached plan and fail otherwise."
+        ),
+    )
+    parser.add_argument(
         "--quantity",
         choices=_ALL_QUANTITIES,
-        default="phi_scf",
-        help="Single background quantity (default: phi_scf). Overridden by --quantities or --preset.",
+        default=None,
+        help=(
+            "Single background quantity (legacy override). "
+            "If omitted and no --preset/--quantities are given, "
+            "defaults to publication set (--preset all)."
+        ),
     )
     parser.add_argument(
         "--quantities",
@@ -711,11 +848,6 @@ def _load_selection_data(
     minuslogpost = np.concatenate(minuslogpost_parts).astype(float, copy=False)
     hpd_values = np.concatenate(values_parts).astype(float, copy=False)
 
-    valid = np.isfinite(weights) & np.all(np.isfinite(hpd_values), axis=1)
-    weights = weights[valid]
-    minuslogpost = minuslogpost[valid]
-    hpd_values = hpd_values[valid]
-
     return SelectionData(
         weights=weights,
         minuslogpost=minuslogpost,
@@ -724,97 +856,365 @@ def _load_selection_data(
     )
 
 
-def _hpd_like_mask(
+def _sanitize_weights(weights: np.ndarray) -> np.ndarray:
+    w = np.asarray(weights, dtype=float).copy()
+    w[~np.isfinite(w)] = 0.0
+    w[w < 0.0] = 0.0
+    return w
+
+
+def _draw_systematic_indices(
+    indices: np.ndarray,
+    probs: np.ndarray,
+    draw_count: int,
+    rng: np.random.Generator,
+) -> np.ndarray:
+    draw_count = int(max(0, draw_count))
+    if draw_count == 0 or indices.size == 0:
+        return np.empty(0, dtype=np.int64)
+
+    cdf = np.cumsum(probs, dtype=float)
+    if cdf[-1] <= 0:
+        return np.empty(0, dtype=np.int64)
+    cdf /= cdf[-1]
+    positions = (rng.random() + np.arange(draw_count, dtype=float)) / float(draw_count)
+    picked = np.searchsorted(cdf, positions, side="right")
+    picked = np.clip(picked, 0, indices.size - 1)
+    return indices[picked].astype(np.int64, copy=False)
+
+
+def _connected_components_3d(mask: np.ndarray) -> np.ndarray:
+    labels = np.full(mask.shape, -1, dtype=np.int32)
+    comp_id = 0
+    sx, sy, sz = mask.shape
+
+    neighbors: list[tuple[int, int, int]] = []
+    for dx in (-1, 0, 1):
+        for dy in (-1, 0, 1):
+            for dz in (-1, 0, 1):
+                if dx == 0 and dy == 0 and dz == 0:
+                    continue
+                neighbors.append((dx, dy, dz))
+
+    coords = np.argwhere(mask)
+    for x, y, z in coords:
+        if labels[x, y, z] != -1:
+            continue
+        stack = [(int(x), int(y), int(z))]
+        labels[x, y, z] = comp_id
+        while stack:
+            cx, cy, cz = stack.pop()
+            for dx, dy, dz in neighbors:
+                nx, ny, nz = cx + dx, cy + dy, cz + dz
+                if nx < 0 or ny < 0 or nz < 0 or nx >= sx or ny >= sy or nz >= sz:
+                    continue
+                if not mask[nx, ny, nz] or labels[nx, ny, nz] != -1:
+                    continue
+                labels[nx, ny, nz] = comp_id
+                stack.append((nx, ny, nz))
+        comp_id += 1
+
+    return labels
+
+
+def _detect_modes_from_control_space(
     values: np.ndarray,
-    weights: np.ndarray,
+    probs: np.ndarray,
     bins: int,
-    mass: float,
 ) -> tuple[np.ndarray, dict[str, Any]]:
-    """HPD-like region from a weighted 3D histogram density surrogate.
-
-    We estimate local posterior density with equal-volume histogram bins.
-    Bins are ranked by weighted occupancy; highest-density bins are included
-    until cumulative posterior mass reaches `mass`.
-    """
     if values.ndim != 2 or values.shape[1] != 3:
-        raise ValueError("HPD-like mask requires values shape (N, 3)")
+        raise ValueError("Mode detection requires control-space values shape (N, 3)")
 
-    mass = float(max(0.01, min(0.999, mass)))
-    bins = int(max(8, bins))
+    bins = int(max(4, bins))
+    n = values.shape[0]
+    mode_id_by_row = np.full(n, -1, dtype=np.int32)
 
-    # Robust ranges avoid a few outliers wasting histogram resolution.
-    q_lo = np.nanpercentile(values, 0.5, axis=0)
-    q_hi = np.nanpercentile(values, 99.5, axis=0)
+    valid = np.all(np.isfinite(values), axis=1) & (probs > 0.0)
+    valid_idx = np.flatnonzero(valid)
+    if valid_idx.size == 0:
+        return mode_id_by_row, {
+            "mode_count": 0,
+            "valid_rows_for_mode_detection": 0,
+            "occupied_bins": 0,
+            "total_bins": int(bins**3),
+            "invalid_rows": int(n),
+        }
+
+    vals = values[valid]
+    q_lo = np.nanpercentile(vals, 0.5, axis=0)
+    q_hi = np.nanpercentile(vals, 99.5, axis=0)
     for i in range(3):
         if not np.isfinite(q_lo[i]) or not np.isfinite(q_hi[i]) or q_lo[i] == q_hi[i]:
-            q_lo[i] = float(np.nanmin(values[:, i]))
-            q_hi[i] = float(np.nanmax(values[:, i]))
+            q_lo[i] = float(np.nanmin(vals[:, i]))
+            q_hi[i] = float(np.nanmax(vals[:, i]))
             if q_lo[i] == q_hi[i]:
                 q_hi[i] = q_lo[i] + 1e-12
 
     H, edges = np.histogramdd(
-        values,
+        vals,
         bins=(bins, bins, bins),
         range=((q_lo[0], q_hi[0]), (q_lo[1], q_hi[1]), (q_lo[2], q_hi[2])),
-        weights=weights,
+        weights=probs[valid],
     )
 
-    total_mass = float(np.sum(H))
-    if not np.isfinite(total_mass) or total_mass <= 0:
-        raise ValueError("Invalid total posterior mass in HPD histogram")
+    occupied = H > 0.0
+    labels = _connected_components_3d(occupied)
+    mode_count = int(np.max(labels) + 1) if np.any(labels >= 0) else 0
 
-    flat = H.ravel()
-    order = np.argsort(flat)[::-1]
-    cumsum = np.cumsum(flat[order])
-    cutoff_pos = int(np.searchsorted(cumsum, mass * total_mass, side="left"))
-    cutoff_pos = min(cutoff_pos, len(order) - 1)
-    keep_flat_ids = order[: cutoff_pos + 1]
-
-    keep_bins = np.zeros_like(flat, dtype=bool)
-    keep_bins[keep_flat_ids] = True
-    keep_bins = keep_bins.reshape(H.shape)
-
-    # Map points -> histogram bin IDs.
-    bin_ids = []
-    for i in range(3):
-        b = np.digitize(values[:, i], edges[i]) - 1
-        b = np.clip(b, 0, bins - 1)
-        bin_ids.append(b)
-    mask = keep_bins[bin_ids[0], bin_ids[1], bin_ids[2]]
+    bx = np.clip(np.digitize(vals[:, 0], edges[0]) - 1, 0, bins - 1)
+    by = np.clip(np.digitize(vals[:, 1], edges[1]) - 1, 0, bins - 1)
+    bz = np.clip(np.digitize(vals[:, 2], edges[2]) - 1, 0, bins - 1)
+    mode_id_by_row[valid_idx] = labels[bx, by, bz]
 
     diag = {
-        "hpd_bins_kept": int(np.count_nonzero(keep_bins)),
-        "hpd_bins_total": int(keep_bins.size),
-        "hpd_target_mass": mass,
-        "hpd_achieved_mass": float(np.sum(weights[mask]) / np.sum(weights)),
-        "selected_count": int(np.count_nonzero(mask)),
-        "selected_weight_fraction": float(np.sum(weights[mask]) / np.sum(weights)),
+        "mode_count": mode_count,
+        "valid_rows_for_mode_detection": int(valid_idx.size),
+        "occupied_bins": int(np.count_nonzero(occupied)),
+        "total_bins": int(occupied.size),
+        "invalid_rows": int(n - valid_idx.size),
     }
-    return mask, diag
+    return mode_id_by_row, diag
 
 
-def _draw_weighted_indices(
-    mask: np.ndarray,
+def _draw_mode_aware_indices(
+    control_values: np.ndarray,
     weights: np.ndarray,
     draw_count: int,
     rng: np.random.Generator,
-) -> tuple[np.ndarray, np.ndarray]:
-    selected_idx = np.flatnonzero(mask)
-    if selected_idx.size == 0:
-        raise ValueError("HPD-like selection produced zero rows")
-
+    mode_tuning: dict[str, Any],
+) -> tuple[np.ndarray, np.ndarray, dict[str, Any]]:
     draw_count = int(max(1, draw_count))
-    probs = weights[selected_idx].astype(float, copy=False)
-    probs = np.clip(probs, 0.0, None)
-    if not np.any(probs > 0):
-        probs = np.ones_like(probs)
-    probs = probs / probs.sum()
+    w = _sanitize_weights(weights)
+    total_w = float(np.sum(w))
+    if not np.isfinite(total_w) or total_w <= 0.0:
+        raise ValueError("No positive posterior weight available for resampling")
 
-    # Weighted posterior resampling (with replacement) preserves target mass
-    # while capping expensive CLASS evaluations.
-    drawn = rng.choice(selected_idx, size=draw_count, replace=True, p=probs)
+    probs = w / total_w
+    n_rows = probs.size
+    all_idx = np.arange(n_rows, dtype=np.int64)
+
+    mode_ids, mode_diag = _detect_modes_from_control_space(
+        values=control_values,
+        probs=probs,
+        bins=int(mode_tuning["mode_detect_bins"]),
+    )
+
+    # Posterior mass per detected mode.
+    mode_masses: dict[int, float] = {}
+    valid_mode_rows = mode_ids >= 0
+    if np.any(valid_mode_rows):
+        uniq_modes, mode_mass_vals = (
+            np.unique(
+                mode_ids[valid_mode_rows],
+                return_counts=False,
+            ),
+            None,
+        )
+        for mid in uniq_modes.tolist():
+            mask = mode_ids == mid
+            mode_masses[int(mid)] = float(np.sum(probs[mask]))
+
+    eligible_modes = [
+        m
+        for m, mass in mode_masses.items()
+        if mass >= float(mode_tuning["mode_min_mass_frac"])
+    ]
+    eligible_modes = sorted(eligible_modes, key=lambda m: mode_masses[m], reverse=True)
+
+    floor_per_mode = int(mode_tuning["mode_floor_per_mode"])
+    floor_total_cap = int(mode_tuning["mode_floor_total_cap"])
+    max_floor_modes = int(mode_tuning["mode_floor_max_modes"])
+    floor_budget = min(draw_count, floor_total_cap)
+
+    supported_modes = min(len(eligible_modes), max_floor_modes)
+    if floor_per_mode > 0:
+        supported_modes = min(supported_modes, floor_budget // floor_per_mode)
+    selected_floor_modes = eligible_modes[:supported_modes]
+
+    floor_draws: list[np.ndarray] = []
+    for mid in selected_floor_modes:
+        row_idx = np.flatnonzero(mode_ids == mid)
+        if row_idx.size == 0:
+            continue
+        p_local = probs[row_idx]
+        p_sum = float(np.sum(p_local))
+        if p_sum <= 0.0:
+            continue
+        p_local = p_local / p_sum
+        floor_draws.append(
+            _draw_systematic_indices(
+                indices=row_idx,
+                probs=p_local,
+                draw_count=floor_per_mode,
+                rng=rng,
+            )
+        )
+
+    floor_total = int(sum(arr.size for arr in floor_draws))
+    remaining = int(max(0, draw_count - floor_total))
+    base_draws = _draw_systematic_indices(
+        indices=all_idx,
+        probs=probs,
+        draw_count=remaining,
+        rng=rng,
+    )
+
+    if floor_draws:
+        drawn = np.concatenate([base_draws, *floor_draws])
+    else:
+        drawn = base_draws
+
     uniq, counts = np.unique(drawn, return_counts=True)
-    return uniq, counts
+
+    sampled_mass_by_mode: dict[str, float] = {}
+    for mid in selected_floor_modes:
+        sampled_mass_by_mode[str(mid)] = mode_masses.get(mid, 0.0)
+
+    diag = {
+        **mode_diag,
+        "draw_count": int(draw_count),
+        "rows_with_positive_weight": int(np.count_nonzero(w > 0.0)),
+        "eligible_modes": int(len(eligible_modes)),
+        "floor_supported_modes": int(len(selected_floor_modes)),
+        "floor_per_mode": int(floor_per_mode),
+        "floor_total_draws": int(floor_total),
+        "remaining_draws": int(remaining),
+        "unique_trajectories": int(uniq.size),
+        "eligible_mode_ids": [int(m) for m in eligible_modes],
+        "selected_floor_mode_ids": [int(m) for m in selected_floor_modes],
+        "mode_posterior_mass": {str(k): v for k, v in sorted(mode_masses.items())},
+        "selected_mode_posterior_mass": sampled_mass_by_mode,
+    }
+    return uniq.astype(np.int64), counts.astype(np.int64), diag
+
+
+def _sampling_plan_cache_dir(cache_dir: Path) -> Path:
+    return cache_dir / "sampling_plans"
+
+
+def _chain_fingerprint_payload(
+    bundle: ChainBundle,
+    selection: SelectionData,
+    args: argparse.Namespace,
+    mode_tuning: dict[str, Any],
+) -> dict[str, Any]:
+    files_meta = []
+    for fp, postburn_rows in zip(bundle.chain_files, selection.file_counts_postburn):
+        st = fp.stat()
+        files_meta.append(
+            {
+                "path": str(fp),
+                "size": int(st.st_size),
+                "mtime_ns": int(st.st_mtime_ns),
+                "postburn_rows": int(postburn_rows),
+            }
+        )
+
+    return {
+        "schema_version": _MODE_SAMPLING_SCHEMA_VERSION,
+        "root": bundle.root,
+        "ignore_rows": float(args.ignore_rows),
+        "max_samples": int(args.max_samples),
+        "hpd_params": [str(x) for x in args.hpd_params],
+        "mode_tuning": mode_tuning,
+        "chain_files": files_meta,
+    }
+
+
+def _chain_fingerprint_hash(payload: dict[str, Any]) -> str:
+    blob = json.dumps(payload, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(blob.encode("utf-8")).hexdigest()[:20]
+
+
+def _sampling_plan_cache_path(cache_dir: Path, root: str, fp_hash: str) -> Path:
+    d = _sampling_plan_cache_dir(cache_dir)
+    d.mkdir(parents=True, exist_ok=True)
+    return d / f"{_sanitize_label(root)}__{fp_hash}.json"
+
+
+def _load_sampling_plan(path: Path) -> tuple[np.ndarray, np.ndarray, dict[str, Any]]:
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    uniq = np.asarray(payload["unique_global_indices"], dtype=np.int64)
+    mult = np.asarray(payload["multiplicities"], dtype=np.int64)
+    diag = dict(payload.get("diagnostics", {}))
+    return uniq, mult, diag
+
+
+def _save_sampling_plan(
+    path: Path,
+    *,
+    unique_global_indices: np.ndarray,
+    multiplicities: np.ndarray,
+    diagnostics: dict[str, Any],
+    fingerprint_payload: dict[str, Any],
+    fingerprint_hash: str,
+) -> None:
+    payload = {
+        "schema_version": _MODE_SAMPLING_SCHEMA_VERSION,
+        "fingerprint_hash": fingerprint_hash,
+        "created_utc": datetime.now(timezone.utc).isoformat(),
+        "fingerprint_payload": fingerprint_payload,
+        "unique_global_indices": [int(x) for x in unique_global_indices.tolist()],
+        "multiplicities": [int(x) for x in multiplicities.tolist()],
+        "diagnostics": diagnostics,
+    }
+    _write_json_atomic(path, payload)
+
+
+def _resolve_sampling_plan(
+    *,
+    bundle: ChainBundle,
+    selection: SelectionData,
+    args: argparse.Namespace,
+    mode_tuning: dict[str, Any],
+    rng: np.random.Generator,
+    cache_dir: Path,
+) -> tuple[np.ndarray, np.ndarray, dict[str, Any], str]:
+    fingerprint_payload = _chain_fingerprint_payload(
+        bundle, selection, args, mode_tuning
+    )
+    fingerprint_hash = _chain_fingerprint_hash(fingerprint_payload)
+    plan_path = _sampling_plan_cache_path(cache_dir, bundle.root, fingerprint_hash)
+
+    if args.sample_plan_cache_mode != "refresh" and plan_path.exists():
+        uniq, mult, diag = _load_sampling_plan(plan_path)
+        diag = {
+            **diag,
+            "sampling_plan_cache": "hit",
+            "sampling_plan_path": str(plan_path),
+            "sampling_plan_fingerprint": fingerprint_hash,
+        }
+        return uniq, mult, diag, fingerprint_hash
+
+    if args.sample_plan_cache_mode == "locked" and not plan_path.exists():
+        raise FileNotFoundError(
+            "Sampling plan cache mode is 'locked' but no matching plan was found: "
+            f"{plan_path}"
+        )
+
+    uniq, mult, diag = _draw_mode_aware_indices(
+        control_values=selection.hpd_values,
+        weights=selection.weights,
+        draw_count=args.max_samples,
+        rng=rng,
+        mode_tuning=mode_tuning,
+    )
+    diag = {
+        **diag,
+        "sampling_plan_cache": "miss",
+        "sampling_plan_path": str(plan_path),
+        "sampling_plan_fingerprint": fingerprint_hash,
+        "sample_plan_cache_mode": args.sample_plan_cache_mode,
+    }
+    _save_sampling_plan(
+        plan_path,
+        unique_global_indices=uniq,
+        multiplicities=mult,
+        diagnostics=diag,
+        fingerprint_payload=fingerprint_payload,
+        fingerprint_hash=fingerprint_hash,
+    )
+    return uniq, mult, diag, fingerprint_hash
 
 
 def _global_to_file_rows(
@@ -1330,6 +1730,12 @@ def _format_colorbar_tick(tick: float) -> str:
 def _style_colorbar(cb: Colorbar, vmin: float, vmax: float) -> None:
     """Style the heatmap colorbar with the same tick density/geometry family."""
     major_ticks = _build_colorbar_ticks(vmin, vmax)
+    if len(major_ticks) < 2 and np.isfinite(vmin) and np.isfinite(vmax) and vmax > vmin:
+        mid = float(np.sqrt(vmin * vmax))
+        major_ticks = sorted({float(vmin), mid, float(vmax)})
+    if len(major_ticks) < 2 and np.isfinite(vmin) and np.isfinite(vmax):
+        upper = float(vmax if vmax > vmin else (vmin * (1.0 + 1e-6)))
+        major_ticks = [float(vmin), upper]
     cb.ax.yaxis.set_major_locator(FixedLocator(major_ticks))
     cb.ax.yaxis.set_major_formatter(
         FixedFormatter([_format_colorbar_tick(tick) for tick in major_ticks])
@@ -1371,7 +1777,9 @@ def _build_symlog_y_edges(
     y_low = y_min - pad
     y_high = y_max + pad
     max_abs = max(abs(y_low), abs(y_high))
-    linthresh = max(1e-6, 0.02 * max_abs)
+    # Keep symlog linear core proportional to data scale; a large absolute floor
+    # (e.g. 1e-6) collapses tiny-valued residual axes near zero.
+    linthresh = max(1e-18, 0.02 * max_abs)
     t_low = _symlog_transform(np.array([y_low]), linthresh)[0]
     t_high = _symlog_transform(np.array([y_high]), linthresh)[0]
     t_edges = np.linspace(t_low, t_high, y_bins + 1)
@@ -1435,6 +1843,38 @@ def _hide_overlaps_with_zero_ytick_label(
             label.set_visible(False)
 
 
+def _ensure_min_labeled_yticks(ax: Axes, min_labels: int = 2) -> None:
+    """Guarantee at least `min_labels` major y-tick labels are available."""
+    ticks = np.asarray(ax.get_yticks(), dtype=float)
+    if ticks.size == 0:
+        return
+
+    y0, y1 = ax.get_ylim()
+    lo = float(min(y0, y1))
+    hi = float(max(y0, y1))
+    if not np.isfinite(lo) or not np.isfinite(hi) or hi <= lo:
+        return
+
+    tol = max(1e-18, 1e-12 * max(abs(lo), abs(hi), 1.0))
+    in_view = np.isfinite(ticks) & (ticks >= lo - tol) & (ticks <= hi + tol)
+    visible_ticks = ticks[in_view]
+    if visible_ticks.size >= min_labels:
+        return
+
+    forced: list[float]
+    if lo < 0.0 < hi:
+        forced = [lo, 0.0, hi]
+    else:
+        forced = [lo, hi]
+        if min_labels >= 3:
+            forced.insert(1, 0.5 * (lo + hi))
+
+    # Keep deterministic ordering and avoid duplicate ticks in degenerate ranges.
+    forced = sorted({float(v) for v in forced})
+    if len(forced) >= 2:
+        ax.yaxis.set_major_locator(FixedLocator(forced))
+
+
 def _build_quantity_y_edges(
     y_min: float,
     y_max: float,
@@ -1450,6 +1890,233 @@ def _build_quantity_y_edges(
         return _build_symlog_y_edges(y_min, y_max, y_bins)
 
     return np.linspace(y_low, y_high, y_bins + 1), None
+
+
+def _build_positive_log_y_edges(
+    y_min: float,
+    y_max: float,
+    y_bins: int,
+    pad_frac: float = 0.06,
+) -> np.ndarray:
+    if not (np.isfinite(y_min) and np.isfinite(y_max) and y_max > y_min):
+        raise ValueError("Positive log y-edges require finite y_min < y_max")
+
+    positive_floor = max(np.finfo(float).tiny, 1e-300)
+    y_low = max(positive_floor, y_min * (1.0 - pad_frac))
+    y_high = max(y_low * (1.0 + 1e-12), y_max * (1.0 + pad_frac))
+    return np.geomspace(y_low, y_high, int(y_bins) + 1)
+
+
+def _weighted_quantile_1d(
+    values: np.ndarray,
+    weights: np.ndarray,
+    quantiles: np.ndarray,
+) -> np.ndarray:
+    valid = np.isfinite(values) & np.isfinite(weights) & (weights > 0.0)
+    if np.count_nonzero(valid) == 0:
+        return np.full(quantiles.shape, np.nan, dtype=float)
+
+    vals = np.asarray(values[valid], dtype=float)
+    w = np.asarray(weights[valid], dtype=float)
+    order = np.argsort(vals)
+    vals = vals[order]
+    w = w[order]
+
+    total = float(np.sum(w))
+    if total <= 0.0:
+        return np.full(quantiles.shape, np.nan, dtype=float)
+
+    cdf = np.cumsum(w, dtype=float) / total
+    return np.interp(quantiles, cdf, vals, left=vals[0], right=vals[-1])
+
+
+def _compute_pointwise_weighted_summary(
+    series_matrix: np.ndarray,
+    weights: np.ndarray,
+    quantiles: tuple[float, ...] = (0.16, 0.5, 0.84),
+) -> dict[str, np.ndarray]:
+    if series_matrix.ndim != 2:
+        raise ValueError("series_matrix must have shape (n_series, n_grid)")
+
+    q_probs = np.asarray(quantiles, dtype=float)
+    q_out = np.full((q_probs.size, series_matrix.shape[1]), np.nan, dtype=float)
+    valid_weight = np.zeros(series_matrix.shape[1], dtype=float)
+
+    weights = np.asarray(weights, dtype=float)
+    for ix in range(series_matrix.shape[1]):
+        column = series_matrix[:, ix]
+        valid = np.isfinite(column) & np.isfinite(weights) & (weights > 0.0)
+        if np.count_nonzero(valid) == 0:
+            continue
+        valid_weight[ix] = float(np.sum(weights[valid]))
+        q_out[:, ix] = _weighted_quantile_1d(column[valid], weights[valid], q_probs)
+
+    return {
+        "q16": q_out[0],
+        "q50": q_out[1],
+        "q84": q_out[2],
+        "valid_weight": valid_weight,
+    }
+
+
+def _build_quantity_summary(
+    trajectory_payload: list[tuple[dict[str, np.ndarray], int]],
+    qty: str,
+) -> dict[str, np.ndarray] | None:
+    series_list: list[np.ndarray] = []
+    weights: list[float] = []
+
+    for qty_interps, multiplicity in trajectory_payload:
+        y = qty_interps.get(qty)
+        if y is None:
+            continue
+        series_list.append(np.asarray(y, dtype=float))
+        weights.append(float(multiplicity))
+
+    if not series_list:
+        return None
+
+    matrix = np.vstack(series_list)
+    return _compute_pointwise_weighted_summary(matrix, np.asarray(weights, dtype=float))
+
+
+def _compute_bestfit_interpolations(
+    bestfit_values: dict[str, float],
+    yaml_config: dict[str, Any],
+    quantities: list[str],
+    x_grid: np.ndarray,
+    cache_dir: Path,
+) -> tuple[dict[str, np.ndarray], str, str]:
+    class_params = _build_sample_class_params({}, bestfit_values, yaml_config)
+    bg, source, cache_key = get_or_compute_background(class_params, cache_dir)
+
+    interps: dict[str, np.ndarray] = {}
+    for qty in quantities:
+        if qty not in bg:
+            continue
+        interps[qty] = _interp_background_quantity(bg, qty, x_grid)
+
+    return interps, source, cache_key
+
+
+def _line_with_contrast(
+    ax: Axes,
+    x: np.ndarray,
+    y: np.ndarray,
+    *,
+    color: str,
+    linewidth: float,
+    linestyle: str,
+    zorder: float,
+    outline_color: str,
+    outline_width: float,
+) -> None:
+    valid = np.isfinite(x) & np.isfinite(y)
+    if np.count_nonzero(valid) < 2:
+        return
+
+    line = ax.plot(
+        x[valid],
+        y[valid],
+        color=color,
+        linewidth=linewidth,
+        linestyle=linestyle,
+        zorder=zorder,
+    )[0]
+    line.set_path_effects(
+        [
+            pe.Stroke(linewidth=linewidth + outline_width, foreground=outline_color),
+            pe.Normal(),
+        ]
+    )
+
+
+def _overlay_summary_on_axis(
+    ax: Axes,
+    z_grid: np.ndarray,
+    summary: dict[str, np.ndarray] | None,
+    *,
+    bestfit: np.ndarray | None,
+    band_color: str,
+    band_alpha: float,
+    median_color: str,
+    bestfit_color: str,
+) -> None:
+    if summary is not None:
+        q16 = np.asarray(summary["q16"], dtype=float)
+        q50 = np.asarray(summary["q50"], dtype=float)
+        q84 = np.asarray(summary["q84"], dtype=float)
+        valid_band = np.isfinite(z_grid) & np.isfinite(q16) & np.isfinite(q84)
+        if np.count_nonzero(valid_band) >= 2:
+            ax.fill_between(
+                z_grid[valid_band],
+                q16[valid_band],
+                q84[valid_band],
+                color=band_color,
+                alpha=band_alpha,
+                linewidth=0.0,
+                zorder=3.1,
+            )
+        _line_with_contrast(
+            ax,
+            z_grid,
+            q50,
+            color=median_color,
+            linewidth=1.35,
+            linestyle="--",
+            zorder=3.8,
+            outline_color="black",
+            outline_width=1.2,
+        )
+
+    if bestfit is not None:
+        _line_with_contrast(
+            ax,
+            z_grid,
+            np.asarray(bestfit, dtype=float),
+            color=bestfit_color,
+            linewidth=1.15,
+            linestyle="-",
+            zorder=4.5,
+            outline_color="white",
+            outline_width=1.6,
+        )
+
+
+def _summary_legend_handles() -> list[Any]:
+    return [
+        Line2D([0], [0], color="black", linewidth=1.15, label="Best-fit trajectory"),
+        Line2D(
+            [0],
+            [0],
+            color="0.20",
+            linewidth=1.35,
+            linestyle="--",
+            label="Posterior median",
+        ),
+        Patch(
+            facecolor="0.75",
+            edgecolor="0.35",
+            linewidth=0.8,
+            alpha=0.35,
+            label=r"68\% confidence band",
+        ),
+    ]
+
+
+def _summary_line_legend_handles() -> list[Any]:
+    """Legend handles for shared line semantics without a generic band patch."""
+    return [
+        Line2D([0], [0], color="black", linewidth=1.15, label="Best-fit trajectory"),
+        Line2D(
+            [0],
+            [0],
+            color="0.20",
+            linewidth=1.35,
+            linestyle="--",
+            label="Posterior median",
+        ),
+    ]
 
 
 def _build_sample_class_params(
@@ -1543,6 +2210,7 @@ def process_dataset(
     args: argparse.Namespace,
     quantities: list[str],
     rng: np.random.Generator,
+    mode_tuning: dict[str, Any],
     cache_dir: Path,
     output_dir: Path,
     failure_audit_dir: Path,
@@ -1568,25 +2236,33 @@ def process_dataset(
         f"N_eff~{neff:,.0f}"
     )
 
-    hpd_mask, hpd_diag = _hpd_like_mask(
-        selection.hpd_values,
-        selection.weights,
-        bins=args.hpd_bins,
-        mass=args.hpd_mass,
-    )
-    print(
-        "HPD-like: "
-        f"selected={hpd_diag['selected_count']:,} "
-        f"({100.0*hpd_diag['selected_weight_fraction']:.2f}% weighted mass), "
-        f"achieved_mass={hpd_diag['hpd_achieved_mass']:.4f}"
+    uniq_global_idx, multiplicities, sampling_diag, sampling_fp = (
+        _resolve_sampling_plan(
+            bundle=bundle,
+            selection=selection,
+            args=args,
+            mode_tuning=mode_tuning,
+            rng=rng,
+            cache_dir=cache_dir,
+        )
     )
 
-    uniq_global_idx, multiplicities = _draw_weighted_indices(
-        hpd_mask,
-        selection.weights,
-        draw_count=args.max_samples,
-        rng=rng,
+    print(
+        "Sampling plan: "
+        f"cache={sampling_diag.get('sampling_plan_cache', 'unknown')}, "
+        f"fingerprint={sampling_fp}, "
+        f"path={sampling_diag.get('sampling_plan_path', 'n/a')}"
     )
+    print(
+        "Mode-aware resampling: "
+        f"draws={sampling_diag.get('draw_count', int(np.sum(multiplicities))):,}, "
+        f"unique={sampling_diag.get('unique_trajectories', int(uniq_global_idx.size)):,}, "
+        f"modes={sampling_diag.get('mode_count', 0)}, "
+        f"eligible={sampling_diag.get('eligible_modes', 0)}, "
+        f"floor_modes={sampling_diag.get('floor_supported_modes', 0)}, "
+        f"floor_draws={sampling_diag.get('floor_total_draws', 0)}"
+    )
+
     draw_records = _global_to_file_rows(
         uniq_global_idx,
         multiplicities,
@@ -1622,6 +2298,29 @@ def process_dataset(
 
     x_grid = _build_common_x_grid(
         args.x_min, args.x_max, n_points=max(256, args.x_bins * 2)
+    )
+    z_grid = np.power(10.0, x_grid) - 1.0
+
+    try:
+        bestfit_interps, bestfit_source, bestfit_cache_key = (
+            _compute_bestfit_interpolations(
+                bestfit_values,
+                yaml_config,
+                quantities,
+                x_grid,
+                cache_dir,
+            )
+        )
+    except ClassBackgroundRunError as exc:
+        raise RuntimeError(
+            f"Best-fit CLASS background replay failed for root '{bundle.root}'. "
+            "The overlay layer cannot be generated consistently."
+        ) from exc
+
+    print(
+        "Best-fit background: "
+        f"source={bestfit_source}, cache_key={bestfit_cache_key}, "
+        f"quantities={sorted(bestfit_interps)}"
     )
 
     # Pass 1: run CLASS (or load cache) once per unique sample; interpolate all quantities.
@@ -1698,6 +2397,12 @@ def process_dataset(
             f"No valid trajectories for {bundle.root} after interpolation"
         )
 
+    quantity_summaries: dict[str, dict[str, np.ndarray]] = {}
+    for qty in quantities:
+        summary = _build_quantity_summary(trajectory_payload, qty)
+        if summary is not None:
+            quantity_summaries[qty] = summary
+
     dataset_label = _dataset_label_from_root(bundle.root)
     output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -1716,12 +2421,17 @@ def process_dataset(
 
     omega_combined_only = {"Omega_cdm", "Omega_scf"}.issubset(set(quantities))
     dsc_combined_only = {"s1", "minus_s2"}.issubset(set(quantities))
+    swgc_combined_only = {"swgc_lhs", "swgc_rhs", "swgc_residual"}.issubset(
+        set(quantities)
+    )
 
     # Pass 2: for each quantity, accumulate histogram and produce figure + NPZ.
     for qty in quantities:
         if omega_combined_only and qty in {"Omega_cdm", "Omega_scf"}:
             continue
         if dsc_combined_only and qty in {"s1", "minus_s2"}:
+            continue
+        if swgc_combined_only and qty in {"swgc_lhs", "swgc_rhs", "swgc_residual"}:
             continue
 
         y_min_qty, y_max_qty = y_ranges[qty]
@@ -1794,6 +2504,29 @@ def process_dataset(
         if y_linthresh is not None:
             ax.set_yscale("symlog", linthresh=y_linthresh)
 
+        single_band_color = "0.50"
+        single_band_alpha = 0.30
+        single_median_color = "white"
+        single_bestfit_color = "black"
+        if qty == "w":
+            # Improve contrast for w(z): dark band stands out on the warm heatmap.
+            single_band_color = "0.12"
+            single_band_alpha = 0.40
+            single_median_color = "0.05"
+
+        _overlay_summary_on_axis(
+            ax,
+            z_grid,
+            quantity_summaries.get(qty),
+            bestfit=bestfit_interps.get(qty),
+            band_color=single_band_color,
+            band_alpha=single_band_alpha,
+            median_color=single_median_color,
+            bestfit_color=single_bestfit_color,
+        )
+
+        ax.legend(handles=_summary_legend_handles(), loc="best", frameon=False)
+
         fig.tight_layout()
         if y_linthresh is not None and qty == "phi_scf":
             _hide_overlaps_with_zero_ytick_label(
@@ -1817,6 +2550,8 @@ def process_dataset(
             H=H,
             x_edges=x_edges,
             y_edges=y_edges,
+            x_grid=x_grid,
+            z_grid=z_grid,
             quantity=np.array([output_quantity], dtype=str),
             root=np.array([bundle.root], dtype=str),
             dataset_label=np.array([dataset_label], dtype=str),
@@ -1824,6 +2559,40 @@ def process_dataset(
             unique_trajectories=np.array([len(draw_records)], dtype=np.int64),
             cache_hits=np.array([cache_hits], dtype=np.int64),
             cache_misses=np.array([cache_misses], dtype=np.int64),
+            bestfit_curve=np.asarray(
+                bestfit_interps.get(qty, np.full_like(x_grid, np.nan)),
+                dtype=float,
+            ),
+            q16=np.asarray(
+                quantity_summaries.get(qty, {}).get(
+                    "q16", np.full_like(x_grid, np.nan)
+                ),
+                dtype=float,
+            ),
+            q50=np.asarray(
+                quantity_summaries.get(qty, {}).get(
+                    "q50", np.full_like(x_grid, np.nan)
+                ),
+                dtype=float,
+            ),
+            q84=np.asarray(
+                quantity_summaries.get(qty, {}).get(
+                    "q84", np.full_like(x_grid, np.nan)
+                ),
+                dtype=float,
+            ),
+            summary_valid_weight=np.asarray(
+                quantity_summaries.get(qty, {}).get(
+                    "valid_weight", np.zeros_like(x_grid, dtype=float)
+                ),
+                dtype=float,
+            ),
+            sample_plan_fingerprint=np.array([sampling_fp], dtype=str),
+            sample_plan_cache=np.array(
+                [str(sampling_diag.get("sampling_plan_cache", "unknown"))], dtype=str
+            ),
+            bestfit_background_source=np.array([bestfit_source], dtype=str),
+            bestfit_background_cache_key=np.array([bestfit_cache_key], dtype=str),
         )
 
         print(
@@ -1914,6 +2683,28 @@ def process_dataset(
             _style_redshift_axis(ax_top, z_edges)
             ax_top.set_ylim(0.0, 1.0)
             ax_top.set_ylabel(r"Relative Energy Density $\Omega$")
+
+            _overlay_summary_on_axis(
+                ax_top,
+                z_grid,
+                quantity_summaries.get("Omega_scf"),
+                bestfit=bestfit_interps.get("Omega_scf"),
+                band_color=_OMEGA_PHI_CMAP(0.58),
+                band_alpha=0.22,
+                median_color=_OMEGA_PHI_CMAP(0.97),
+                bestfit_color=_OMEGA_PHI_CMAP(0.32),
+            )
+            _overlay_summary_on_axis(
+                ax_top,
+                z_grid,
+                quantity_summaries.get("Omega_cdm"),
+                bestfit=bestfit_interps.get("Omega_cdm"),
+                band_color=_OMEGA_DM_CMAP(0.58),
+                band_alpha=0.22,
+                median_color=_OMEGA_DM_CMAP(0.97),
+                bestfit_color=_OMEGA_DM_CMAP(0.28),
+            )
+
             ax_top.legend(
                 handles=[
                     Patch(
@@ -1928,6 +2719,19 @@ def process_dataset(
                         alpha=0.64,
                         label=r"$\Omega_{\rm DM}$",
                     ),
+                    Patch(
+                        facecolor=_OMEGA_PHI_CMAP(0.58),
+                        edgecolor="none",
+                        alpha=0.22,
+                        label=r"68\% confidence band $\Omega_{\phi}$",
+                    ),
+                    Patch(
+                        facecolor=_OMEGA_DM_CMAP(0.58),
+                        edgecolor="none",
+                        alpha=0.22,
+                        label=r"68\% confidence band $\Omega_{\rm DM}$",
+                    ),
+                    *_summary_line_legend_handles(),
                 ],
                 loc="best",
                 frameon=False,
@@ -1965,11 +2769,74 @@ def process_dataset(
                 "H_omega_scf": H_omega_scf,
                 "x_edges": x_edges,
                 "y_edges_omega": y_edges_omega,
+                "x_grid": x_grid,
+                "z_grid": z_grid,
                 "quantity": np.array(["Omega"], dtype=str),
                 "root": np.array([bundle.root], dtype=str),
                 "dataset_label": np.array([dataset_label], dtype=str),
                 "total_draws": np.array([total_draws], dtype=np.int64),
                 "unique_trajectories": np.array([len(draw_records)], dtype=np.int64),
+                "sample_plan_fingerprint": np.array([sampling_fp], dtype=str),
+                "omega_cdm_bestfit": np.asarray(
+                    bestfit_interps.get("Omega_cdm", np.full_like(x_grid, np.nan)),
+                    dtype=float,
+                ),
+                "omega_cdm_q16": np.asarray(
+                    quantity_summaries.get("Omega_cdm", {}).get(
+                        "q16", np.full_like(x_grid, np.nan)
+                    ),
+                    dtype=float,
+                ),
+                "omega_cdm_q50": np.asarray(
+                    quantity_summaries.get("Omega_cdm", {}).get(
+                        "q50", np.full_like(x_grid, np.nan)
+                    ),
+                    dtype=float,
+                ),
+                "omega_cdm_q84": np.asarray(
+                    quantity_summaries.get("Omega_cdm", {}).get(
+                        "q84", np.full_like(x_grid, np.nan)
+                    ),
+                    dtype=float,
+                ),
+                "omega_cdm_valid_weight": np.asarray(
+                    quantity_summaries.get("Omega_cdm", {}).get(
+                        "valid_weight", np.zeros_like(x_grid, dtype=float)
+                    ),
+                    dtype=float,
+                ),
+                "omega_scf_bestfit": np.asarray(
+                    bestfit_interps.get("Omega_scf", np.full_like(x_grid, np.nan)),
+                    dtype=float,
+                ),
+                "omega_scf_q16": np.asarray(
+                    quantity_summaries.get("Omega_scf", {}).get(
+                        "q16", np.full_like(x_grid, np.nan)
+                    ),
+                    dtype=float,
+                ),
+                "omega_scf_q50": np.asarray(
+                    quantity_summaries.get("Omega_scf", {}).get(
+                        "q50", np.full_like(x_grid, np.nan)
+                    ),
+                    dtype=float,
+                ),
+                "omega_scf_q84": np.asarray(
+                    quantity_summaries.get("Omega_scf", {}).get(
+                        "q84", np.full_like(x_grid, np.nan)
+                    ),
+                    dtype=float,
+                ),
+                "omega_scf_valid_weight": np.asarray(
+                    quantity_summaries.get("Omega_scf", {}).get(
+                        "valid_weight", np.zeros_like(x_grid, dtype=float)
+                    ),
+                    dtype=float,
+                ),
+                "bestfit_background_source": np.array([bestfit_source], dtype=str),
+                "bestfit_background_cache_key": np.array(
+                    [bestfit_cache_key], dtype=str
+                ),
             }
 
             np.savez_compressed(omega_npz_path, **save_payload)
@@ -2071,6 +2938,28 @@ def process_dataset(
                 _style_redshift_axis(ax_dsc, z_edges)
                 ax_dsc.set_yscale("symlog", linthresh=y_linthresh_dsc)
                 ax_dsc.set_ylabel(r"dSC Parameters")
+
+                _overlay_summary_on_axis(
+                    ax_dsc,
+                    z_grid,
+                    quantity_summaries.get("s1"),
+                    bestfit=bestfit_interps.get("s1"),
+                    band_color=_OMEGA_PHI_CMAP(0.58),
+                    band_alpha=0.22,
+                    median_color=_OMEGA_PHI_CMAP(0.97),
+                    bestfit_color=_OMEGA_PHI_CMAP(0.32),
+                )
+                _overlay_summary_on_axis(
+                    ax_dsc,
+                    z_grid,
+                    quantity_summaries.get("minus_s2"),
+                    bestfit=bestfit_interps.get("minus_s2"),
+                    band_color=_OMEGA_DM_CMAP(0.58),
+                    band_alpha=0.22,
+                    median_color=_OMEGA_DM_CMAP(0.97),
+                    bestfit_color=_OMEGA_DM_CMAP(0.28),
+                )
+
                 ax_dsc.legend(
                     handles=[
                         Patch(
@@ -2085,28 +2974,41 @@ def process_dataset(
                             alpha=0.64,
                             label=r"$\mathfrak{s}_2$",
                         ),
+                        Patch(
+                            facecolor=_OMEGA_PHI_CMAP(0.58),
+                            edgecolor="none",
+                            alpha=0.22,
+                            label=r"68\% confidence band $\mathfrak{s}_1$",
+                        ),
+                        Patch(
+                            facecolor=_OMEGA_DM_CMAP(0.58),
+                            edgecolor="none",
+                            alpha=0.22,
+                            label=r"68\% confidence band $\mathfrak{s}_2$",
+                        ),
+                        *_summary_line_legend_handles(),
                     ],
-                    loc="best",
+                    loc="center left",
                     frameon=False,
                 )
 
                 divider = make_axes_locatable(ax_dsc)
-                cax_s2 = None
-                dsc_s2_pad = 0.26
-                if mesh_dsc_s2 is not None and dsc_s2_limits is not None:
-                    cax_s2 = divider.append_axes("right", size="2.8%", pad=dsc_s2_pad)
-                    cb_s2 = fig_dsc.colorbar(mesh_dsc_s2, cax=cax_s2)
-                    cb_s2.set_label(r"$\mathfrak{s}_2$ Path Density")
-                    cb_s2.ax.yaxis.set_label_position("left")
-                    _style_colorbar(cb_s2, dsc_s2_limits[0], dsc_s2_limits[1])
-
+                cax_s1 = None
+                dsc_s1_pad = 0.26
                 if mesh_dsc_s1 is not None and dsc_s1_limits is not None:
-                    s1_pad = 0.8 - dsc_s2_pad if cax_s2 is not None else 0.20
-                    cax_s1 = divider.append_axes("right", size="2.8%", pad=s1_pad)
+                    cax_s1 = divider.append_axes("right", size="2.8%", pad=dsc_s1_pad)
                     cb_s1 = fig_dsc.colorbar(mesh_dsc_s1, cax=cax_s1)
                     cb_s1.set_label(r"$\mathfrak{s}_1$ Path Density")
                     cb_s1.ax.yaxis.set_label_position("left")
                     _style_colorbar(cb_s1, dsc_s1_limits[0], dsc_s1_limits[1])
+
+                if mesh_dsc_s2 is not None and dsc_s2_limits is not None:
+                    s2_pad = 0.8 - dsc_s1_pad if cax_s1 is not None else 0.20
+                    cax_s2 = divider.append_axes("right", size="2.8%", pad=s2_pad)
+                    cb_s2 = fig_dsc.colorbar(mesh_dsc_s2, cax=cax_s2)
+                    cb_s2.set_label(r"$\mathfrak{s}_2$ Path Density")
+                    cb_s2.ax.yaxis.set_label_position("left")
+                    _style_colorbar(cb_s2, dsc_s2_limits[0], dsc_s2_limits[1])
 
                 fig_dsc.tight_layout()
                 _hide_overlaps_with_zero_ytick_label(
@@ -2126,17 +3028,609 @@ def process_dataset(
                     H_dsc_s2=H_dsc_s2,
                     x_edges=x_edges,
                     y_edges_dsc=y_edges_dsc,
+                    x_grid=x_grid,
+                    z_grid=z_grid,
                     quantity=np.array(["dSC"], dtype=str),
                     root=np.array([bundle.root], dtype=str),
                     dataset_label=np.array([dataset_label], dtype=str),
                     total_draws=np.array([total_draws], dtype=np.int64),
                     unique_trajectories=np.array([len(draw_records)], dtype=np.int64),
+                    s1_bestfit=np.asarray(
+                        bestfit_interps.get("s1", np.full_like(x_grid, np.nan)),
+                        dtype=float,
+                    ),
+                    s1_q16=np.asarray(
+                        quantity_summaries.get("s1", {}).get(
+                            "q16", np.full_like(x_grid, np.nan)
+                        ),
+                        dtype=float,
+                    ),
+                    s1_q50=np.asarray(
+                        quantity_summaries.get("s1", {}).get(
+                            "q50", np.full_like(x_grid, np.nan)
+                        ),
+                        dtype=float,
+                    ),
+                    s1_q84=np.asarray(
+                        quantity_summaries.get("s1", {}).get(
+                            "q84", np.full_like(x_grid, np.nan)
+                        ),
+                        dtype=float,
+                    ),
+                    s1_valid_weight=np.asarray(
+                        quantity_summaries.get("s1", {}).get(
+                            "valid_weight", np.zeros_like(x_grid, dtype=float)
+                        ),
+                        dtype=float,
+                    ),
+                    minus_s2_bestfit=np.asarray(
+                        bestfit_interps.get("minus_s2", np.full_like(x_grid, np.nan)),
+                        dtype=float,
+                    ),
+                    minus_s2_q16=np.asarray(
+                        quantity_summaries.get("minus_s2", {}).get(
+                            "q16", np.full_like(x_grid, np.nan)
+                        ),
+                        dtype=float,
+                    ),
+                    minus_s2_q50=np.asarray(
+                        quantity_summaries.get("minus_s2", {}).get(
+                            "q50", np.full_like(x_grid, np.nan)
+                        ),
+                        dtype=float,
+                    ),
+                    minus_s2_q84=np.asarray(
+                        quantity_summaries.get("minus_s2", {}).get(
+                            "q84", np.full_like(x_grid, np.nan)
+                        ),
+                        dtype=float,
+                    ),
+                    minus_s2_valid_weight=np.asarray(
+                        quantity_summaries.get("minus_s2", {}).get(
+                            "valid_weight", np.zeros_like(x_grid, dtype=float)
+                        ),
+                        dtype=float,
+                    ),
+                    bestfit_background_source=np.array([bestfit_source], dtype=str),
+                    bestfit_background_cache_key=np.array(
+                        [bestfit_cache_key], dtype=str
+                    ),
                 )
 
                 print(
                     "  [dSC-combined] Saved: "
                     f"{dsc_base.name}.png, {dsc_base.name}.pdf, {dsc_base.name}.pgf, "
                     f"{dsc_npz_path.name}"
+                )
+
+    # Combined SWGC history figure: lhs/rhs terms on top, residual on bottom.
+    if swgc_combined_only:
+        x_edges = np.linspace(args.x_min, args.x_max, args.x_bins + 1)
+        z_edges = np.power(10.0, x_edges) - 1.0
+
+        term_positive_parts: list[np.ndarray] = []
+        for qty_interps, _ in trajectory_payload:
+            for key in ("swgc_lhs", "swgc_rhs"):
+                vals = qty_interps.get(key)
+                if vals is None:
+                    continue
+                valid = np.isfinite(vals) & (vals > 0.0)
+                if np.any(valid):
+                    term_positive_parts.append(np.asarray(vals[valid], dtype=float))
+
+        if term_positive_parts:
+            term_positive_all = np.concatenate(term_positive_parts)
+            y_min_terms = float(np.nanmin(term_positive_all))
+            y_max_terms = float(np.nanmax(term_positive_all))
+        else:
+            y_min_terms = np.nan
+            y_max_terms = np.nan
+
+        y_min_res = y_ranges["swgc_residual"][0]
+        y_max_res = y_ranges["swgc_residual"][1]
+
+        if (
+            np.isfinite(y_min_terms)
+            and np.isfinite(y_max_terms)
+            and y_min_terms > 0.0
+            and y_max_terms > y_min_terms
+            and np.isfinite(y_min_res)
+            and np.isfinite(y_max_res)
+            and y_max_res > y_min_res
+        ):
+            y_edges_terms = _build_positive_log_y_edges(
+                y_min_terms, y_max_terms, args.y_bins
+            )
+            # Use symlog edges for residuals so positive/negative values are both
+            # represented on a log-like scale.
+            y_edges_res, y_linthresh_res = _build_symlog_y_edges(
+                y_min_res,
+                y_max_res,
+                args.y_bins,
+            )
+
+            H_swgc_lhs = np.zeros((args.x_bins, args.y_bins), dtype=float)
+            H_swgc_rhs = np.zeros((args.x_bins, args.y_bins), dtype=float)
+            H_swgc_residual = np.zeros((args.x_bins, args.y_bins), dtype=float)
+
+            for qty_interps, multiplicity in trajectory_payload:
+                lhs_vals = qty_interps.get("swgc_lhs")
+                if lhs_vals is not None:
+                    valid_lhs = np.isfinite(lhs_vals) & (lhs_vals > 0.0)
+                    n_valid_lhs = int(np.count_nonzero(valid_lhs))
+                    if n_valid_lhs >= 2:
+                        h_lhs, _, _ = np.histogram2d(
+                            x_grid[valid_lhs],
+                            lhs_vals[valid_lhs],
+                            bins=(x_edges, y_edges_terms),  # type: ignore[arg-type]
+                            weights=np.full(
+                                n_valid_lhs, float(multiplicity), dtype=float
+                            ),
+                        )
+                        H_swgc_lhs += h_lhs
+
+                rhs_vals = qty_interps.get("swgc_rhs")
+                if rhs_vals is not None:
+                    valid_rhs = np.isfinite(rhs_vals) & (rhs_vals > 0.0)
+                    n_valid_rhs = int(np.count_nonzero(valid_rhs))
+                    if n_valid_rhs >= 2:
+                        h_rhs, _, _ = np.histogram2d(
+                            x_grid[valid_rhs],
+                            rhs_vals[valid_rhs],
+                            bins=(x_edges, y_edges_terms),  # type: ignore[arg-type]
+                            weights=np.full(
+                                n_valid_rhs, float(multiplicity), dtype=float
+                            ),
+                        )
+                        H_swgc_rhs += h_rhs
+
+                residual_vals = qty_interps.get("swgc_residual")
+                if residual_vals is not None:
+                    valid_res = np.isfinite(residual_vals)
+                    n_valid_res = int(np.count_nonzero(valid_res))
+                    if n_valid_res >= 2:
+                        h_res, _, _ = np.histogram2d(
+                            x_grid[valid_res],
+                            residual_vals[valid_res],
+                            bins=(x_edges, y_edges_res),  # type: ignore[arg-type]
+                            weights=np.full(
+                                n_valid_res, float(multiplicity), dtype=float
+                            ),
+                        )
+                        H_swgc_residual += h_res
+
+            if (
+                np.any(H_swgc_lhs > 0)
+                or np.any(H_swgc_rhs > 0)
+                or np.any(H_swgc_residual > 0)
+            ):
+                fig_swgc = plt.figure(figsize=(7.2, 6.0))
+                gs_swgc = fig_swgc.add_gridspec(
+                    2,
+                    1,
+                    height_ratios=[3.5, 1.35],
+                    hspace=0.04,
+                )
+                ax_top = fig_swgc.add_subplot(gs_swgc[0, 0])
+                ax_bottom = fig_swgc.add_subplot(gs_swgc[1, 0], sharex=ax_top)
+                cax_lhs: Axes | None = None
+                cax_rhs: Axes | None = None
+
+                mesh_lhs = None
+                mesh_rhs = None
+                mesh_residual = None
+                top_limits: tuple[float, float] | None = None
+                residual_limits: tuple[float, float] | None = None
+
+                top_positive = []
+                if np.any(H_swgc_lhs > 0):
+                    top_positive.append(H_swgc_lhs[H_swgc_lhs > 0])
+                if np.any(H_swgc_rhs > 0):
+                    top_positive.append(H_swgc_rhs[H_swgc_rhs > 0])
+
+                if top_positive:
+                    top_positive_flat = np.concatenate(top_positive)
+                    vmin_top = max(float(np.percentile(top_positive_flat, 5.0)), 1e-12)
+                    vmax_top = float(np.percentile(top_positive_flat, 99.8))
+                    if vmax_top <= vmin_top:
+                        vmax_top = float(np.max(top_positive_flat))
+                    top_limits = (vmin_top, vmax_top)
+                    if np.any(H_swgc_lhs > 0):
+                        mesh_lhs = ax_top.pcolormesh(
+                            z_edges,
+                            y_edges_terms,
+                            H_swgc_lhs.T,
+                            cmap=_OMEGA_PHI_CMAP,
+                            norm=LogNorm(vmin=vmin_top, vmax=vmax_top),
+                            shading="auto",
+                            alpha=0.62,
+                        )
+                    if np.any(H_swgc_rhs > 0):
+                        mesh_rhs = ax_top.pcolormesh(
+                            z_edges,
+                            y_edges_terms,
+                            H_swgc_rhs.T,
+                            cmap=_OMEGA_DM_CMAP,
+                            norm=LogNorm(vmin=vmin_top, vmax=vmax_top),
+                            shading="auto",
+                            alpha=0.62,
+                        )
+
+                if np.any(H_swgc_residual > 0):
+                    residual_positive = H_swgc_residual[H_swgc_residual > 0]
+                    vmin_res = max(float(np.percentile(residual_positive, 5.0)), 1e-12)
+                    vmax_res = float(np.percentile(residual_positive, 99.8))
+                    if vmax_res <= vmin_res:
+                        vmax_res = float(np.max(residual_positive))
+                    residual_limits = (vmin_res, vmax_res)
+                    mesh_residual = ax_bottom.pcolormesh(
+                        z_edges,
+                        y_edges_res,
+                        H_swgc_residual.T,
+                        cmap=_HEATMAP_CMAP,
+                        norm=LogNorm(vmin=vmin_res, vmax=vmax_res),
+                        shading="auto",
+                    )
+
+                _style_redshift_axis(ax_top, z_edges)
+                _style_redshift_axis(ax_bottom, z_edges)
+                ax_top.set_yscale("log")
+                ax_top.set_ylabel("SWGC terms")
+                ax_bottom.set_ylabel(r"$\Delta_{\rm SWGC}$")
+                if y_linthresh_res is not None:
+                    ax_bottom.set_yscale("symlog", linthresh=y_linthresh_res)
+
+                # Avoid scientific offset text (e.g. "2.4e-10") that can look
+                # like a detached annotation and clutter the shared-x panel layout.
+                bottom_y_formatter = ax_bottom.yaxis.get_major_formatter()
+                if isinstance(bottom_y_formatter, ScalarFormatter):
+                    bottom_y_formatter.set_useOffset(False)
+                ax_bottom.yaxis.set_major_formatter(
+                    FuncFormatter(
+                        lambda val, _: (
+                            "0"
+                            if np.isclose(val, 0.0, atol=1e-18, rtol=0.0)
+                            else (
+                                (
+                                    rf"$-10^{{{int(np.round(np.log10(abs(val))))}}}$"
+                                    if val < 0.0
+                                    else rf"$10^{{{int(np.round(np.log10(abs(val))))}}}$"
+                                )
+                                if np.isclose(
+                                    abs(val),
+                                    10.0 ** int(np.round(np.log10(abs(val)))),
+                                    rtol=1e-8,
+                                    atol=0.0,
+                                )
+                                else f"{val:.1e}"
+                            )
+                        )
+                    )
+                )
+                ax_bottom.yaxis.get_offset_text().set_visible(False)
+
+                _overlay_summary_on_axis(
+                    ax_top,
+                    z_grid,
+                    quantity_summaries.get("swgc_lhs"),
+                    bestfit=bestfit_interps.get("swgc_lhs"),
+                    band_color=_OMEGA_PHI_CMAP(0.58),
+                    band_alpha=0.22,
+                    median_color=_OMEGA_PHI_CMAP(0.22),
+                    bestfit_color=_OMEGA_PHI_CMAP(0.10),
+                )
+                _overlay_summary_on_axis(
+                    ax_top,
+                    z_grid,
+                    quantity_summaries.get("swgc_rhs"),
+                    bestfit=bestfit_interps.get("swgc_rhs"),
+                    band_color=_OMEGA_DM_CMAP(0.58),
+                    band_alpha=0.22,
+                    median_color=_OMEGA_DM_CMAP(0.22),
+                    bestfit_color=_OMEGA_DM_CMAP(0.10),
+                )
+                _overlay_summary_on_axis(
+                    ax_bottom,
+                    z_grid,
+                    quantity_summaries.get("swgc_residual"),
+                    bestfit=bestfit_interps.get("swgc_residual"),
+                    band_color=_HEATMAP_CMAP(0.58),
+                    band_alpha=0.22,
+                    median_color="white",
+                    bestfit_color="black",
+                )
+                ax_bottom.axhline(
+                    0.0,
+                    color="0.20",
+                    linestyle=(0, (5, 2.5)),
+                    linewidth=1.0,
+                    alpha=0.9,
+                    zorder=2.0,
+                )
+
+                shared_swgc_legend_handles: list[Any] = [
+                    Patch(
+                        facecolor=_OMEGA_PHI_CMAP(0.78),
+                        edgecolor="none",
+                        alpha=0.64,
+                        label=r"$\left(V_{\phi\phi}\right)^2$",
+                    ),
+                    Patch(
+                        facecolor=_OMEGA_DM_CMAP(0.78),
+                        edgecolor="none",
+                        alpha=0.64,
+                        label=r"$2\left(V_{\phi\phi\phi}\right)^2 - V_{\phi\phi}V_{\phi\phi\phi\phi}$",
+                    ),
+                    Patch(
+                        facecolor=_OMEGA_PHI_CMAP(0.58),
+                        edgecolor="none",
+                        alpha=0.22,
+                        label=r"68\% confidence band $\left(V_{\phi\phi}\right)^2$",
+                    ),
+                    Patch(
+                        facecolor=_OMEGA_DM_CMAP(0.58),
+                        edgecolor="none",
+                        alpha=0.22,
+                        label=r"68\% confidence band $2\left(V_{\phi\phi\phi}\right)^2 - V_{\phi\phi}V_{\phi\phi\phi\phi}$",
+                    ),
+                    Patch(
+                        facecolor=_HEATMAP_CMAP(0.58),
+                        edgecolor="none",
+                        linewidth=0.8,
+                        alpha=0.22,
+                        label=r"68\% confidence band $\Delta_{\rm SWGC}$",
+                    ),
+                    Line2D(
+                        [0],
+                        [0],
+                        color="0.20",
+                        linewidth=1.3,
+                        label=(
+                            r"$\Delta_{\rm SWGC}$"
+                            r"$=2\left(V_{\phi\phi\phi}\right)^2 - V_{\phi\phi}V_{\phi\phi\phi\phi}"
+                            r"-\left(V_{\phi\phi}\right)^2$"
+                        ),
+                    ),
+                    *_summary_line_legend_handles(),
+                ]
+                ax_top.legend(
+                    handles=shared_swgc_legend_handles,
+                    loc="upper left",
+                    ncol=1,
+                    frameon=False,
+                    fontsize=10,
+                    handlelength=2.2,
+                    borderaxespad=0.35,
+                )
+
+                ax_top.set_xlabel("")
+                ax_top.tick_params(axis="x", which="both", labelbottom=False)
+
+                divider_swgc = make_axes_locatable(ax_top)
+                # Reserve room for left-side colorbar titles so each reads
+                # "title, then colorbar" from left to right.
+                swgc_lhs_pad = 0.34
+
+                if top_limits is not None and mesh_lhs is not None:
+                    cax_lhs = divider_swgc.append_axes(
+                        "right", size="2.8%", pad=swgc_lhs_pad
+                    )
+                    cb_lhs = fig_swgc.colorbar(mesh_lhs, cax=cax_lhs)
+                    cb_lhs.set_label(r"$\left(V_{\phi\phi}\right)^2$")
+                    cb_lhs.ax.yaxis.set_label_position("left")
+                    cb_lhs.ax.yaxis.labelpad = 4
+                    _style_colorbar(cb_lhs, top_limits[0], top_limits[1])
+                if top_limits is not None and mesh_rhs is not None:
+                    # Keep enough clearance so oslo tick labels/title do not collide
+                    # with the lajolla colorbar/ticks.
+                    rhs_pad = 0.5 if cax_lhs is not None else 0.22
+                    cax_rhs = divider_swgc.append_axes(
+                        "right", size="2.8%", pad=rhs_pad
+                    )
+                    cb_rhs = fig_swgc.colorbar(mesh_rhs, cax=cax_rhs)
+                    cb_rhs.set_label(
+                        r"$2\left(V_{\phi\phi\phi}\right)^2 - V_{\phi\phi}V_{\phi\phi\phi\phi}$"
+                    )
+                    cb_rhs.ax.yaxis.set_label_position("left")
+                    cb_rhs.ax.yaxis.labelpad = 4
+                    _style_colorbar(cb_rhs, top_limits[0], top_limits[1])
+
+                fig_swgc.subplots_adjust(left=0.09, right=0.96, top=0.97, bottom=0.10)
+
+                # Draw first so the symlog locator has settled, then replace ticks
+                # with a well-distributed set: one near the bottom of the range,
+                # one near the top, and 0 as a third tick if neither chosen tick is
+                # zero and the range straddles zero.
+                fig_swgc.canvas.draw()
+
+                # The top axis is resized by append_axes; force the lower axis to use
+                # the same x-start and width so both SWGC panels stay aligned.
+                top_pos = ax_top.get_position()
+                bottom_pos = ax_bottom.get_position()
+                ax_bottom.set_position(
+                    (top_pos.x0, bottom_pos.y0, top_pos.width, bottom_pos.height)
+                )
+
+                fig_swgc.canvas.draw()
+
+                if residual_limits is not None and mesh_residual is not None:
+                    bottom_pos = ax_bottom.get_position()
+                    # Leave room so the left-side colorbar title sits fully
+                    # between the subplot and the bar (title -> colorbar order).
+                    residual_pad = 0.047
+                    residual_width = 0.028 * bottom_pos.width
+                    cax_residual = fig_swgc.add_axes(
+                        (
+                            bottom_pos.x1 + residual_pad,
+                            bottom_pos.y0,
+                            residual_width,
+                            bottom_pos.height,
+                        )
+                    )
+                    cb_bottom = fig_swgc.colorbar(mesh_residual, cax=cax_residual)
+                    cb_bottom.set_label(r"$\Delta_{\rm SWGC}$ path density", labelpad=4)
+                    cb_bottom.ax.yaxis.set_label_position("left")
+                    _style_colorbar(cb_bottom, residual_limits[0], residual_limits[1])
+
+                bottom_offset = ax_bottom.yaxis.get_offset_text()
+                bottom_offset.set_text("")
+                bottom_offset.set_visible(False)
+
+                _res_lo, _res_hi = sorted(ax_bottom.get_ylim())
+                if np.isfinite(_res_lo) and np.isfinite(_res_hi) and _res_hi > _res_lo:
+                    _new_res_ticks: list[float] = []
+                    if _res_lo < 0.0 < _res_hi:
+                        # Use rounded signed powers of ten, matching publication-style
+                        # residual ticks: one negative, zero, one positive.
+                        _neg_tick = -(10.0 ** np.ceil(np.log10(abs(_res_lo))))
+                        _pos_tick = 10.0 ** np.floor(np.log10(_res_hi))
+                        _new_res_ticks = [float(_neg_tick), 0.0, float(_pos_tick)]
+                        # Give the rounded ticks visual breathing room in symlog,
+                        # preventing -10^n and 0 label collisions.
+                        ax_bottom.set_ylim(
+                            min(_res_lo, 5.0 * float(_neg_tick)),
+                            max(_res_hi, 3.0 * float(_pos_tick)),
+                        )
+                    else:
+                        _curr_res_ticks = np.asarray(
+                            [
+                                t
+                                for t in ax_bottom.get_yticks()
+                                if np.isfinite(t) and _res_lo <= t <= _res_hi
+                            ],
+                            dtype=float,
+                        )
+                        if _curr_res_ticks.size >= 2:
+                            _sorted_rt = np.sort(_curr_res_ticks)
+                            _new_res_ticks = [
+                                float(_sorted_rt[0]),
+                                float(_sorted_rt[-1]),
+                            ]
+                        else:
+                            _ensure_min_labeled_yticks(ax_bottom, min_labels=2)
+
+                    if _new_res_ticks:
+                        ax_bottom.yaxis.set_major_locator(
+                            FixedLocator(sorted(set(_new_res_ticks)))
+                        )
+
+                swgc_base = _output_base_path(output_dir, bundle.root, "swgc")
+                _save_figure_bundle(fig_swgc, swgc_base)
+                plt.close(fig_swgc)
+
+                swgc_npz_path = output_dir / f"{swgc_base.name}.npz"
+                np.savez_compressed(
+                    swgc_npz_path,
+                    H_swgc_lhs=H_swgc_lhs,
+                    H_swgc_rhs=H_swgc_rhs,
+                    H_swgc_residual=H_swgc_residual,
+                    x_edges=x_edges,
+                    y_edges_swgc_terms=y_edges_terms,
+                    y_edges_swgc_residual=y_edges_res,
+                    x_grid=x_grid,
+                    z_grid=z_grid,
+                    quantity=np.array(["swgc"], dtype=str),
+                    root=np.array([bundle.root], dtype=str),
+                    dataset_label=np.array([dataset_label], dtype=str),
+                    total_draws=np.array([total_draws], dtype=np.int64),
+                    unique_trajectories=np.array([len(draw_records)], dtype=np.int64),
+                    swgc_lhs_bestfit=np.asarray(
+                        bestfit_interps.get("swgc_lhs", np.full_like(x_grid, np.nan)),
+                        dtype=float,
+                    ),
+                    swgc_lhs_q16=np.asarray(
+                        quantity_summaries.get("swgc_lhs", {}).get(
+                            "q16", np.full_like(x_grid, np.nan)
+                        ),
+                        dtype=float,
+                    ),
+                    swgc_lhs_q50=np.asarray(
+                        quantity_summaries.get("swgc_lhs", {}).get(
+                            "q50", np.full_like(x_grid, np.nan)
+                        ),
+                        dtype=float,
+                    ),
+                    swgc_lhs_q84=np.asarray(
+                        quantity_summaries.get("swgc_lhs", {}).get(
+                            "q84", np.full_like(x_grid, np.nan)
+                        ),
+                        dtype=float,
+                    ),
+                    swgc_lhs_valid_weight=np.asarray(
+                        quantity_summaries.get("swgc_lhs", {}).get(
+                            "valid_weight", np.zeros_like(x_grid, dtype=float)
+                        ),
+                        dtype=float,
+                    ),
+                    swgc_rhs_bestfit=np.asarray(
+                        bestfit_interps.get("swgc_rhs", np.full_like(x_grid, np.nan)),
+                        dtype=float,
+                    ),
+                    swgc_rhs_q16=np.asarray(
+                        quantity_summaries.get("swgc_rhs", {}).get(
+                            "q16", np.full_like(x_grid, np.nan)
+                        ),
+                        dtype=float,
+                    ),
+                    swgc_rhs_q50=np.asarray(
+                        quantity_summaries.get("swgc_rhs", {}).get(
+                            "q50", np.full_like(x_grid, np.nan)
+                        ),
+                        dtype=float,
+                    ),
+                    swgc_rhs_q84=np.asarray(
+                        quantity_summaries.get("swgc_rhs", {}).get(
+                            "q84", np.full_like(x_grid, np.nan)
+                        ),
+                        dtype=float,
+                    ),
+                    swgc_rhs_valid_weight=np.asarray(
+                        quantity_summaries.get("swgc_rhs", {}).get(
+                            "valid_weight", np.zeros_like(x_grid, dtype=float)
+                        ),
+                        dtype=float,
+                    ),
+                    swgc_residual_bestfit=np.asarray(
+                        bestfit_interps.get(
+                            "swgc_residual", np.full_like(x_grid, np.nan)
+                        ),
+                        dtype=float,
+                    ),
+                    swgc_residual_q16=np.asarray(
+                        quantity_summaries.get("swgc_residual", {}).get(
+                            "q16", np.full_like(x_grid, np.nan)
+                        ),
+                        dtype=float,
+                    ),
+                    swgc_residual_q50=np.asarray(
+                        quantity_summaries.get("swgc_residual", {}).get(
+                            "q50", np.full_like(x_grid, np.nan)
+                        ),
+                        dtype=float,
+                    ),
+                    swgc_residual_q84=np.asarray(
+                        quantity_summaries.get("swgc_residual", {}).get(
+                            "q84", np.full_like(x_grid, np.nan)
+                        ),
+                        dtype=float,
+                    ),
+                    swgc_residual_valid_weight=np.asarray(
+                        quantity_summaries.get("swgc_residual", {}).get(
+                            "valid_weight", np.zeros_like(x_grid, dtype=float)
+                        ),
+                        dtype=float,
+                    ),
+                    sample_plan_fingerprint=np.array([sampling_fp], dtype=str),
+                    bestfit_background_source=np.array([bestfit_source], dtype=str),
+                    bestfit_background_cache_key=np.array(
+                        [bestfit_cache_key], dtype=str
+                    ),
+                )
+
+                print(
+                    "  [SWGC-combined] Saved: "
+                    f"{swgc_base.name}.png, {swgc_base.name}.pdf, {swgc_base.name}.pgf, "
+                    f"{swgc_npz_path.name}"
                 )
 
     print(
@@ -2150,6 +3644,7 @@ def _process_single_root_wrapper(
     args: argparse.Namespace,
     quantities: list[str],
     seed: int,
+    mode_tuning: dict[str, Any],
     hdm_root: Path,
     cache_dir: Path,
     output_dir: Path,
@@ -2169,6 +3664,7 @@ def _process_single_root_wrapper(
         args,
         quantities,
         rng,
+        mode_tuning,
         cache_dir,
         output_dir,
         failure_audit_dir,
@@ -2179,14 +3675,28 @@ def main() -> None:
     args = parse_args()
     if args.hpd_mass <= 0.0 or args.hpd_mass >= 1.0:
         raise ValueError("--hpd-mass must be in (0, 1)")
+    if args.mode_detect_bins < 4:
+        raise ValueError("--mode-detect-bins must be >= 4")
+    if args.mode_min_mass_frac < 0.0 or args.mode_min_mass_frac >= 1.0:
+        raise ValueError("--mode-min-mass-frac must be in [0, 1)")
+    if args.mode_floor_abs < 1:
+        raise ValueError("--mode-floor-abs must be >= 1")
+    if args.mode_floor_frac < 0.0 or args.mode_floor_frac >= 1.0:
+        raise ValueError("--mode-floor-frac must be in [0, 1)")
+    if args.mode_floor_cap_frac <= 0.0 or args.mode_floor_cap_frac > 1.0:
+        raise ValueError("--mode-floor-cap-frac must be in (0, 1]")
 
-    # Resolve quantities: --preset > --quantities > --quantity
+    mode_tuning = _resolve_mode_sampling_tuning(args)
+
+    # Resolve quantities: --preset > --quantities > --quantity > publication default (all)
     if args.preset is not None:
         quantities: list[str] = list(_PRESET_QUANTITIES[args.preset])
     elif args.quantities is not None:
         quantities = list(args.quantities)
-    else:
+    elif args.quantity is not None:
         quantities = [str(args.quantity)]
+    else:
+        quantities = list(_PRESET_QUANTITIES["all"])
 
     cache_dir = (_repo_root() / args.cache_dir).resolve()
     output_dir = (_repo_root() / args.output_dir).resolve()
@@ -2202,9 +3712,34 @@ def main() -> None:
     print(f"  Output dir: {output_dir}")
     print(f"  Audit dir:  {failure_audit_dir}")
     print(f"  Quantities: {quantities}")
-    print(f"  HPD params: {args.hpd_params}")
-    print(f"  HPD mass:   {args.hpd_mass}")
     print(f"  Max draws:  {args.max_samples}")
+    print(f"  Sampling-plan cache mode: {args.sample_plan_cache_mode}")
+    print("  Mode-aware sampling defaults:")
+    print(f"    Schema version: {_MODE_SAMPLING_SCHEMA_VERSION}")
+    print(f"    Detection bins/axis: {mode_tuning['mode_detect_bins']}")
+    print(
+        "    Guaranteed floor per eligible mode: "
+        f"max({mode_tuning['mode_floor_abs']}, "
+        f"round({mode_tuning['mode_floor_frac']:.6f} * max_samples)) "
+        f"= {mode_tuning['mode_floor_per_mode']}"
+    )
+    print(
+        "    Eligible mode minimum posterior mass fraction: "
+        f"{mode_tuning['mode_min_mass_frac']:.6f}"
+    )
+    print(
+        "    Total floor allocation cap: "
+        f"{mode_tuning['mode_floor_cap_frac']:.3f} * max_samples "
+        f"= {mode_tuning['mode_floor_total_cap']}"
+    )
+    print(
+        "    Max floor-supported modes at current budget: "
+        f"{mode_tuning['mode_floor_max_modes']}"
+    )
+    print(
+        "    Tuning snapshot JSON: "
+        f"{json.dumps(mode_tuning, sort_keys=True, separators=(',', ':'))}"
+    )
     print(f"  Trajectory parallelization: --num-threads={args.num_threads}")
     print(f"  Root-level parallelization: --num-roots={args.num_roots}")
 
@@ -2245,6 +3780,7 @@ def main() -> None:
                 args,
                 quantities,
                 rng,
+                mode_tuning,
                 cache_dir,
                 output_dir,
                 failure_audit_dir,
@@ -2259,6 +3795,7 @@ def main() -> None:
                     args,
                     quantities,
                     args.seed,
+                    mode_tuning,
                     hdm_root,
                     cache_dir,
                     output_dir,
