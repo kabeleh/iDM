@@ -2546,6 +2546,8 @@ def _compute_phi_native_crossing_profile(
 
     p_cross = np.zeros(n_grid, dtype=float)
     valid_weight = np.zeros(n_grid, dtype=float)
+    n_cross_weighted = np.zeros(n_grid, dtype=float)
+    n_cross_unique = np.zeros(n_grid, dtype=float)
 
     weights = np.asarray(
         [float(max(0, mult)) for _, mult in phi_crossings_payload], dtype=float
@@ -2558,6 +2560,7 @@ def _compute_phi_native_crossing_profile(
         x_left = float(min(x_grid[ix - 1], x_grid[ix]))
         x_right = float(max(x_grid[ix - 1], x_grid[ix]))
         w_cross = 0.0
+        n_unique = 0
         for (x_cross, mult), w in zip(phi_crossings_payload, weights):
             if w <= 0.0:
                 continue
@@ -2566,13 +2569,18 @@ def _compute_phi_native_crossing_profile(
             in_interval = (x_cross >= x_left) & (x_cross <= x_right)
             if bool(np.any(in_interval)):
                 w_cross += float(w)
+                n_unique += 1
 
         p_cross[ix] = float(w_cross / w_total)
         valid_weight[ix] = w_total
+        n_cross_weighted[ix] = w_cross
+        n_cross_unique[ix] = float(n_unique)
 
     if np.isfinite(p_cross[1]):
         p_cross[0] = p_cross[1]
         valid_weight[0] = valid_weight[1]
+        n_cross_weighted[0] = n_cross_weighted[1]
+        n_cross_unique[0] = n_cross_unique[1]
 
     has_any = np.asarray([arr.size > 0 for arr, _ in phi_crossings_payload], dtype=bool)
     p_any = float(np.sum(weights[has_any]) / w_total) if has_any.size else 0.0
@@ -2581,6 +2589,12 @@ def _compute_phi_native_crossing_profile(
         "p_cross": p_cross,
         "valid_weight": valid_weight,
         "p_any": np.full(n_grid, p_any, dtype=float),
+        "n_cross_weighted": n_cross_weighted,
+        "n_cross_unique": n_cross_unique,
+        "n_total_weighted": np.full(n_grid, w_total, dtype=float),
+        "n_total_unique": np.full(
+            n_grid, float(len(phi_crossings_payload)), dtype=float
+        ),
     }
 
 
@@ -3946,6 +3960,39 @@ def process_dataset(
                     if np.any(np.isfinite(p_cross_native))
                     else p_cross_robust
                 )
+
+                # Secondary axis: histogram of crossing trajectory counts per interval.
+                ax_cross_count = ax_cross.twinx()
+                n_cross_weighted = np.asarray(
+                    (
+                        phi_crossing_profile_native["n_cross_weighted"]
+                        if phi_crossing_profile_native is not None
+                        else np.full_like(z_grid, np.nan)
+                    ),
+                    dtype=float,
+                )
+                valid_count = np.isfinite(z_grid) & np.isfinite(n_cross_weighted)
+                if np.count_nonzero(valid_count) >= 2:
+                    z_count = z_grid[valid_count]
+                    n_count = n_cross_weighted[valid_count]
+                    # Width from local z spacing; keep bars readable near z=0.
+                    widths = np.gradient(z_count)
+                    widths = np.abs(widths)
+                    widths = np.maximum(widths, 1e-6)
+                    ax_cross_count.bar(
+                        z_count,
+                        n_count,
+                        width=0.80 * widths,
+                        color=_HIGH_CONTRAST_PALETTE["yellow"],
+                        edgecolor=_HIGH_CONTRAST_PALETTE["black"],
+                        linewidth=0.25,
+                        alpha=0.55,
+                        zorder=0.5,
+                        align="center",
+                    )
+                ax_cross_count.set_ylabel(r"$N_{\rm cross}$")
+                ax_cross_count.tick_params(axis="y", which="major", labelsize=10)
+
                 valid_cross = np.isfinite(z_grid) & np.isfinite(p_cross)
                 if np.count_nonzero(valid_cross) >= 2:
                     ax_cross.plot(
@@ -3955,7 +4002,7 @@ def process_dataset(
                         linewidth=1.25,
                         linestyle="-",
                         alpha=0.95,
-                        zorder=3.0,
+                        zorder=3.5,
                     )
                 ax_cross.set_ylim(0.0, 1.0)
                 ax_cross.set_ylabel(r"$P_{\rm cross}$")
@@ -4117,6 +4164,38 @@ def process_dataset(
             phi_crossing_probability_native_any=np.asarray(
                 (
                     phi_crossing_profile_native["p_any"]
+                    if (qty == "phi_scf" and phi_crossing_profile_native is not None)
+                    else np.full_like(x_grid, np.nan)
+                ),
+                dtype=float,
+            ),
+            phi_crossing_count_weighted_native=np.asarray(
+                (
+                    phi_crossing_profile_native["n_cross_weighted"]
+                    if (qty == "phi_scf" and phi_crossing_profile_native is not None)
+                    else np.full_like(x_grid, np.nan)
+                ),
+                dtype=float,
+            ),
+            phi_crossing_count_unique_native=np.asarray(
+                (
+                    phi_crossing_profile_native["n_cross_unique"]
+                    if (qty == "phi_scf" and phi_crossing_profile_native is not None)
+                    else np.full_like(x_grid, np.nan)
+                ),
+                dtype=float,
+            ),
+            phi_crossing_count_total_weighted_native=np.asarray(
+                (
+                    phi_crossing_profile_native["n_total_weighted"]
+                    if (qty == "phi_scf" and phi_crossing_profile_native is not None)
+                    else np.full_like(x_grid, np.nan)
+                ),
+                dtype=float,
+            ),
+            phi_crossing_count_total_unique_native=np.asarray(
+                (
+                    phi_crossing_profile_native["n_total_unique"]
                     if (qty == "phi_scf" and phi_crossing_profile_native is not None)
                     else np.full_like(x_grid, np.nan)
                 ),
