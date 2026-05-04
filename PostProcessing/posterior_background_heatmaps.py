@@ -3813,22 +3813,23 @@ def process_dataset(
         )
 
         if ax_cross is not None:
-            # Place one shared colorbar strictly spanning the combined subplot stack.
+            # Place colorbar spanning only the upper phi-subplot to avoid overlap with
+            # the secondary y-axis of the crossing probability subplot below.
             pos_top = ax.get_position()
-            pos_bottom = ax_cross.get_position()
-            y0 = min(pos_top.y0, pos_bottom.y0)
-            y1 = max(pos_top.y1, pos_bottom.y1)
-            x1 = max(pos_top.x1, pos_bottom.x1)
             cbar_rect: tuple[float, float, float, float] = (
-                float(x1) + 0.018,
-                float(y0),
+                float(pos_top.x1) + 0.018,
+                float(pos_top.y0),
                 0.030,
-                float(y1 - y0),
+                float(pos_top.y1 - pos_top.y0),
             )
             cax = fig.add_axes(cbar_rect)
             cb = fig.colorbar(mesh, cax=cax)
         else:
             cb = fig.colorbar(mesh, ax=ax, pad=0.02)
+        # For subplots with secondary y-axis, position label to the left to avoid overlap.
+        if ax_cross is not None:
+            cb.ax.yaxis.set_label_position("left")
+            cb.ax.yaxis.label.set_horizontalalignment("right")
         cb.set_label("Posterior Path Density")
         _style_colorbar(cb, vmin, vmax)
 
@@ -3929,9 +3930,9 @@ def process_dataset(
                     z_grid[native_has_cross],
                     np.zeros(int(np.count_nonzero(native_has_cross)), dtype=float),
                     linestyle="None",
-                    marker="|",
+                    marker="x",
                     markersize=11.0,
-                    markeredgewidth=2.2,
+                    markeredgewidth=1.1,
                     color=_HIGH_CONTRAST_PALETTE["yellow"],
                     zorder=50.0,
                 )
