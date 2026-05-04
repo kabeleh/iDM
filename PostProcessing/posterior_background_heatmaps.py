@@ -2046,6 +2046,31 @@ def _style_colorbar(cb: Colorbar, vmin: float, vmax: float) -> None:
     )
 
 
+def _style_count_axis_integer_ticks(ax: Axes, counts: np.ndarray) -> None:
+    """Style histogram count axis with 2-5 non-overlapping integer ticks."""
+    counts_arr = np.asarray(counts, dtype=float)
+    valid = np.isfinite(counts_arr) & (counts_arr > 0.0)
+
+    if not np.any(valid):
+        ticks = [0, 1]
+        ymax = 1.0
+    else:
+        max_count = int(np.ceil(float(np.nanmax(counts_arr[valid]))))
+        max_count = max(1, max_count)
+        if max_count <= 4:
+            ticks = list(range(0, max_count + 1))
+        else:
+            step = int(np.ceil(max_count / 4.0))
+            ticks = list(range(0, max_count + 1, step))
+            if ticks[-1] != max_count:
+                ticks.append(max_count)
+        ymax = max(1.0, 1.06 * float(max_count))
+
+    ax.set_ylim(0.0, ymax)
+    ax.yaxis.set_major_locator(FixedLocator([float(t) for t in ticks]))
+    ax.yaxis.set_major_formatter(FixedFormatter([f"{int(t)}" for t in ticks]))
+
+
 def _symlog_transform(values: np.ndarray, linthresh: float) -> np.ndarray:
     return np.sign(values) * np.log10(1.0 + np.abs(values) / linthresh)
 
@@ -2710,6 +2735,9 @@ def _compute_swgc_crossing_profile(
     p_neg = np.full(n_grid, np.nan, dtype=float)
     p_near = np.full(n_grid, np.nan, dtype=float)
     p_lt_zero = np.full(n_grid, np.nan, dtype=float)
+    n_lt_zero_weighted = np.full(n_grid, np.nan, dtype=float)
+    n_lt_zero_unique = np.full(n_grid, np.nan, dtype=float)
+    n_total_unique = np.full(n_grid, np.nan, dtype=float)
     kappa_median = np.full(n_grid, np.nan, dtype=float)
     valid_weight = np.zeros(n_grid, dtype=float)
 
@@ -2753,6 +2781,9 @@ def _compute_swgc_crossing_profile(
         p_neg_i = float(np.sum(w_v[neg]) / w_sum)
         p_near_i = float(np.sum(w_v[near]) / w_sum)
         p_lt_zero_i = p_neg_i
+        n_lt_zero_weighted_i = float(np.sum(w_v[neg]))
+        n_lt_zero_unique_i = float(np.count_nonzero(neg))
+        n_total_unique_i = float(np.count_nonzero(valid))
 
         ratio_v = scale_v / np.maximum(np.abs(res_v), eps_i)
         kappa_i = float(
@@ -2764,6 +2795,9 @@ def _compute_swgc_crossing_profile(
         p_neg[ix] = p_neg_i
         p_near[ix] = p_near_i
         p_lt_zero[ix] = p_lt_zero_i
+        n_lt_zero_weighted[ix] = n_lt_zero_weighted_i
+        n_lt_zero_unique[ix] = n_lt_zero_unique_i
+        n_total_unique[ix] = n_total_unique_i
         kappa_median[ix] = kappa_i
         valid_weight[ix] = w_sum
 
@@ -2773,6 +2807,9 @@ def _compute_swgc_crossing_profile(
         "p_neg": p_neg,
         "p_near": p_near,
         "p_lt_zero": p_lt_zero,
+        "n_lt_zero_weighted": n_lt_zero_weighted,
+        "n_lt_zero_unique": n_lt_zero_unique,
+        "n_total_unique": n_total_unique,
         "p_cross": p_lt_zero,
         "kappa_median": kappa_median,
         "valid_weight": valid_weight,
@@ -3817,7 +3854,7 @@ def process_dataset(
             # the secondary y-axis of the crossing probability subplot below.
             pos_top = ax.get_position()
             cbar_rect: tuple[float, float, float, float] = (
-                float(pos_top.x1) + 0.018,
+                float(pos_top.x1) + 0.038,
                 float(pos_top.y0),
                 0.030,
                 float(pos_top.y1 - pos_top.y0),
@@ -3964,6 +4001,9 @@ def process_dataset(
 
                 # Secondary axis: histogram of crossing trajectory counts per interval.
                 ax_cross_count = ax_cross.twinx()
+                ax_cross_count.patch.set_visible(False)
+                ax_cross.set_zorder(ax_cross_count.get_zorder() + 1.0)
+                ax_cross.patch.set_visible(False)
                 n_cross_weighted = np.asarray(
                     (
                         phi_crossing_profile_native["n_cross_weighted"]
@@ -3985,14 +4025,15 @@ def process_dataset(
                         n_count,
                         width=0.80 * widths,
                         color=_HIGH_CONTRAST_PALETTE["yellow"],
-                        edgecolor=_HIGH_CONTRAST_PALETTE["black"],
-                        linewidth=0.25,
+                        edgecolor="none",
+                        linewidth=0.0,
                         alpha=0.55,
                         zorder=0.5,
                         align="center",
                     )
                 ax_cross_count.set_ylabel(r"$N_{\rm cross}$")
                 ax_cross_count.tick_params(axis="y", which="major", labelsize=10)
+                _style_count_axis_integer_ticks(ax_cross_count, n_cross_weighted)
 
                 valid_cross = np.isfinite(z_grid) & np.isfinite(p_cross)
                 if np.count_nonzero(valid_cross) >= 2:
@@ -5045,6 +5086,43 @@ def process_dataset(
                     ),
                     dtype=float,
                 )
+
+                # Secondary axis: weighted count of trajectories with
+                # Delta_SWGC < 0 at each redshift interval.
+                ax_cross_count = ax_cross.twinx()
+                ax_cross_count.patch.set_visible(False)
+                ax_cross.set_zorder(ax_cross_count.get_zorder() + 1.0)
+                ax_cross.patch.set_visible(False)
+                n_lt_zero_weighted = np.asarray(
+                    (
+                        swgc_crossing_profile["n_lt_zero_weighted"]
+                        if swgc_crossing_profile is not None
+                        else np.full_like(z_grid, np.nan)
+                    ),
+                    dtype=float,
+                )
+                valid_count = np.isfinite(z_grid) & np.isfinite(n_lt_zero_weighted)
+                if np.count_nonzero(valid_count) >= 2:
+                    z_count = z_grid[valid_count]
+                    n_count = n_lt_zero_weighted[valid_count]
+                    widths = np.gradient(z_count)
+                    widths = np.abs(widths)
+                    widths = np.maximum(widths, 1e-6)
+                    ax_cross_count.bar(
+                        z_count,
+                        n_count,
+                        width=0.80 * widths,
+                        color=_HIGH_CONTRAST_PALETTE["yellow"],
+                        edgecolor="none",
+                        linewidth=0.0,
+                        alpha=0.55,
+                        zorder=0.5,
+                        align="center",
+                    )
+                ax_cross_count.set_ylabel(r"$N_{<0}$")
+                ax_cross_count.tick_params(axis="y", which="major", labelsize=10)
+                _style_count_axis_integer_ticks(ax_cross_count, n_lt_zero_weighted)
+
                 valid_lt_zero = np.isfinite(z_grid) & np.isfinite(p_lt_zero)
                 if np.count_nonzero(valid_lt_zero) >= 2:
                     ax_cross.plot(
@@ -5253,6 +5331,30 @@ def process_dataset(
                             swgc_crossing_profile["valid_weight"]
                             if swgc_crossing_profile is not None
                             else np.zeros_like(x_grid, dtype=float)
+                        ),
+                        dtype=float,
+                    ),
+                    swgc_count_lt_zero_weighted=np.asarray(
+                        (
+                            swgc_crossing_profile["n_lt_zero_weighted"]
+                            if swgc_crossing_profile is not None
+                            else np.full_like(x_grid, np.nan)
+                        ),
+                        dtype=float,
+                    ),
+                    swgc_count_lt_zero_unique=np.asarray(
+                        (
+                            swgc_crossing_profile["n_lt_zero_unique"]
+                            if swgc_crossing_profile is not None
+                            else np.full_like(x_grid, np.nan)
+                        ),
+                        dtype=float,
+                    ),
+                    swgc_count_total_unique=np.asarray(
+                        (
+                            swgc_crossing_profile["n_total_unique"]
+                            if swgc_crossing_profile is not None
+                            else np.full_like(x_grid, np.nan)
                         ),
                         dtype=float,
                     ),
