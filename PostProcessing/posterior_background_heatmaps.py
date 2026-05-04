@@ -4027,7 +4027,7 @@ def process_dataset(
                         color=_HIGH_CONTRAST_PALETTE["yellow"],
                         edgecolor="none",
                         linewidth=0.0,
-                        alpha=0.55,
+                        alpha=0.95,
                         zorder=0.5,
                         align="center",
                     )
@@ -5115,7 +5115,7 @@ def process_dataset(
                         color=_HIGH_CONTRAST_PALETTE["yellow"],
                         edgecolor="none",
                         linewidth=0.0,
-                        alpha=0.55,
+                        alpha=0.95,
                         zorder=0.5,
                         align="center",
                     )
