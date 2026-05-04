@@ -1,0 +1,120 @@
+% Requires in preamble:
+% \usepackage{subcaption}
+% \usepackage{graphicx}
+% \usepackage{rotating} (for sidewaysfigure)
+% \usepackage{caption} (for \ContinuedFloat)
+
+% Include PGF when LINKBOXES is enabled; otherwise include PDF to speed up build.
+\providecommand{\HeatmapInclude}[1]{%
+    \ifcsname ifLINKBOXES\endcsname
+        \ifLINKBOXES
+            \resizebox{\linewidth}{!}{\input{#1.pgf}}%
+        \else
+            \includegraphics[width=\linewidth]{#1.pdf}%
+        \fi
+    \else
+        \resizebox{\linewidth}{!}{\input{#1.pgf}}%
+    \fi
+}
+
+\providecommand{\SWGCHeatmapCaptionLead}{%
+    Posterior heatmaps for the \gls{sswgc} diagnostic of the \Nref{pot:tanh} potential.%
+}
+
+\providecommand{\SWGCHeatmapCaptionNote}{%
+    The \gls{sswgc} demands that scalar field interactions
+    (second panel from the top, $2\left(V^{(3)}\right)^2-V^{\prime\prime}V^{(4)}$)
+    are stronger than gravitational interactions
+    (top panel, $\left(V^{\prime\prime}/M_\textnormal{P}\right)^2$).
+    The \gls{sswgc} is violated if their difference (third panel) is negative.
+    The panels show the posterior distribution of our sample, with point-wise bins in
+    redshift $z$ as a heatmap, the posterior mean as a dashed line, and the global
+    best-fit parameter evolution as a solid line.
+    The bottom panel shows the probability of \gls{sswgc} violations in our sample
+    of 5000 trajectories of accepted \gls{mcmc} steps.
+    The \gls{sswgc} uses the difference of three terms that are products of numerically
+    small terms. The uncertainty due to numerical noise is indicated in the bottom panel
+    as a shaded area around the red probability curve.
+    The bottom panel also shows the number count at each redshift step of different
+    trajectories among our sample that violate the \gls{sswgc}.%
+}
+
+\begin{sidewaysfigure}[p]
+    \centering
+    \tagstructbegin{tag=Figure, alttext={Posterior heatmaps of the SSWGC diagnostics for the hyperbolic potential.}}
+
+    \begin{subfigure}[t]{0.49\textwidth}
+        \centering
+        \HeatmapInclude{figures/SWGC/hyperbolic_Planck_InitCond_MCMC.post.Swamp_heatmap_swgc}
+        \caption{Planck 2018}
+        \label{fig:HyperbolicSWGCHeatmap:Planck}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[t]{0.49\textwidth}
+        \centering
+        \HeatmapInclude{figures/SWGC/hyperbolic_Planck_PP_DESI_InitCond_Swamp_MCMC_heatmap_swgc}
+        \caption{Planck 2018 | \gls{desi} DR2 | Pantheon+}
+        \label{fig:HyperbolicSWGCHeatmap:PlanckPPDESI}
+    \end{subfigure}
+
+    \tagstructend
+    \caption[Posterior heatmaps for SSWGC diagnostics (part I).]{\SWGCHeatmapCaptionLead}
+    \label{fig:HyperbolicSWGCHeatmap}
+\end{sidewaysfigure}
+
+\begin{sidewaysfigure}[p]
+    \centering
+    \ContinuedFloat
+    \tagstructbegin{tag=Figure, alttext={Continuation of posterior heatmaps of the SSWGC diagnostics for the hyperbolic potential.}}
+
+    \begin{subfigure}[t]{0.49\textwidth}
+        \centering
+        \HeatmapInclude{figures/SWGC/hyperbolic_Planck_PPS_DESI_InitCond_Swamp_MCMC_heatmap_swgc}
+        \caption{Planck 2018 | \gls{desi} DR2 | Pantheon+ | \gls{shoes}}
+        \label{fig:HyperbolicSWGCHeatmap:PlanckPPSDESI}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[t]{0.49\textwidth}
+        \centering
+        \HeatmapInclude{figures/SWGC/hyperbolic_PP_D_InitCond_MCMC_heatmap_swgc}
+        \caption{\gls{desi} DR2 | Pantheon+}
+        \label{fig:HyperbolicSWGCHeatmap:PPD}
+    \end{subfigure}
+
+    \tagstructend
+    \caption[Posterior heatmaps for SSWGC diagnostics (continued).]{\SWGCHeatmapCaptionLead\ (continued).}
+\end{sidewaysfigure}
+
+\begin{sidewaysfigure}[p]
+    \centering
+    \ContinuedFloat
+    \tagstructbegin{tag=Figure, alttext={Final continuation of posterior heatmaps of the SSWGC diagnostics for the hyperbolic potential.}}
+
+    \begin{subfigure}[t]{0.49\textwidth}
+        \vspace{0pt}
+        \centering
+        \HeatmapInclude{figures/SWGC/hyperbolic_PP_S_D_InitCond_MCMC_heatmap_swgc}
+        \caption{\gls{desi} DR2 | Pantheon+ | \gls{shoes}}
+        \label{fig:HyperbolicSWGCHeatmap:PPSD}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[t]{0.49\textwidth}
+        \vspace{0pt}
+        \centering
+        \HeatmapInclude{figures/SWGC/legend_swgc}
+        \caption{\SWGCHeatmapCaptionNote}
+        \label{fig:HyperbolicSWGCHeatmap:Legend}
+    \end{subfigure}
+
+    % \par\vspace{0.5em}
+    % \hfill
+    % \begin{minipage}[t]{0.49\textwidth}
+    %     \vspace{0pt}
+    %     \footnotesize
+    %     \raggedright
+    %     \SWGCHeatmapCaptionNote\par
+    % \end{minipage}
+
+    \tagstructend
+    \caption[Posterior heatmaps for SSWGC diagnostics (continued).]{\SWGCHeatmapCaptionLead\ (continued).}
+\end{sidewaysfigure}

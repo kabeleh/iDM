@@ -1,0 +1,120 @@
+% Requires in preamble:
+% \usepackage{subcaption}
+% \usepackage{graphicx}
+% \usepackage{caption} (for \ContinuedFloat)
+
+% Include PGF when LINKBOXES is enabled; otherwise include PDF to speed up build.
+\providecommand{\HeatmapInclude}[1]{%
+    \ifcsname ifLINKBOXES\endcsname
+        \ifLINKBOXES
+            \resizebox{\linewidth}{!}{\input{#1.pgf}}%
+        \else
+            \includegraphics[width=\linewidth]{#1.pdf}%
+        \fi
+    \else
+        \resizebox{\linewidth}{!}{\input{#1.pgf}}%
+    \fi
+}
+
+\begin{figure}[p]
+    \centering
+    \tagstructbegin{tag=Figure, alttext={Posterior heatmaps of the de Sitter conjecture parameters s1 and s2 for the hyperbolic potential.}}
+
+    \begin{subfigure}[t]{0.58\textwidth}
+        \centering
+        \HeatmapInclude{figures/dSC/legend_swampland}
+        \caption{Legend shared among all \gls{dsc} heatmaps.}
+        \label{fig:HyperbolicdSCHeatmap:Legend}
+    \end{subfigure}
+
+    \vspace{0.45em}
+
+    \begin{subfigure}[t]{0.49\textwidth}
+        \centering
+        \HeatmapInclude{figures/dSC/hyperbolic_Planck_InitCond_MCMC.post.Swamp_heatmap_dSC_s1}
+        \caption{Planck 2018: $\mathfrak{s}_1$}
+        \label{fig:HyperbolicdSCHeatmap:PlanckS1}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[t]{0.49\textwidth}
+        \centering
+        \HeatmapInclude{figures/dSC/hyperbolic_Planck_InitCond_MCMC.post.Swamp_heatmap_dSC_s2}
+        \caption{Planck 2018: $-\mathfrak{s}_2$}
+        \label{fig:HyperbolicdSCHeatmap:PlanckS2}
+    \end{subfigure}
+
+    \vspace{0.35em}
+
+    \begin{subfigure}[t]{0.49\textwidth}
+        \centering
+        \HeatmapInclude{figures/dSC/hyperbolic_Planck_PP_DESI_InitCond_Swamp_MCMC_heatmap_dSC_s1}
+        \caption{Planck 2018 | \gls{desi} DR2 | Pantheon+: $\mathfrak{s}_1$}
+        \label{fig:HyperbolicdSCHeatmap:PlanckPPDESIS1}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[t]{0.49\textwidth}
+        \centering
+        \HeatmapInclude{figures/dSC/hyperbolic_Planck_PP_DESI_InitCond_Swamp_MCMC_heatmap_dSC_s2}
+        \caption{Planck 2018 | \gls{desi} DR2 | Pantheon+: $-\mathfrak{s}_2$}
+        \label{fig:HyperbolicdSCHeatmap:PlanckPPDESIS2}
+    \end{subfigure}
+
+    \tagstructend
+    \caption[Posterior heatmaps for dSC parameters (part I).]{Posterior heatmaps for the \gls{dsc} parameters $\mathfrak{s}_1$ and $\mathfrak{s}_2$ in the \Nref{pot:tanh} model. This first part shows the shared legend and the first two data-set combinations. Additional data sets are shown on the next page. To create the posterior distribution, a sampling strategy was applied, taking 5000 samples from the MCMC chains of accepted steps. The (global) best-fit parameter evolution is depicted as a solid line. The posterior mean of the sample is shown as a dashed line. The heatmap colour corresponds to the number of samples in each bin. The bins are point-wise in redshift $z$.}
+    \label{fig:HyperbolicdSCHeatmap}
+\end{figure}
+
+\begin{figure}[p]
+    \centering
+    \ContinuedFloat
+    \tagstructbegin{tag=Figure, alttext={Continuation of posterior heatmaps of the de Sitter conjecture parameters s1 and s2 for the hyperbolic potential.}}
+
+    \begin{subfigure}[t]{0.49\textwidth}
+        \centering
+        \HeatmapInclude{figures/dSC/hyperbolic_Planck_PPS_DESI_InitCond_Swamp_MCMC_heatmap_dSC_s1}
+        \caption{Planck 2018 | \gls{desi} DR2 | Pantheon+ | \gls{shoes}: $\mathfrak{s}_1$}
+        \label{fig:HyperbolicdSCHeatmap:PlanckPPSDESIS1}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[t]{0.49\textwidth}
+        \centering
+        \HeatmapInclude{figures/dSC/hyperbolic_Planck_PPS_DESI_InitCond_Swamp_MCMC_heatmap_dSC_s2}
+        \caption{Planck 2018 | \gls{desi} DR2 | Pantheon+ | \gls{shoes}: $-\mathfrak{s}_2$}
+        \label{fig:HyperbolicdSCHeatmap:PlanckPPSDESIS2}
+    \end{subfigure}
+
+    \vspace{0.35em}
+
+    \begin{subfigure}[t]{0.49\textwidth}
+        \centering
+        \HeatmapInclude{figures/dSC/hyperbolic_PP_D_InitCond_MCMC_heatmap_dSC_s1}
+        \caption{\gls{desi} DR2 | Pantheon+: $\mathfrak{s}_1$}
+        \label{fig:HyperbolicdSCHeatmap:PPDS1}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[t]{0.49\textwidth}
+        \centering
+        \HeatmapInclude{figures/dSC/hyperbolic_PP_D_InitCond_MCMC_heatmap_dSC_s2}
+        \caption{\gls{desi} DR2 | Pantheon+: $-\mathfrak{s}_2$}
+        \label{fig:HyperbolicdSCHeatmap:PPDS2}
+    \end{subfigure}
+
+    \vspace{0.35em}
+
+    \begin{subfigure}[t]{0.49\textwidth}
+        \centering
+        \HeatmapInclude{figures/dSC/hyperbolic_PP_S_D_InitCond_MCMC_heatmap_dSC_s1}
+        \caption{\gls{desi} DR2 | Pantheon+ | \gls{shoes}: $\mathfrak{s}_1$}
+        \label{fig:HyperbolicdSCHeatmap:PPSDS1}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[t]{0.49\textwidth}
+        \centering
+        \HeatmapInclude{figures/dSC/hyperbolic_PP_S_D_InitCond_MCMC_heatmap_dSC_s2}
+        \caption{\gls{desi} DR2 | Pantheon+ | \gls{shoes}: $-\mathfrak{s}_2$}
+        \label{fig:HyperbolicdSCHeatmap:PPSDS2}
+    \end{subfigure}
+
+    \tagstructend
+    \caption[Posterior heatmaps for dSC parameters (continued).]{Posterior heatmaps for the \gls{dsc} parameters $\mathfrak{s}_1$ and $\mathfrak{s}_2$ in the \Nref{pot:tanh} model (continued).}
+\end{figure}

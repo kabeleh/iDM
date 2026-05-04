@@ -1,0 +1,63 @@
+% Requires in preamble:
+% \usepackage{subcaption}
+% \usepackage{graphicx}
+
+\begin{figure}[htbp]
+    \centering
+    \tagstructbegin{tag=Figure, alttext={The SWGC evolution for the hyperbolic potential.}}
+
+    \begin{subfigure}[t]{0.4\textwidth}
+        \centering
+        \resizebox{\linewidth}{!}{%
+            \input{figures/SWGC/hyperbolic_Planck_InitCond_MCMC.post.Swamp_plot6_swgc_history.pgf}%
+        }
+        \caption{Planck 2018\\$\mathfrak{c}_2 = 5.481404099$\\$\phi_{\textnormal{ini}} = -0.3996640934$}
+        \label{fig:HyperbolicSWGC:Planck}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[t]{0.40\textwidth}
+        \centering
+        \resizebox{\linewidth}{!}{%
+            \input{figures/SWGC/hyperbolic_Planck_PP_DESI_InitCond_Swamp_MCMC_plot6_swgc_history.pgf}%
+        }
+        \caption{Planck 2018 | \gls{desi} DR2 | Pantheon+\\$\mathfrak{c}_2 = 0.46666129$\\$\phi_{\textnormal{ini}} = 1.767348198$}
+        \label{fig:HyperbolicSWGC:PlanckPPDESI}
+    \end{subfigure}
+
+    \vspace{0.35em}
+
+    \begin{subfigure}[t]{0.40\textwidth}
+        \centering
+        \resizebox{\linewidth}{!}{%
+            \input{figures/SWGC/hyperbolic_Planck_PPS_DESI_InitCond_Swamp_MCMC_plot6_swgc_history.pgf}%
+        }
+        \caption{Planck 2018 | \gls{desi} DR2 | Pantheon+ | \gls{shoes}\\$\mathfrak{c}_2 = 1.7090164$\\$\phi_{\textnormal{ini}} = -0.2336645394$}
+        \label{fig:HyperbolicSWGC:PlanckPPSDESI}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[t]{0.40\textwidth}
+        \centering
+        \resizebox{\linewidth}{!}{%
+            \input{figures/SWGC/hyperbolic_PP_D_InitCond_MCMC_plot6_swgc_history.pgf}%
+        }
+        \caption{\gls{desi} DR2 | Pantheon+\\$\mathfrak{c}_2 = -0.4283719445$\\$\phi_{\textnormal{ini}} = -3.751011789$}
+        \label{fig:HyperbolicSWGC:PPD}
+    \end{subfigure}
+
+    \vspace{0.35em}
+
+    \hspace*{\fill}
+    \begin{subfigure}[t]{0.40\textwidth}
+        \centering
+        \resizebox{\linewidth}{!}{%
+            \input{figures/SWGC/hyperbolic_PP_S_D_InitCond_MCMC_plot6_swgc_history.pgf}%
+        }
+        \caption{\gls{desi} DR2 | Pantheon+ | \gls{shoes}\\$\mathfrak{c}_2 = -1.443747508$\\$\phi_{\textnormal{ini}} = 1.204227536$}
+        \label{fig:HyperbolicSWGC:PPSD}
+    \end{subfigure}
+    \hspace*{\fill}
+
+    \tagstructend
+    \caption[SWGC evolution]{The evolution of the \gls{swgc} inequality $\left(V^{\prime\prime}\right)^2\leq2\left(V^{\left(3\right)}\right)^2 - V^{\prime\prime}V^{\left(4\right)}$ and the difference in the terms ($\Delta_{\textnormal{\gls{swgc}}}$) for the \Nref{pot:tanh} potential for different data sets and their best-fit values.}
+    \label{fig:HyperbolicSWGC}
+\end{figure}

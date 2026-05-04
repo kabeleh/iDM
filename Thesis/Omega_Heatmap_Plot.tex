@@ -1,0 +1,71 @@
+% Requires in preamble:
+% \usepackage{subcaption}
+% \usepackage{graphicx}
+
+% Include PGF when LINKBOXES is enabled; otherwise include PDF to speed up build.
+\providecommand{\HeatmapInclude}[1]{%
+    \ifcsname ifLINKBOXES\endcsname
+        \ifLINKBOXES
+            \resizebox{\linewidth}{!}{\input{#1.pgf}}%
+        \else
+            \includegraphics[width=\linewidth]{#1.pdf}%
+        \fi
+    \else
+        \resizebox{\linewidth}{!}{\input{#1.pgf}}%
+    \fi
+}
+
+\begin{figure}[htbp]
+    \centering
+    \tagstructbegin{tag=Figure, alttext={Posterior heatmaps of the relative energy-density evolution for the hyperbolic potential.}}
+
+    \begin{subfigure}[t]{0.49\textwidth}
+        \centering
+        \HeatmapInclude{figures/Omega/hyperbolic_Planck_InitCond_MCMC.post.Swamp_heatmap_Omega}
+        \caption{Planck 2018}
+        \label{fig:HyperbolicOmegaHeatmap:Planck}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[t]{0.49\textwidth}
+        \centering
+        \HeatmapInclude{figures/Omega/hyperbolic_Planck_PP_DESI_InitCond_Swamp_MCMC_heatmap_Omega}
+        \caption{Planck 2018 | \gls{desi} DR2 | Pantheon+}
+        \label{fig:HyperbolicOmegaHeatmap:PlanckPPDESI}
+    \end{subfigure}
+
+    \vspace{0.35em}
+
+    \begin{subfigure}[t]{0.49\textwidth}
+        \centering
+        \HeatmapInclude{figures/Omega/hyperbolic_Planck_PPS_DESI_InitCond_Swamp_MCMC_heatmap_Omega}
+        \caption{Planck 2018 | \gls{desi} DR2 | Pantheon+ | \gls{shoes}}
+        \label{fig:HyperbolicOmegaHeatmap:PlanckPPSDESI}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[t]{0.49\textwidth}
+        \centering
+        \HeatmapInclude{figures/Omega/hyperbolic_PP_D_InitCond_MCMC_heatmap_Omega}
+        \caption{\gls{desi} DR2 | Pantheon+}
+        \label{fig:HyperbolicOmegaHeatmap:PPD}
+    \end{subfigure}
+
+    \vspace{0.35em}
+
+    \begin{subfigure}[t]{0.49\textwidth}
+        \centering
+        \HeatmapInclude{figures/Omega/hyperbolic_PP_S_D_InitCond_MCMC_heatmap_Omega}
+        \caption{\gls{desi} DR2 | Pantheon+ | \gls{shoes}}
+        \label{fig:HyperbolicOmegaHeatmap:PPSD}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[t]{0.49\textwidth}
+        \centering
+        \HeatmapInclude{figures/Omega/legend_omega}
+        \caption{Legend}
+        \label{fig:HyperbolicOmegaHeatmap:Legend}
+    \end{subfigure}
+
+    \tagstructend
+    \caption[Posterior heatmaps for relative energy densities.]{Posterior heatmaps for the relative energy-density evolution in a universe with \gls{dc}\gls{dm} and \gls{de} with a \Nref{pot:tanh} potential. For each data set, a sample of 5000 trajectories is drawn from the accepted \gls{mcmc} steps. The best-fit trajectory (solid line) as well as the median of the sample (dashed line) are shown. The lower-right panel contains the legend.}
+    \label{fig:HyperbolicOmegaHeatmap}
+\end{figure}

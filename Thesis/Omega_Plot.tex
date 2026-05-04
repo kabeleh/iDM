@@ -1,0 +1,63 @@
+% Requires in preamble:
+% \usepackage{subcaption}
+% \usepackage{graphicx}
+
+\begin{figure}[htbp]
+	\centering
+	\tagstructbegin{tag=Figure, alttext={The obtained energy density evolution in a universe with DCDM and DE with a hyperbolic potential.}}
+
+	\begin{subfigure}[t]{0.49\textwidth}
+		\centering
+		\resizebox{\linewidth}{!}{%
+			\input{figures/Omega/hyperbolic_Planck_InitCond_MCMC.post.Swamp_plot2_omegas.pgf}%
+		}
+		\caption{Planck 2018\\$\mathfrak{c}_2 = 5.481404099$\\$\mathfrak{c}_{\textnormal{DM}} = 12.458625$}
+		\label{fig:HyperbolicOmega:Planck}
+	\end{subfigure}
+	\hfill
+	\begin{subfigure}[t]{0.49\textwidth}
+		\centering
+		\resizebox{\linewidth}{!}{%
+			\input{figures/Omega/hyperbolic_Planck_PP_DESI_InitCond_Swamp_MCMC_plot2_omegas.pgf}%
+		}
+		\caption{Planck 2018 | DESI DR2 | Pantheon+\\$\mathfrak{c}_2 = 0.46666129$\\$\mathfrak{c}_{\textnormal{DM}} = -0.92911408$}
+		\label{fig:HyperbolicOmega:PlanckPPDESI}
+	\end{subfigure}
+
+	\vspace{0.35em}
+
+	\begin{subfigure}[t]{0.49\textwidth}
+		\centering
+		\resizebox{\linewidth}{!}{%
+			\input{figures/Omega/hyperbolic_Planck_PPS_DESI_InitCond_Swamp_MCMC_plot2_omegas.pgf}%
+		}
+		\caption{Planck 2018 | DESI DR2 | Pantheon+ | SH0ES\\$\mathfrak{c}_2 = 1.7090164$\\$\mathfrak{c}_{\textnormal{DM}} = -0.073865866$}
+		\label{fig:HyperbolicOmega:PlanckPPSDESI}
+	\end{subfigure}
+	\hfill
+	\begin{subfigure}[t]{0.49\textwidth}
+		\centering
+		\resizebox{\linewidth}{!}{%
+			\input{figures/Omega/hyperbolic_PP_D_InitCond_MCMC_plot2_omegas.pgf}%
+		}
+		\caption{DESI DR2 | Pantheon+\\$\mathfrak{c}_2 = -0.4283719445$\\$\mathfrak{c}_{\textnormal{DM}} = 0.4391656801$}
+		\label{fig:HyperbolicOmega:PPD}
+	\end{subfigure}
+
+	\vspace{0.35em}
+
+	\hspace*{\fill}
+	\begin{subfigure}[t]{0.49\textwidth}
+		\centering
+		\resizebox{\linewidth}{!}{%
+			\input{figures/Omega/hyperbolic_PP_S_D_InitCond_MCMC_plot2_omegas.pgf}%
+		}
+		\caption{DESI DR2 | Pantheon+ | SH0ES\\$\mathfrak{c}_2 = -1.443747508$\\$\mathfrak{c}_{\textnormal{DM}} = -1.45945876$}
+		\label{fig:HyperbolicOmega:PPSD}
+	\end{subfigure}
+	\hspace*{\fill}
+
+	\tagstructend
+	\caption[Relative energy density evolution.]{The obtained relative energy density evolution in a universe with \gls{dc}\gls{dm} and \gls{de} with a \Nref{pot:tanh} potential for different data sets and their best-fit values. The difference to the concordance model is shown in the lower half of the plot.}
+	\label{fig:HyperbolicOmega}
+\end{figure}
