@@ -5120,7 +5120,11 @@ def process_dataset(
                         align="center",
                     )
                 ax_cross_count.set_ylabel(r"$N_{<0}$")
-                ax_cross_count.tick_params(axis="y", which="major", labelsize=10)
+                # Match the visual right-gap of upper colorbars by nudging
+                # right-side tick labels farther from the subplot frame.
+                ax_cross_count.tick_params(
+                    axis="y", which="major", labelsize=10, pad=8.0
+                )
                 _style_count_axis_integer_ticks(ax_cross_count, n_lt_zero_weighted)
 
                 valid_lt_zero = np.isfinite(z_grid) & np.isfinite(p_lt_zero)
