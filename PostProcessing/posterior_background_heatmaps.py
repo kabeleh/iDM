@@ -354,6 +354,7 @@ class TrajectoryResult:
     qty_interps: dict[str, np.ndarray]
     multiplicity: int
     cache_hit: bool
+    phi_crossing_x_raw: np.ndarray | None = None
 
 
 class ClassBackgroundRunError(RuntimeError):
@@ -462,6 +463,7 @@ _OUTPUT_QUANTITY_ALIASES: dict[str, str] = {
 }
 
 _MODE_SAMPLING_SCHEMA_VERSION = "mode-aware-defaults-v1-20260502"
+_BACKGROUND_CACHE_SCHEMA_VERSION = "background-cache-v2-20260504"
 
 
 def _resolve_mode_sampling_tuning(args: argparse.Namespace) -> dict[str, Any]:
@@ -705,8 +707,19 @@ def parse_args() -> argparse.Namespace:
         type=float,
         default=0.6,
         help=(
-            "Pixel margin for hiding y-axis labels that overlap the y=0 label "
-            "on phi_scf symlog plots. Smaller values hide fewer labels."
+            "Pixel margin for pruning overlapping major y-axis labels on symlog-like "
+            "plots. When a y=0 major tick exists, it is preferred as the kept anchor. "
+            "Smaller values hide fewer labels."
+        ),
+    )
+    parser.add_argument(
+        "--phi-display-mode",
+        choices=["crossing", "full"],
+        default="crossing",
+        help=(
+            "Display mode for phi_scf: crossing=default focused symlog view for "
+            "zero-crossing diagnostics using --phi-window-* bounds; "
+            "full=use global phi range inferred from sampled trajectories."
         ),
     )
     parser.add_argument(
@@ -718,6 +731,24 @@ def parse_args() -> argparse.Namespace:
             "symlog=single symmetric log (default), "
             "symlog2=stronger far-outlier compression using a nested symmetric log."
         ),
+    )
+    parser.add_argument(
+        "--phi-window-min",
+        type=float,
+        default=-1.0,
+        help=("Lower y-limit for phi_scf in crossing display mode (default: -1)."),
+    )
+    parser.add_argument(
+        "--phi-window-max",
+        type=float,
+        default=1.0,
+        help=("Upper y-limit for phi_scf in crossing display mode (default: 1)."),
+    )
+    parser.add_argument(
+        "--phi-window-linthresh",
+        type=float,
+        default=0.02,
+        help=("Symlog linthresh for phi_scf crossing display mode (default: 0.02)."),
     )
     parser.add_argument(
         "--include-legends-in-plots",
@@ -736,6 +767,39 @@ def parse_args() -> argparse.Namespace:
             "Layout for dSC outputs when both s1 and minus_s2 are requested: "
             "split=default, produce separate s1 and -s2 figures with their "
             "assigned colormaps; combined=legacy single-panel overlay."
+        ),
+    )
+    parser.add_argument(
+        "--dsc-y-scale",
+        choices=["symlog", "linear"],
+        default="symlog",
+        help=(
+            "Y-axis scale for dSC displays (split and combined). "
+            "Default is symlog for robust visibility near zero."
+        ),
+    )
+    parser.add_argument(
+        "--dsc-y-linthresh",
+        type=float,
+        default=0.05,
+        help="Symlog linthresh for dSC displays when --dsc-y-scale symlog.",
+    )
+    parser.add_argument(
+        "--dsc-y-min",
+        type=float,
+        default=0.0,
+        help=(
+            "Requested lower dSC y-window bound (default: 0). "
+            "Plotting enforces at least -1 for context."
+        ),
+    )
+    parser.add_argument(
+        "--dsc-y-max",
+        type=float,
+        default=1.0,
+        help=(
+            "Requested upper dSC y-window bound (default: 1). "
+            "Plotting enforces at least 10 for context."
         ),
     )
     parser.add_argument(
@@ -1626,6 +1690,26 @@ def _load_cached_background(npz_path: Path) -> dict[str, np.ndarray]:
         return {k: np.asarray(arr[k]) for k in arr.files if k in _FIELDS_TO_CACHE}
 
 
+def _load_cached_background_meta(meta_path: Path) -> dict[str, Any]:
+    payload = json.loads(meta_path.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        raise ValueError("Background cache metadata must be a JSON object")
+    return payload
+
+
+def _validate_background_cache_payload(
+    data: dict[str, np.ndarray],
+) -> tuple[bool, list[str]]:
+    """Validate cached background payload supports current diagnostics.
+
+    Native phi-crossing diagnostics require raw z and phi_scf arrays to be
+    available in cache entries.
+    """
+    required_fields = ("z", "phi_scf")
+    missing = [name for name in required_fields if name not in data]
+    return len(missing) == 0, missing
+
+
 def _write_npz_atomic(npz_path: Path, data: dict[str, np.ndarray]) -> None:
     tmp_path = npz_path.with_name(f"{npz_path.name}.tmp.{uuid.uuid4().hex}")
     try:
@@ -1658,7 +1742,65 @@ def get_or_compute_background(
 
     if npz_path.exists():
         try:
-            return _load_cached_background(npz_path), "cache", cache_key
+            data = _load_cached_background(npz_path)
+            payload_ok, missing_fields = _validate_background_cache_payload(data)
+
+            # Legacy cache files may predate metadata; if payload is valid, add
+            # fresh metadata in place without forcing a costly CLASS rerun.
+            if not meta_path.exists():
+                if not payload_ok:
+                    print(
+                        "  [WARNING] Cache entry missing required fields "
+                        f"{missing_fields}: {npz_path.name}. Recomputing."
+                    )
+                    npz_path.unlink(missing_ok=True)
+                else:
+                    _write_json_atomic(
+                        meta_path,
+                        {
+                            "schema_version": _BACKGROUND_CACHE_SCHEMA_VERSION,
+                            "cache_key": cache_key,
+                            "class_params": {
+                                k: str(v) for k, v in sorted(class_params.items())
+                            },
+                            "fields": sorted(list(data.keys())),
+                            "upgraded_from_legacy": True,
+                        },
+                    )
+                    return data, "cache", cache_key
+
+            if meta_path.exists():
+                meta = _load_cached_background_meta(meta_path)
+                schema_version = str(meta.get("schema_version", ""))
+                schema_ok = schema_version == _BACKGROUND_CACHE_SCHEMA_VERSION
+
+                if payload_ok and schema_ok:
+                    return data, "cache", cache_key
+
+                if not payload_ok:
+                    print(
+                        "  [WARNING] Cache entry missing required fields "
+                        f"{missing_fields}: {npz_path.name}. Recomputing."
+                    )
+                else:
+                    # Schema mismatch with valid payload: fast in-place metadata
+                    # upgrade, no CLASS rerun needed.
+                    _write_json_atomic(
+                        meta_path,
+                        {
+                            "schema_version": _BACKGROUND_CACHE_SCHEMA_VERSION,
+                            "cache_key": cache_key,
+                            "class_params": {
+                                k: str(v) for k, v in sorted(class_params.items())
+                            },
+                            "fields": sorted(list(data.keys())),
+                            "upgraded_from_schema": schema_version,
+                        },
+                    )
+                    return data, "cache", cache_key
+
+                npz_path.unlink(missing_ok=True)
+                meta_path.unlink(missing_ok=True)
         except (zipfile.BadZipFile, OSError, ValueError, EOFError, KeyError) as exc:
             # Heal corrupted or partially-written cache entries and recompute.
             print(
@@ -1674,6 +1816,7 @@ def get_or_compute_background(
     _write_json_atomic(
         meta_path,
         {
+            "schema_version": _BACKGROUND_CACHE_SCHEMA_VERSION,
             "cache_key": cache_key,
             "class_params": {k: str(v) for k, v in sorted(class_params.items())},
             "fields": sorted(list(data.keys())),
@@ -1943,6 +2086,23 @@ def _build_symlog_y_edges(
     return _symlog_inverse(t_edges, linthresh), linthresh
 
 
+def _build_symlog_y_edges_with_linthresh(
+    y_min: float,
+    y_max: float,
+    y_bins: int,
+    linthresh: float,
+    pad_frac: float = 0.0,
+) -> np.ndarray:
+    pad = pad_frac * (y_max - y_min)
+    y_low = y_min - pad
+    y_high = y_max + pad
+    lt = float(max(1e-18, linthresh))
+    t_low = _symlog_transform(np.array([y_low], dtype=float), lt)[0]
+    t_high = _symlog_transform(np.array([y_high], dtype=float), lt)[0]
+    t_edges = np.linspace(t_low, t_high, int(y_bins) + 1)
+    return _symlog_inverse(t_edges, lt)
+
+
 def _build_symlog2_y_edges(
     y_min: float,
     y_max: float,
@@ -1959,16 +2119,14 @@ def _build_symlog2_y_edges(
     return _symlog2_inverse(t_edges, linthresh), linthresh
 
 
-def _hide_overlaps_with_zero_ytick_label(
+def _prune_overlapping_ytick_labels(
     fig: Figure,
     ax: Axes,
     overlap_margin_px: float = 0.6,
+    *,
+    prefer_zero_label: bool = True,
 ) -> None:
-    """Keep the y=0 major label visible and hide only labels that overlap it.
-
-    This preserves Matplotlib's default symlog tick selection while resolving the
-    specific visual collision near zero.
-    """
+    """Hide overlapping major y-tick labels while keeping readable spacing."""
 
     fig.canvas.draw()
     renderer_getter = getattr(fig.canvas, "get_renderer", None)
@@ -1977,43 +2135,78 @@ def _hide_overlaps_with_zero_ytick_label(
     renderer = renderer_getter()
 
     ticks = np.asarray(ax.get_yticks(), dtype=float)
-    labels = list(ax.yaxis.get_majorticklabels())
-    n = min(len(ticks), len(labels))
-    if n < 2:
+    labels_all = list(ax.yaxis.get_majorticklabels())
+    n = min(len(ticks), len(labels_all))
+    if n < 1:
         return
-
-    max_abs = float(np.nanmax(np.abs(ticks[:n]))) if n > 0 else 1.0
-    atol = max(1e-14, 1e-12 * max(max_abs, 1.0))
-
-    zero_idx: int | None = None
-    for i in range(n):
-        if bool(np.isclose(ticks[i], 0.0, atol=atol, rtol=0.0)):
-            zero_idx = i
-            break
-    if zero_idx is None:
-        return
-
-    zero_label = labels[zero_idx]
-    if not zero_label.get_text().strip():
-        return
-    zero_label.set_visible(True)
 
     margin = max(0.0, float(overlap_margin_px))
-    x0, y0, x1, y1 = zero_label.get_window_extent(renderer=renderer).extents
-    zero_box = type(zero_label.get_window_extent(renderer=renderer)).from_extents(
-        x0 - margin,
-        y0 - margin,
-        x1 + margin,
-        y1 + margin,
-    )
+
+    active: list[tuple[int, Any, np.ndarray]] = []
     for i in range(n):
-        if i == zero_idx:
+        label = labels_all[i]
+        text = label.get_text().strip()
+        if not text:
             continue
-        label = labels[i]
-        if not label.get_visible() or not label.get_text().strip():
+        if not label.get_visible():
             continue
-        if zero_box.overlaps(label.get_window_extent(renderer=renderer)):
+        bbox = label.get_window_extent(renderer=renderer)
+        ext = np.array(
+            [
+                float(bbox.x0) - margin,
+                float(bbox.y0) - margin,
+                float(bbox.x1) + margin,
+                float(bbox.y1) + margin,
+            ],
+            dtype=float,
+        )
+        active.append((i, label, ext))
+
+    if len(active) < 2:
+        return
+
+    def _overlap(a: np.ndarray, b: np.ndarray) -> bool:
+        return bool(not (a[2] < b[0] or b[2] < a[0] or a[3] < b[1] or b[3] < a[1]))
+
+    keep_indices: set[int] = set()
+    kept_boxes: list[np.ndarray] = []
+
+    anchor_idx: int | None = None
+    if prefer_zero_label:
+        max_abs = float(np.nanmax(np.abs(ticks[:n]))) if n > 0 else 1.0
+        atol = max(1e-14, 1e-12 * max(max_abs, 1.0))
+        for i, _, ext in active:
+            if bool(np.isclose(ticks[i], 0.0, atol=atol, rtol=0.0)):
+                anchor_idx = i
+                keep_indices.add(i)
+                kept_boxes.append(ext)
+                break
+
+    active_sorted = sorted(active, key=lambda item: float(item[2][1]))
+    for i, label, ext in active_sorted:
+        if i in keep_indices:
+            label.set_visible(True)
+            continue
+        if any(_overlap(ext, kept) for kept in kept_boxes):
             label.set_visible(False)
+            continue
+        label.set_visible(True)
+        keep_indices.add(i)
+        kept_boxes.append(ext)
+
+
+def _hide_overlaps_with_zero_ytick_label(
+    fig: Figure,
+    ax: Axes,
+    overlap_margin_px: float = 0.6,
+) -> None:
+    """Compatibility wrapper for legacy call-sites."""
+    _prune_overlapping_ytick_labels(
+        fig,
+        ax,
+        overlap_margin_px=overlap_margin_px,
+        prefer_zero_label=True,
+    )
 
 
 def _ensure_min_labeled_yticks(ax: Axes, min_labels: int = 2) -> None:
@@ -2294,6 +2487,100 @@ def _compute_phi_crossing_profile(
         "p_near": p_near,
         "p_cross": p_cross,
         "valid_weight": valid_weight,
+    }
+
+
+def _extract_phi_zero_crossings_from_background(
+    dataset: dict[str, np.ndarray],
+) -> np.ndarray:
+    """Return x=log10(1+z) locations where native CLASS phi steps cross zero."""
+    if "z" not in dataset or "phi_scf" not in dataset:
+        return np.empty(0, dtype=float)
+
+    z = np.asarray(dataset["z"], dtype=float)
+    phi = np.asarray(dataset["phi_scf"], dtype=float)
+    valid = np.isfinite(z) & np.isfinite(phi) & (z >= 0.0)
+    if np.count_nonzero(valid) < 2:
+        return np.empty(0, dtype=float)
+
+    z_v = z[valid]
+    phi_v = phi[valid]
+    x_v = np.log10(1.0 + z_v)
+    order = np.argsort(x_v)
+    x_v = x_v[order]
+    phi_v = phi_v[order]
+
+    left = phi_v[:-1]
+    right = phi_v[1:]
+    both_zero = (left == 0.0) & (right == 0.0)
+    crosses = (((left <= 0.0) & (right >= 0.0)) | ((left >= 0.0) & (right <= 0.0))) & (
+        ~both_zero
+    )
+    if not np.any(crosses):
+        return np.empty(0, dtype=float)
+
+    # Use segment midpoint on the native CLASS grid as crossing locator.
+    x_mid = 0.5 * (x_v[:-1] + x_v[1:])
+    x_cross = np.asarray(x_mid[crosses], dtype=float)
+    x_cross = x_cross[np.isfinite(x_cross)]
+    if x_cross.size == 0:
+        return np.empty(0, dtype=float)
+    return np.unique(np.sort(x_cross))
+
+
+def _compute_phi_native_crossing_profile(
+    phi_crossings_payload: list[tuple[np.ndarray, int]],
+    x_grid: np.ndarray,
+) -> dict[str, np.ndarray] | None:
+    """Build native CLASS-step zero-crossing probability on x_grid intervals.
+
+    For each interval [x_grid[ix-1], x_grid[ix]], count weighted trajectories that
+    have at least one native CLASS background segment crossing zero in that interval.
+    """
+    if len(phi_crossings_payload) == 0:
+        return None
+
+    n_grid = int(x_grid.size)
+    if n_grid < 2:
+        return None
+
+    p_cross = np.zeros(n_grid, dtype=float)
+    valid_weight = np.zeros(n_grid, dtype=float)
+
+    weights = np.asarray(
+        [float(max(0, mult)) for _, mult in phi_crossings_payload], dtype=float
+    )
+    w_total = float(np.sum(weights))
+    if w_total <= 0.0:
+        return None
+
+    for ix in range(1, n_grid):
+        x_left = float(min(x_grid[ix - 1], x_grid[ix]))
+        x_right = float(max(x_grid[ix - 1], x_grid[ix]))
+        w_cross = 0.0
+        for (x_cross, mult), w in zip(phi_crossings_payload, weights):
+            if w <= 0.0:
+                continue
+            if x_cross.size == 0:
+                continue
+            in_interval = (x_cross >= x_left) & (x_cross <= x_right)
+            if bool(np.any(in_interval)):
+                w_cross += float(w)
+
+        p_cross[ix] = float(w_cross / w_total)
+        valid_weight[ix] = w_total
+
+    if np.isfinite(p_cross[1]):
+        p_cross[0] = p_cross[1]
+        valid_weight[0] = valid_weight[1]
+
+    has_any = np.asarray([arr.size > 0 for arr, _ in phi_crossings_payload], dtype=bool)
+    p_any = float(np.sum(weights[has_any]) / w_total) if has_any.size else 0.0
+
+    return {
+        "p_cross": p_cross,
+        "valid_weight": valid_weight,
+        "p_any": np.full(n_grid, p_any, dtype=float),
     }
 
 
@@ -3093,6 +3380,7 @@ def _process_single_trajectory(
         return None
 
     cache_hit = source == "cache"
+    phi_crossing_x_raw = _extract_phi_zero_crossings_from_background(bg)
 
     qty_interps: dict[str, np.ndarray] = {}
     for qty in quantities:
@@ -3110,6 +3398,7 @@ def _process_single_trajectory(
         qty_interps=qty_interps,
         multiplicity=rec.multiplicity,
         cache_hit=cache_hit,
+        phi_crossing_x_raw=phi_crossing_x_raw,
     )
 
 
@@ -3241,6 +3530,8 @@ def process_dataset(
 
     # Each element: per-quantity interpolated y-values on x_grid, plus multiplicity.
     trajectory_payload: list[tuple[dict[str, np.ndarray], int]] = []
+    # Native CLASS-grid phi zero-crossings per trajectory (x=log10(1+z)).
+    phi_crossings_payload: list[tuple[np.ndarray, int]] = []
 
     # Determine thread pool size: 0 = use all cores, >0 = explicit limit.
     num_threads = args.num_threads if args.num_threads > 0 else None
@@ -3293,6 +3584,19 @@ def process_dataset(
                 trajectory_payload.append(
                     (traj_result.qty_interps, traj_result.multiplicity)
                 )
+                phi_crossings_payload.append(
+                    (
+                        np.asarray(
+                            (
+                                traj_result.phi_crossing_x_raw
+                                if traj_result.phi_crossing_x_raw is not None
+                                else np.empty(0, dtype=float)
+                            ),
+                            dtype=float,
+                        ),
+                        traj_result.multiplicity,
+                    )
+                )
 
             if i % 50 == 0 or i == len(draw_records):
                 print(
@@ -3330,6 +3634,8 @@ def process_dataset(
     omega_combined_only = {"Omega_cdm", "Omega_scf"}.issubset(set(quantities))
     dsc_requested = {"s1", "minus_s2"}.issubset(set(quantities))
     dsc_combined_only = dsc_requested and args.dsc_layout == "combined"
+    dsc_plot_y_min = min(float(args.dsc_y_min), -1.0)
+    dsc_plot_y_max = max(float(args.dsc_y_max), 10.0)
     swgc_requested = {"swgc_lhs", "swgc_rhs", "swgc_residual"}.issubset(set(quantities))
     swgc_combined_only = swgc_requested and args.swgc_layout == "combined"
     swgc_stacked_only = swgc_requested and args.swgc_layout == "stacked"
@@ -3346,6 +3652,9 @@ def process_dataset(
         dsc_split_minus_s2 = (
             qty == "minus_s2" and dsc_requested and args.dsc_layout == "split"
         )
+        dsc_split_qty = (
+            qty in {"s1", "minus_s2"} and dsc_requested and args.dsc_layout == "split"
+        )
         qty_scale = -1.0 if dsc_split_minus_s2 else 1.0
 
         y_min_qty, y_max_qty = y_ranges[qty]
@@ -3361,14 +3670,39 @@ def process_dataset(
             )
             continue
 
-        y_edges, y_scale, y_linthresh = _build_quantity_y_edges(
-            y_min_qty,
-            y_max_qty,
-            args.y_bins,
-            qty,
-            args.phi_y_scale,
-        )
+        if qty == "phi_scf" and args.phi_display_mode == "crossing":
+            y_edges = _build_symlog_y_edges_with_linthresh(
+                args.phi_window_min,
+                args.phi_window_max,
+                args.y_bins,
+                args.phi_window_linthresh,
+                pad_frac=0.0,
+            )
+            y_scale = "symlog"
+            y_linthresh = float(args.phi_window_linthresh)
+        elif dsc_split_qty:
+            if args.dsc_y_scale == "symlog":
+                y_edges = _build_symlog_y_edges_with_linthresh(
+                    dsc_plot_y_min,
+                    dsc_plot_y_max,
+                    args.y_bins,
+                    args.dsc_y_linthresh,
+                    pad_frac=0.0,
+                )
+            else:
+                y_edges = np.linspace(dsc_plot_y_min, dsc_plot_y_max, args.y_bins + 1)
+            y_scale = None
+            y_linthresh = None
+        else:
+            y_edges, y_scale, y_linthresh = _build_quantity_y_edges(
+                y_min_qty,
+                y_max_qty,
+                args.y_bins,
+                qty,
+                args.phi_y_scale,
+            )
         phi_crossing_profile: dict[str, np.ndarray] | None = None
+        phi_crossing_profile_native: dict[str, np.ndarray] | None = None
         phi_branch_summary: dict[str, np.ndarray] | None = None
         if qty == "phi_scf":
             phi_crossing_profile = _compute_phi_crossing_profile(
@@ -3378,6 +3712,10 @@ def process_dataset(
                 epsilon_linthresh_frac=args.phi_crossing_epsilon_linthresh_frac,
                 epsilon_quantile=args.phi_crossing_epsilon_quantile,
                 y_linthresh=y_linthresh,
+            )
+            phi_crossing_profile_native = _compute_phi_native_crossing_profile(
+                phi_crossings_payload,
+                x_grid,
             )
             phi_branch_summary = _compute_phi_sign_branch_summary(
                 trajectory_payload,
@@ -3505,6 +3843,12 @@ def process_dataset(
                     ),
                 ),
             )
+        if qty == "phi_scf" and args.phi_display_mode == "crossing":
+            ax.set_ylim(args.phi_window_min, args.phi_window_max)
+        if dsc_split_qty:
+            if args.dsc_y_scale == "symlog":
+                ax.set_yscale("symlog", linthresh=args.dsc_y_linthresh)
+            ax.set_ylim(dsc_plot_y_min, dsc_plot_y_max)
 
         single_band_color = _HIGH_CONTRAST_PALETTE["teal"]
         single_band_alpha = 0.30
@@ -3553,14 +3897,54 @@ def process_dataset(
                 z_grid,
                 phi_branch_summary,
             )
+
+            # Show where native CLASS trajectories cross phi=0 on the main panel.
+            p_cross_native_main = np.asarray(
+                (
+                    phi_crossing_profile_native["p_cross"]
+                    if phi_crossing_profile_native is not None
+                    else np.full_like(z_grid, np.nan)
+                ),
+                dtype=float,
+            )
+            native_has_cross = np.isfinite(p_cross_native_main) & (
+                p_cross_native_main > 0.0
+            )
+            if np.any(native_has_cross):
+                ax.plot(
+                    z_grid[native_has_cross],
+                    np.zeros(int(np.count_nonzero(native_has_cross)), dtype=float),
+                    linestyle="None",
+                    marker="|",
+                    markersize=11.0,
+                    markeredgewidth=2.2,
+                    color=_HIGH_CONTRAST_PALETTE["yellow"],
+                    zorder=50.0,
+                )
+
             if args.phi_crossing_overlay == "probability" and ax_cross is not None:
-                p_cross = np.asarray(
+                p_cross_native = np.asarray(
+                    (
+                        phi_crossing_profile_native["p_cross"]
+                        if phi_crossing_profile_native is not None
+                        else np.full_like(z_grid, np.nan)
+                    ),
+                    dtype=float,
+                )
+                p_cross_robust = np.asarray(
                     (
                         phi_crossing_profile["p_cross"]
                         if phi_crossing_profile is not None
                         else np.full_like(z_grid, np.nan)
                     ),
                     dtype=float,
+                )
+
+                # Native CLASS-step crossing probability is the primary diagnostic.
+                p_cross = (
+                    p_cross_native
+                    if np.any(np.isfinite(p_cross_native))
+                    else p_cross_robust
                 )
                 valid_cross = np.isfinite(z_grid) & np.isfinite(p_cross)
                 if np.count_nonzero(valid_cross) >= 2:
@@ -3585,7 +3969,11 @@ def process_dataset(
                 _overlay_phi_crossing_diagnostic(
                     ax,
                     z_grid,
-                    phi_crossing_profile,
+                    (
+                        phi_crossing_profile_native
+                        if phi_crossing_profile_native is not None
+                        else phi_crossing_profile
+                    ),
                     overlay_mode=args.phi_crossing_overlay,
                     binary_threshold=args.phi_crossing_binary_threshold,
                 )
@@ -3609,11 +3997,19 @@ def process_dataset(
 
         if not (qty == "phi_scf" and args.phi_crossing_overlay == "probability"):
             fig.tight_layout()
-        if y_scale in {"symlog", "symlog2"} and qty == "phi_scf":
-            _hide_overlaps_with_zero_ytick_label(
+        if y_scale in {"symlog", "symlog2"} or dsc_split_qty:
+            _prune_overlapping_ytick_labels(
                 fig,
                 ax,
                 overlap_margin_px=args.zero_label_overlap_margin_px,
+                prefer_zero_label=True,
+            )
+        if ax_cross is not None:
+            _prune_overlapping_ytick_labels(
+                fig,
+                ax_cross,
+                overlap_margin_px=args.zero_label_overlap_margin_px,
+                prefer_zero_label=False,
             )
 
         output_quantity = _output_quantity_name(qty)
@@ -3706,6 +4102,22 @@ def process_dataset(
                 (
                     phi_crossing_profile["p_cross"]
                     if (qty == "phi_scf" and phi_crossing_profile is not None)
+                    else np.full_like(x_grid, np.nan)
+                ),
+                dtype=float,
+            ),
+            phi_crossing_probability_native=np.asarray(
+                (
+                    phi_crossing_profile_native["p_cross"]
+                    if (qty == "phi_scf" and phi_crossing_profile_native is not None)
+                    else np.full_like(x_grid, np.nan)
+                ),
+                dtype=float,
+            ),
+            phi_crossing_probability_native_any=np.asarray(
+                (
+                    phi_crossing_profile_native["p_any"]
+                    if (qty == "phi_scf" and phi_crossing_profile_native is not None)
                     else np.full_like(x_grid, np.nan)
                 ),
                 dtype=float,
@@ -4058,14 +4470,21 @@ def process_dataset(
         x_edges = np.linspace(args.x_min, args.x_max, args.x_bins + 1)
         z_edges = np.power(10.0, x_edges) - 1.0
 
-        y_min_dsc = min(y_ranges["s1"][0], y_ranges["minus_s2"][0])
-        y_max_dsc = max(y_ranges["s1"][1], y_ranges["minus_s2"][1])
+        y_min_dsc = float(dsc_plot_y_min)
+        y_max_dsc = float(dsc_plot_y_max)
         if np.isfinite(y_min_dsc) and np.isfinite(y_max_dsc) and y_min_dsc < y_max_dsc:
-            y_edges_dsc, y_linthresh_dsc = _build_symlog_y_edges(
-                y_min_dsc,
-                y_max_dsc,
-                args.y_bins,
-            )
+            y_linthresh_dsc: float | None = None
+            if args.dsc_y_scale == "symlog":
+                y_edges_dsc = _build_symlog_y_edges_with_linthresh(
+                    y_min_dsc,
+                    y_max_dsc,
+                    args.y_bins,
+                    args.dsc_y_linthresh,
+                    pad_frac=0.0,
+                )
+                y_linthresh_dsc = float(args.dsc_y_linthresh)
+            else:
+                y_edges_dsc = np.linspace(y_min_dsc, y_max_dsc, args.y_bins + 1)
 
             H_dsc_s1 = np.zeros((args.x_bins, args.y_bins), dtype=float)
             H_dsc_s2 = np.zeros((args.x_bins, args.y_bins), dtype=float)
@@ -4142,7 +4561,9 @@ def process_dataset(
                     dsc_s2_limits = (vmin_s2, vmax_s2)
 
                 _style_redshift_axis(ax_dsc, z_edges)
-                ax_dsc.set_yscale("symlog", linthresh=y_linthresh_dsc)
+                if args.dsc_y_scale == "symlog" and y_linthresh_dsc is not None:
+                    ax_dsc.set_yscale("symlog", linthresh=y_linthresh_dsc)
+                ax_dsc.set_ylim(y_min_dsc, y_max_dsc)
                 ax_dsc.set_ylabel(r"dSC Parameters")
 
                 _overlay_summary_on_axis(
@@ -4192,10 +4613,11 @@ def process_dataset(
                     _style_colorbar(cb_s2, dsc_s2_limits[0], dsc_s2_limits[1])
 
                 fig_dsc.tight_layout()
-                _hide_overlaps_with_zero_ytick_label(
+                _prune_overlapping_ytick_labels(
                     fig_dsc,
                     ax_dsc,
                     overlap_margin_px=args.zero_label_overlap_margin_px,
+                    prefer_zero_label=True,
                 )
 
                 dsc_base = _output_base_path(output_dir, bundle.root, "dSC")
@@ -5359,6 +5781,10 @@ def main() -> None:
         raise ValueError("--phi-crossing-epsilon-abs must be >= 0")
     if args.phi_crossing_epsilon_linthresh_frac < 0.0:
         raise ValueError("--phi-crossing-epsilon-linthresh-frac must be >= 0")
+    if args.phi_window_max <= args.phi_window_min:
+        raise ValueError("--phi-window-max must be greater than --phi-window-min")
+    if args.phi_window_linthresh <= 0.0:
+        raise ValueError("--phi-window-linthresh must be > 0")
     if (
         args.phi_crossing_epsilon_quantile < 0.0
         or args.phi_crossing_epsilon_quantile > 0.5
@@ -5373,6 +5799,10 @@ def main() -> None:
         or args.swgc_crossing_epsilon_quantile > 0.5
     ):
         raise ValueError("--swgc-crossing-epsilon-quantile must be in [0, 0.5]")
+    if args.dsc_y_max <= args.dsc_y_min:
+        raise ValueError("--dsc-y-max must be greater than --dsc-y-min")
+    if args.dsc_y_scale == "symlog" and args.dsc_y_linthresh <= 0.0:
+        raise ValueError("--dsc-y-linthresh must be > 0 when --dsc-y-scale symlog")
 
     mode_tuning = _resolve_mode_sampling_tuning(args)
 
@@ -5393,6 +5823,8 @@ def main() -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
 
     hdm_root = _hdm_root()
+    dsc_effective_min = min(float(args.dsc_y_min), -1.0)
+    dsc_effective_max = max(float(args.dsc_y_max), 10.0)
 
     print("Posterior background heatmap pipeline")
     print(f"  HDM root:   {hdm_root}")
@@ -5402,6 +5834,19 @@ def main() -> None:
     print(f"  Quantities: {quantities}")
     print(f"  Include legends in plots: {args.include_legends_in_plots}")
     print(f"  Phi y-scale mode: {args.phi_y_scale}")
+    print(
+        "  Phi display mode: "
+        f"{args.phi_display_mode}, "
+        f"window=[{args.phi_window_min:.3g}, {args.phi_window_max:.3g}], "
+        f"linthresh={args.phi_window_linthresh:.3g}"
+    )
+    print(
+        "  dSC display: "
+        f"layout={args.dsc_layout}, scale={args.dsc_y_scale}, "
+        f"window=[{args.dsc_y_min:.3g}, {args.dsc_y_max:.3g}] "
+        f"-> effective=[{dsc_effective_min:.3g}, {dsc_effective_max:.3g}], "
+        f"linthresh={args.dsc_y_linthresh:.3g}"
+    )
     print(
         "  Phi crossing diagnostic: "
         f"overlay={args.phi_crossing_overlay}, "
