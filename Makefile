@@ -24,6 +24,11 @@ CC       = gcc
 CPP      = g++ --std=c++11 -fpermissive -Wno-write-strings
 AR       = gcc-ar rv
 
+#--- Cray ---
+# CC       = cc
+# CPP      = CC --std=c++11 -fpermissive -Wno-write-strings
+# AR       = ar rv
+
 #--- Clang / AOCC ---
 # CC       = clang
 # CPP      = clang++ --std=c++11 -fpermissive -Wno-write-strings -Wno-deprecated
@@ -92,6 +97,7 @@ LDFLAG  += -fprofile-use=$(MDIR)/pgo_profiles -fprofile-correction
 #   Step 2: Run typical inputs → produces *.profraw files in $LLVM_PROFILE_FILE
 #   Step 3: Merge raw profiles:
 #             llvm-profdata merge -output=pgo_profiles/merged.profdata pgo_profiles/*.profraw
+# 				/opt/cray/pe/cce/19.0.0/cce-clang/x86_64/bin/llvm-profdata merge -output=pgo_profiles/merged.profdata pgo_profiles/*.profraw
 #   Step 4: Recompile with -fprofile-instr-use=<merged.profdata>
 #
 # Clang Step 1 (instrument):

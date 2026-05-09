@@ -1,6 +1,6 @@
 sampler:
   mcmc:
-    covmat: /project/home/p201176/hyperbolic_Planck_InitCond_MCMC.covmat
+    covmat: auto
     drag: false
     oversample_power: 0.4
     proposal_scale: 1.9
@@ -273,6 +273,6 @@ theory:
       scf_potential: hyperbolic
       attractor_ic_scf: no
       nonlinear_min_k_max: 25
-    path: /home/users/u103677/iDM/
-packages_path: /home/users/u103677/cobaya_packages_2026
-output: /project/home/p201176/hyperbolic_PP_D_InitCond_MCMC
+    path: /project/project_465002956/iDM/
+packages_path: /project/project_465002956/CobayaPackages
+output: /scratch/project_465002956/MCMC/hyperbolic_PP_D_InitCond_MCMC
