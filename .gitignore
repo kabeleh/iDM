@@ -36,3 +36,4 @@ PostProcessing/background_posterior_cache/
 PostProcessing/failure_audit/
 PostProcessing/background_failure_audit/
 analysis/
+doc/input/latex/indent.log
