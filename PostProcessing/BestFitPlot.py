@@ -21,6 +21,7 @@
 # The output_dir is the directory where the plots will be saved.
 # Default ouput dir is the current directory.
 # --reuse_background can be used to skip rerunning CLASS and reuse existing output files and cache, e.g. to just regenerate the plots.
+# --force-rerun [model|lcdm|both] can be used to force CLASS to rerun even if output files already exist (e.g. after updating a bestfit file that shares the same filename as a previous run). Defaults to 'both' when given without a value.
 
 # 1. Extract the model parameters from the passed *.bestfit file
 
@@ -58,6 +59,14 @@ Usage:
     # - In energy density plot: adds lower panel showing ΔΩ_cdm and ΔΩ_DE evolution
     python BestFitPlot.py --bestfit_file /path/to/model.bestfit --lcdm_baseline /path/to/lcdm.bestfit --output_dir /path/to/output
 
+    # Force rerun after updating a bestfit file that shares a filename with a previous run:
+    python BestFitPlot.py --bestfit_file /path/to/model.bestfit --lcdm_baseline /path/to/lcdm.bestfit --force-rerun
+    python BestFitPlot.py --bestfit_file /path/to/model.bestfit --lcdm_baseline /path/to/lcdm.bestfit --force-rerun model
+    python BestFitPlot.py --bestfit_file /path/to/model.bestfit --lcdm_baseline /path/to/lcdm.bestfit --force-rerun lcdm
+
+    # Quick density-budget check (no plots, no P(k)/C_ℓ loading):
+    python BestFitPlot.py --bestfit_file /path/to/model.bestfit --lcdm_baseline /path/to/lcdm.bestfit --print_omegas
+
 Arguments:
     --bestfit_file BESTFIT_FILE
         Path to the .bestfit file (Cobaya MCMC output). Required.
@@ -81,6 +90,21 @@ Arguments:
           * Upper panel: model Ω_scf and Ω_cdm (unchanged from single-panel case)
           * Middle axis: shared redshift z scale
           * Lower panel: ΔΩ_cdm and ΔΩ_DE evolution with reference at Δ=0
+
+    --print_omegas
+        Print Ω_m, Ω_dm (CDM), and Ω_DE at z=0 for the model and, if
+        --lcdm_baseline is provided, for the LCDM concordance model.
+        Skips P(k), C_ℓ loading, and all plot generation — useful for a
+        quick sanity-check of the density budget without running the full pipeline.
+
+    --force-rerun [{model,lcdm,both}]
+        Force CLASS to rerun even if output files already exist in --output_dir.
+        Use this when a bestfit file has been updated but shares the same filename
+        as a previous run (causing the cache to be stale). Targets:
+          model  — rerun the model CLASS run only
+          lcdm   — rerun the LCDM baseline CLASS run only
+          both   — rerun both (default when the flag is given without a value)
+        When the flag is omitted entirely, existing outputs are reused as normal.
 
 Output Files:
     For each plot, three formats are generated: PNG, PDF, PGF
@@ -214,6 +238,21 @@ def parse_arguments() -> argparse.Namespace:
         help=(
             "Print Omega_m, Omega_dm (CDM), and Omega_DE at z=0 for the model and, if --lcdm_baseline "
             "is provided, for the LCDM concordance model. Skips P(k), C_ℓ loading, and all plots."
+        ),
+    )
+    parser.add_argument(
+        "--force-rerun",
+        nargs="?",
+        const="both",
+        default=None,
+        choices=["model", "lcdm", "both"],
+        dest="force_rerun",
+        metavar="{model,lcdm,both}",
+        help=(
+            "Force CLASS to rerun even if output files already exist in --output_dir. "
+            "Accepts an optional target: 'model' (rerun model only), 'lcdm' (rerun LCDM baseline only), "
+            "or 'both' (rerun both). Defaults to 'both' when the flag is given without a value. "
+            "Use this after updating a bestfit file that shares the same filename as a previous run."
         ),
     )
     return parser.parse_args()
@@ -2310,13 +2349,15 @@ if __name__ == "__main__":
         print("\n" + "=" * 80)
         print("Running CLASS To Generate Background, P(k), and C_ℓ Evolution")
         print("=" * 80)
+        _force_model = args.force_rerun in ("model", "both")
         run_info = resolve_or_run_class_outputs(
             class_params=class_params,
             bestfit_path=args.bestfit_file,
             output_dir=args.output_dir,
             reuse_only=args.reuse_background,
             # Preserve historical behavior unless an LCDM comparison run is requested.
-            reuse_if_available=bool(args.lcdm_baseline),
+            # --force-rerun model/both overrides reuse_if_available for the model run.
+            reuse_if_available=bool(args.lcdm_baseline) and not _force_model,
         )
         output_root = Path(run_info["output_root"])
 
@@ -2349,12 +2390,13 @@ if __name__ == "__main__":
             for warning in lcdm_metadata.get("warnings", []):
                 print(f"  ⚠ {warning}")
 
+            _force_lcdm = args.force_rerun in ("lcdm", "both")
             baseline_run_info = resolve_or_run_class_outputs(
                 class_params=lcdm_params,
                 bestfit_path=args.lcdm_baseline,
                 output_dir=args.output_dir,
                 reuse_only=args.reuse_background,
-                reuse_if_available=True,
+                reuse_if_available=not _force_lcdm,
             )
 
             if baseline_run_info["run_source"] == "reused":
