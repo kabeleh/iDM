@@ -1,0 +1,12 @@
+job_id=18500555
+host=nid001002
+date=2026-05-08T01:32:21+03:00
+classdir=/project/project_465002956/iDM
+class_bin=/project/project_465002956/iDM/class
+sif_path=/project/project_465002956/cobaya.sif
+bind_path=/project/project_465002956
+cores_list=1 2 4 8 16 32 64 96 128
+repeats=3
+slurm_nodes=1
+slurm_ntasks=1
+slurm_cpus_on_node=128

@@ -1,0 +1,19 @@
+case_id,ini_file,Number of cores,Wall clock time,Speed-up vs the first one,Number of nodes,Number of processes
+hyper_bao,pgo_hyperbolic_ic_bao.ini,1,12.716849,1.000000,1,1
+hyper_bao,pgo_hyperbolic_ic_bao.ini,2,7.963249,1.596942,1,1
+hyper_bao,pgo_hyperbolic_ic_bao.ini,4,5.022970,2.531739,1,1
+hyper_bao,pgo_hyperbolic_ic_bao.ini,8,3.876151,3.280793,1,1
+hyper_bao,pgo_hyperbolic_ic_bao.ini,16,3.984138,3.191870,1,1
+hyper_bao,pgo_hyperbolic_ic_bao.ini,32,4.000389,3.178903,1,1
+hyper_bao,pgo_hyperbolic_ic_bao.ini,64,4.035565,3.151194,1,1
+hyper_bao,pgo_hyperbolic_ic_bao.ini,96,3.972080,3.201559,1,1
+hyper_bao,pgo_hyperbolic_ic_bao.ini,128,4.036107,3.150771,1,1
+hyper_cmb,pgo_hyperbolic_ic_cmb.ini,1,45.605870,1.000000,1,1
+hyper_cmb,pgo_hyperbolic_ic_cmb.ini,2,24.333478,1.874203,1,1
+hyper_cmb,pgo_hyperbolic_ic_cmb.ini,4,13.402986,3.402665,1,1
+hyper_cmb,pgo_hyperbolic_ic_cmb.ini,8,8.053725,5.662705,1,1
+hyper_cmb,pgo_hyperbolic_ic_cmb.ini,16,5.859059,7.783822,1,1
+hyper_cmb,pgo_hyperbolic_ic_cmb.ini,32,4.637101,9.834996,1,1
+hyper_cmb,pgo_hyperbolic_ic_cmb.ini,64,4.746998,9.607308,1,1
+hyper_cmb,pgo_hyperbolic_ic_cmb.ini,96,4.869461,9.365692,1,1
+hyper_cmb,pgo_hyperbolic_ic_cmb.ini,128,4.768575,9.563836,1,1

@@ -23,23 +23,24 @@ set -euo pipefail
 N_RUNS=5
 # ini files to benchmark (relative to CLASS root)
 INI_FILES=(
-    iDM.ini
-    pgo_doubleexp_bao.ini
-    pgo_doubleexp_cmb.ini
-    pgo_doubleexp_cmb_shooting_fails.ini
-    pgo_hyperbolic_bao.ini
-    pgo_hyperbolic_cmb.ini
-    pgo_segfault.ini
+    # iDM.ini
+    # pgo_doubleexp_bao.ini
+    # pgo_doubleexp_cmb.ini
+    # pgo_doubleexp_cmb_shooting_fails.ini
+    pgo_hyperbolic_ic_bao.ini
+    pgo_hyperbolic_ic_cmb.ini
+    # pgo_segfault.ini
 )
 # ini files that are *expected* to fail (CLASS returns non-zero)
 EXPECTED_FAIL=(
-    pgo_segfault.ini
-    pgo_doubleexp_cmb_shooting_fails.ini
+    # pgo_segfault.ini
+    # pgo_doubleexp_cmb_shooting_fails.ini
+    pgo_bug_zridder_not_bracketed.ini
 )
 # ------------------------------------------------------------------------------
 
 # CLASSDIR="$(cd "$(dirname "$0")/.." && pwd)"
-CLASSDIR="/home/users/u103677/iDM"
+CLASSDIR="/project/project_465002956/iDM"
 CLASS_BIN="${CLASSDIR}/class"
 
 if [[ $# -lt 1 ]]; then
