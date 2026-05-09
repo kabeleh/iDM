@@ -92,12 +92,15 @@ The Mathematica notebooks contain the derivation of the governing equations, equ
 
 ## Python Helper
 I used various little helper scripts to reduce human error, following the credo 'automate everything':
-- `PostProcessing\EnergyConsumption.py`: Computations use energy. Each of my SLURM scripts ends with fetching the used energy of the run in Joule. This script collects all *.out files, looks for the table at the end of the ouput, and sums the energy usage. Luckily, the computations were hydro-powered and therefore carbon-neutral.
-- `PostProcessing\data_postprocessing_getDist.py`: This file is mostly a [`GetDist`](https://getdist.readthedocs.io/en/latest/) wrapper: it loads the chains and best-fit data and creates the plots and LaTeX tables for the chosen parameters.
-- `PostProcessing\getNumberOfDataPoints.py`: To compute the Bayesian Information Criterion (BIC) the number of data points per likelihood is required. To get the actual number used at runtime, this script can be interrupted in debugger mode. Different likelihoods store the data points in different ways, which made it necessary to retrieve this number by hand.
 - `Cobaya\cobaya_progress.py`: Reads the *.progress file and creates a little plot with the number of accepted points and the convergence between the different MCMC chains.
 - `Cobaya\create_cobaya_yaml.py`: Creates the [`Cobaya`](https://cobaya.readthedocs.io/en/latest/) configuration files, as well as the SLURM scripts to run them.
 - `PostProcessing\BestFitPlot.py`: Reads the bestfit values and model parameters to obtain it from the `Cobaya` `*.bestfit` file and the corresponding `Cobaya` YAML file, calls `CLASS` with those setting and stores the obtain cosmic evolution of various parameters, and then plots a selection of those parameters over the cosmic history.
+- `PostProcessing\data_postprocessing_getDist.py`: This file loads the chains and best-fit data and creates the plots using [`GetDist`](https://getdist.readthedocs.io/en/latest/) and LaTeX tables for the chosen parameters.
+- `PostProcessing\EnergyConsumption.py`: Computations use energy. Each of my SLURM scripts ends with fetching the used energy of the run in Joule. This script collects all *.out files, looks for the table at the end of the ouput, and sums the energy usage. Luckily, the computations were hydro-powered and therefore carbon-neutral.
+- `PostProcessing\getNumberOfDataPoints.py`: To compute the Bayesian Information Criterion (BIC) the number of data points per likelihood is required. To get the actual number used at runtime, this script can be interrupted in debugger mode. Different likelihoods store the data points in different ways, which made it necessary to retrieve this number by hand.
+- `omega_table.py`: Collects $\Omega$ values at $z=0$ for the hyperbolic tangent and $\Lambda$CDM models across different likelihood combinations and writes a LaTeX table.
+- `posterior_background_heatmaps.py`: Creates heatmaps of the cosmic evolution of various parameters by sampling through the MCMC chains of accepted parameter combinations and calling CLASS for this sample.
+
 
 ## Thesis
 My PhD thesis can be found on [arXiv](TODO), [MURAL](TODO), as well as in the folder `Thesis`. This folder contains, besides the PDF, the `LaTeX` code. The code acts as a template for similar documents and makes the equations available for typesetting.
