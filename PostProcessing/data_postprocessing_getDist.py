@@ -1855,7 +1855,7 @@ def make_1d_distribution_plot(
 
 def make_dm_mass_evolution_plot(output_dir: str) -> Any:
     """Create a z-history plot for normalized dark-matter mass evolution.
-    
+
     Iterates over hyperbolic models in ROOTS, extracting DM mass evolution data
     from their respective bestfit files. Uses the standard legend system to
     maintain consistency with plots 1–3.
@@ -3196,7 +3196,7 @@ def get_dataset_label(root: str) -> str:
     if dataset_flags["has_desi"]:
         parts.append(r"\gls{desi} DR2")
     if dataset_flags["has_pantheon"]:
-        parts.append("PP")
+        parts.append(r"\gls{pp}")
     if dataset_flags["has_sh0es"]:
         parts.append(r"\gls{shoes}")
 
