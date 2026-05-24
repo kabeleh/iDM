@@ -1,18 +1,19 @@
 #!/bin/bash -l
-#SBATCH --job-name=PPSPlanck
+#SBATCH --job-name=SPAPP
 #SBATCH --account=project_465002956
-#SBATCH --partition standard
+#SBATCH --partition small
 #SBATCH --nodes 1
-#SBATCH --ntasks 16
-#SBATCH --ntasks-per-node 16
-#SBATCH --cpus-per-task 16
+#SBATCH --ntasks 4
+#SBATCH --ntasks-per-node 4
+#SBATCH --cpus-per-task 32
 #SBATCH --threads-per-core 2
 #SBATCH --hint=multithread
-#SBATCH --time 48:00:00
+#SBATCH --mem-per-cpu=1750
+#SBATCH --time 72:00:00
 #SBATCH --requeue
 #SBATCH --signal=B:USR1@180
-#SBATCH --output %j.PlanckPPS.out
-#SBATCH --error %j.PlanckPPS.err
+#SBATCH --output %j.SPAPP.out
+#SBATCH --error %j.SPAPP.err
 #SBATCH --mail-user kay.lehnert.2023@mumail.ie
 #SBATCH --mail-type END,FAIL
 
@@ -50,7 +51,7 @@ handle_timelimit() {
 trap handle_timelimit USR1
 
 ## Task execution
-srun -n 16 --mpi=pmi2 --exclusive --cpus-per-task=$SLURM_CPUS_PER_TASK --cpu-bind=threads singularity exec -B /project/project_465002956 -B /scratch/project_465002956 cobaya.sif cobaya-run /project/project_465002956/iDM/Cobaya/MCMC/hyperbolic_Planck_PPS_DESI_InitCond_Swamp_MCMC.yml --resume --allow-changes
+srun -n 4 --mpi=pmi2 --exclusive --cpus-per-task=$SLURM_CPUS_PER_TASK --cpu-bind=threads singularity exec -B /project/project_465002956 -B /scratch/project_465002956 cobaya.sif cobaya-run /project/project_465002956/iDM/Cobaya/MCMC/hyperbolic_SPA_PP_DESI_InitCond_MCMC.yml --resume --allow-changes
 srun_exit=$?
 
 if [ "$srun_exit" -eq 0 ]; then

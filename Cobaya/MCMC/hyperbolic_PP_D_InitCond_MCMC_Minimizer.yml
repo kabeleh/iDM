@@ -1,22 +1,11 @@
 sampler:
-  mcmc:
-    covmat: auto
-    drag: true
-    oversample_power: 0.4
-    proposal_scale: 3.4
-    Rminus1_stop: 0.02
-    Rminus1_cl_stop: 0.2
-    learn_proposal: true
-    measure_speeds: true
-    max_tries: .inf
-    learn_every: 8d
+  minimize:
+    best_of: 4
+    ignore_prior: true
+    method: scipy
 likelihood:
-  planck_2018_lowl.TT:
-  planck_2018_lowl.EE:
-  planck_2018_highl_plik.TTTEEE_lite_native:
-  planck_2018_lensing.native:
   bao.desi_dr2:
-  sn.pantheonplusshoes:
+  sn.pantheonplus:
 params:
   logA:
     drop: true
@@ -49,14 +38,7 @@ params:
       dist: norm
       loc: 67
       scale: 2
-  tau_reio:
-    latex: \tau_\mathrm{reio}
-    prior:
-      dist: norm
-      loc: 0.051
-      scale: 0.006
-    ref: 0.051
-    proposal: 0.003
+  tau_reio: 0.06
   omega_b:
     latex: \Omega_\mathrm{b} h^2
     prior:
@@ -155,11 +137,11 @@ params:
   chi_ini:
     prior:
       min: -5.0
-      max: 5.0
+      max: 2.72
     ref:
       dist: norm
-      loc: -2.62
-      scale: 0.7
+      loc: -3.30958
+      scale: 1.5
     drop: true
     latex: \chi_\mathrm{ini}
   cdm_c:
@@ -178,7 +160,7 @@ params:
     latex: c_1
   scf_c2:
     prior:
-      min: 0.4
+      min: -10
       max: 10
     ref:
       dist: norm
@@ -284,6 +266,7 @@ theory:
       scf_tuning_index: 0
       scf_potential: hyperbolic
       attractor_ic_scf: no
+      nonlinear_min_k_max: 25
     path: /project/project_465002956/iDM/
 packages_path: /project/project_465002956/CobayaPackages
-output: /scratch/project_465002956/MCMC/hyperbolic_Planck_PPS_DESI_InitCond_Swamp_MCMC
+output: /scratch/project_465002956/MCMC/hyperbolic_PP_D_InitCond_MCMC

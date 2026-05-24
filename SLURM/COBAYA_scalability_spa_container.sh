@@ -5,7 +5,7 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=128
-#SBATCH --time=24:00:00
+#SBATCH --time=08:00:00
 #SBATCH --output=%j.COBAYA_SPA_scaling.out
 #SBATCH --error=%j.COBAYA_SPA_scaling.err
 #SBATCH --mail-type=END,FAIL
@@ -41,6 +41,14 @@ SCRATCH_BIND="${SCRATCH_BIND:-/scratch/project_465002956}"
 # Separate benchmark config to avoid writing into production SPA output.
 COBAYA_CONFIG="${COBAYA_CONFIG:-/project/project_465002956/iDM/Cobaya/MCMC/Bench_SPA.yml}"
 
+# Safety guard: only allow Bench config unless explicitly overridden.
+ALLOW_NON_BENCH_CONFIG="${ALLOW_NON_BENCH_CONFIG:-0}"
+if [[ "$(basename "$COBAYA_CONFIG")" != "Bench_SPA.yml" && "$ALLOW_NON_BENCH_CONFIG" != "1" ]]; then
+    echo "[ERROR] Refusing to run non-benchmark config: $COBAYA_CONFIG"
+    echo "[ERROR] Set ALLOW_NON_BENCH_CONFIG=1 only if you are sure this is safe."
+    exit 2
+fi
+
 # Number of Cobaya chain tasks to benchmark.
 TASKS_LIST_STR="${TASKS_LIST:-2 4 8 16 32 64 128}"
 read -r -a TASKS_LIST <<< "$TASKS_LIST_STR"
@@ -51,6 +59,14 @@ read -r -a CPUS_PER_TASK_LIST <<< "$CPUS_PER_TASK_LIST_STR"
 
 # One LUMI-C node has 128 physical cores in this setup.
 NODE_CORE_CAPACITY="${NODE_CORE_CAPACITY:-128}"
+
+# Node RAM in MB (LUMI-C standard nodes report 229376 MB RealMemory).
+# Used to skip cases where per-task memory would be too low for the likelihoods.
+NODE_MEM_MB="${NODE_MEM_MB:-229376}"
+# Minimum memory per MPI task (chain) in MB.  Cobaya + CLASS + Planck + ACT
+# typically need 3–4 GB per process.  Combos below this floor are recorded as
+# skipped_oom_risk instead of running and being killed by the OOM killer.
+MIN_MEM_PER_TASK_MB="${MIN_MEM_PER_TASK_MB:-3500}"
 N_REPEATS="${N_REPEATS:-3}"
 
 # Benchmark controls to keep runs finite and comparable.
@@ -60,19 +76,29 @@ BENCHMARK_RMINUS1_CL_STOP="${BENCHMARK_RMINUS1_CL_STOP:-0.0}"
 BENCHMARK_OUTPUT_EVERY="${BENCHMARK_OUTPUT_EVERY:-200}"
 BENCHMARK_LEARN_EVERY="${BENCHMARK_LEARN_EVERY:-200}"
 
+# Per-srun-step wall-clock timeout (minutes).  SLURM kills the step and srun
+# returns non-zero, which is caught and recorded as a failed run.
+# Lower this (e.g. 20) for pilot runs so a deadlocked step does not block the
+# entire job.  For production runs (4000 samples) use 120 or more.
+SRUN_STEP_TIMEOUT_MINUTES="${SRUN_STEP_TIMEOUT_MINUTES:-120}"
+
 # Parameters used for ESS diagnostics (if found in chain outputs).
 ESS_PARAMS_STR="${ESS_PARAMS:-n_s H0 omega_b omega_cdm cdm_c}"
 
 # Python executable inside the Singularity container.
 PYTHON_EXE="${PYTHON_EXE:-python3}"
 
-# If set to 1, fail early when getdist is missing inside the container.
+# getdist is not available in the current container image.
+# Keep ESS extraction disabled by default for predictable behavior.
+# If you rebuild the container with getdist, set ENABLE_GETDIST_PROBE=1.
 REQUIRE_GETDIST="${REQUIRE_GETDIST:-0}"
+ENABLE_GETDIST_PROBE="${ENABLE_GETDIST_PROBE:-0}"
+GETDIST_AVAILABLE=0
 
-if singularity exec -B "$BIND_PATH" -B "$SCRATCH_BIND" "$SIF_PATH" "$PYTHON_EXE" -c "import getdist" >/dev/null 2>&1; then
-    GETDIST_AVAILABLE=1
-else
-    GETDIST_AVAILABLE=0
+if [[ "$ENABLE_GETDIST_PROBE" == "1" ]]; then
+    if singularity exec -B "$BIND_PATH" -B "$SCRATCH_BIND" "$SIF_PATH" "$PYTHON_EXE" -c "import getdist" >/dev/null 2>&1; then
+        GETDIST_AVAILABLE=1
+    fi
 fi
 
 if [[ "$REQUIRE_GETDIST" == "1" && "$GETDIST_AVAILABLE" != "1" ]]; then
@@ -84,8 +110,22 @@ STAMP="$(date +%Y%m%d_%H%M%S)"
 RESULT_DIR="$CLASSDIR/benchmark/scalability/${STAMP}_container_cobaya_spa_job${SLURM_JOB_ID:-noid}"
 RAW_DIR="$RESULT_DIR/raw"
 OUT_DIR="$RESULT_DIR/output"
+LOG_DIR="$RESULT_DIR/logs"
 TMP_CFG_DIR="$RESULT_DIR/tmp_cfg"
-mkdir -p "$RAW_DIR" "$OUT_DIR" "$TMP_CFG_DIR"
+mkdir -p "$RAW_DIR" "$OUT_DIR" "$LOG_DIR" "$TMP_CFG_DIR"
+
+PREFLIGHT_LOG="$LOG_DIR/preflight_python.log"
+singularity exec -B "$BIND_PATH" -B "$SCRATCH_BIND" "$SIF_PATH" "$PYTHON_EXE" - <<'PY' > "$PREFLIGHT_LOG" 2>&1
+import importlib
+mods = ["cobaya", "classy"]
+for m in mods:
+    try:
+        importlib.import_module(m)
+        print(f"OK import {m}")
+    except Exception as e:
+        print(f"FAIL import {m}: {type(e).__name__}: {e}")
+PY
+echo "[INFO] Preflight python module report written to $PREFLIGHT_LOG"
 
 SYSTEM_INFO="$RESULT_DIR/system_info.txt"
 {
@@ -135,28 +175,57 @@ prepare_cfg() {
   local dst_cfg="$2"
   local out_root="$3"
 
-  cp "$src_cfg" "$dst_cfg"
-  sed -i -E 's/^(\s*output\s*:)/#\1/' "$dst_cfg"
-  {
-    echo ""
-    echo "# benchmark overrides"
-    echo "output: $out_root"
-    echo "resume: false"
-    echo "sampler:"
-    echo "  mcmc:"
-    echo "    output_every: $BENCHMARK_OUTPUT_EVERY"
-    echo "    learn_every: $BENCHMARK_LEARN_EVERY"
-    echo "    max_samples: $BENCHMARK_MAX_SAMPLES"
-    echo "    Rminus1_stop: $BENCHMARK_RMINUS1_STOP"
-    echo "    Rminus1_cl_stop: $BENCHMARK_RMINUS1_CL_STOP"
-  } >> "$dst_cfg"
+  # Use Cobaya's own YAML tools inside the container to deep-merge overrides.
+  # Appending a second top-level 'sampler:' block causes Cobaya's strict YAML
+  # loader to raise "Duplicate key sampler" and exit 1 before any sampling.
+  singularity exec -B "$BIND_PATH" -B "$SCRATCH_BIND" "$SIF_PATH" python3 - \
+      "$src_cfg" "$dst_cfg" "$out_root" \
+      "$BENCHMARK_OUTPUT_EVERY" "$BENCHMARK_LEARN_EVERY" \
+      "$BENCHMARK_MAX_SAMPLES" "$BENCHMARK_RMINUS1_STOP" \
+      "$BENCHMARK_RMINUS1_CL_STOP" <<'PY'
+import sys
+from cobaya.yaml import yaml_load_file, yaml_dump
+from cobaya.tools import recursive_update
+
+src, dst, out_root = sys.argv[1], sys.argv[2], sys.argv[3]
+output_every  = int(sys.argv[4])
+learn_every   = int(sys.argv[5])
+max_samples   = int(sys.argv[6])
+rminus1_stop  = float(sys.argv[7])
+rminus1_cl    = float(sys.argv[8])
+
+# Prevent MPI collective deadlock: if learn_every divides max_samples exactly,
+# Cobaya fires a joint convergence-check sync on the very same step it stops.
+# A fast chain exits MPI context while a slow chain is still in the collective.
+# Bumping learn_every by 1 shifts the last learn strictly before max_samples.
+if max_samples % learn_every == 0:
+    learn_every += 1
+
+info = yaml_load_file(src)
+overrides = {
+    "output": out_root,
+    "resume": False,
+    "sampler": {"mcmc": {
+        "output_every": output_every,
+        "learn_every":  learn_every,
+        "max_samples":  max_samples,
+        "Rminus1_stop":    rminus1_stop,
+        "Rminus1_cl_stop": rminus1_cl,
+    }},
+}
+info = recursive_update(info, overrides)
+with open(dst, "w") as f:
+    f.write(yaml_dump(info))
+PY
 }
 
-run_timed_quiet() {
-  local start_ns end_ns elapsed rc
+run_timed_logged() {
+    local log_file="$1"
+    shift
+    local start_ns end_ns elapsed rc
   start_ns=$(date +%s%N)
   set +e
-  "$@" >/dev/null 2>&1
+    "$@" >"$log_file" 2>&1
   rc=$?
   set -e
   end_ns=$(date +%s%N)
@@ -247,6 +316,25 @@ print(",".join([
 PY
 }
 
+pick_best_fit_case() {
+    local remaining="$1"
+    local best_idx="-1"
+    local best_total="0"
+    local i
+
+    for i in "${!CASE_STATE[@]}"; do
+        if (( CASE_STATE[i] != 0 )); then
+            continue
+        fi
+        if (( CASE_TOTAL[i] <= remaining && CASE_TOTAL[i] > best_total )); then
+            best_total="${CASE_TOTAL[i]}"
+            best_idx="$i"
+        fi
+    done
+
+    echo "$best_idx"
+}
+
 ensure_exists "$SIF_PATH"
 ensure_exists "$COBAYA_CONFIG"
 
@@ -264,37 +352,181 @@ for c in "${CPUS_PER_TASK_LIST[@]}"; do
   fi
 done
 
-echo "[INFO] Running Cobaya SPA scaling benchmark"
-for t in "${TASKS_LIST[@]}"; do
-  for c in "${CPUS_PER_TASK_LIST[@]}"; do
-    total_cores=$((t * c))
+echo "[INFO] Building Cobaya SPA run queue"
+declare -a CASE_TASKS CASE_CPT CASE_REPEAT CASE_TOTAL CASE_STATE CASE_RUN_DIR CASE_TMP_CFG CASE_RUN_LOG CASE_RESULT_FILE
+case_count=0
 
-    if (( total_cores > NODE_CORE_CAPACITY )); then
-      echo "$t,$c,$total_cores,0,0.000000,1,$t,skipped_invalid,NA,nan,nan,nan,nan,nan,nan,0,$(basename "$COBAYA_CONFIG")" >> "$RAW_CSV"
-      echo "[SKIP] tasks=$t cpus_per_task=$c total_cores=$total_cores exceeds node capacity $NODE_CORE_CAPACITY"
-      continue
+for t in "${TASKS_LIST[@]}"; do
+    for c in "${CPUS_PER_TASK_LIST[@]}"; do
+        total_cores=$((t * c))
+
+        if (( total_cores > NODE_CORE_CAPACITY )); then
+            echo "$t,$c,$total_cores,0,0.000000,1,$t,skipped_invalid,NA,nan,nan,nan,nan,nan,nan,0,$(basename "$COBAYA_CONFIG")" >> "$RAW_CSV"
+            echo "[SKIP] tasks=$t cpus_per_task=$c total_cores=$total_cores exceeds node capacity $NODE_CORE_CAPACITY"
+            continue
+        fi
+
+        mem_per_task=$(( NODE_MEM_MB / t ))
+        if (( mem_per_task < MIN_MEM_PER_TASK_MB )); then
+            echo "$t,$c,$total_cores,0,0.000000,1,$t,skipped_oom_risk,NA,nan,nan,nan,nan,nan,nan,0,$(basename "$COBAYA_CONFIG")" >> "$RAW_CSV"
+            echo "[SKIP] tasks=$t cpus_per_task=$c mem_per_task=${mem_per_task}MB below MIN_MEM_PER_TASK_MB=${MIN_MEM_PER_TASK_MB}MB"
+            continue
+        fi
+
+        for ((r=1; r<=N_REPEATS; r++)); do
+            CASE_TASKS[case_count]="$t"
+            CASE_CPT[case_count]="$c"
+            CASE_REPEAT[case_count]="$r"
+            CASE_TOTAL[case_count]="$total_cores"
+            CASE_STATE[case_count]=0
+            case_count=$((case_count + 1))
+        done
+    done
+done
+
+echo "[INFO] Running Cobaya SPA scaling benchmark with wave packing"
+echo "[INFO] queued_cases=$case_count node_core_capacity=$NODE_CORE_CAPACITY"
+
+# If set to 1, keep old fail-fast behavior for scheduler edge cases.
+SCHEDULER_STRICT="${SCHEDULER_STRICT:-0}"
+
+remaining_cases="$case_count"
+wave_id=0
+
+while (( remaining_cases > 0 )); do
+    wave_id=$((wave_id + 1))
+    remaining_cores="$NODE_CORE_CAPACITY"
+    wave_cores=0
+    wave_cases=0
+    wave_indexes=()
+
+    while :; do
+        idx=$(pick_best_fit_case "$remaining_cores")
+        if (( idx < 0 )); then
+            break
+        fi
+        CASE_STATE[idx]=1
+        wave_indexes+=("$idx")
+        remaining_cores=$((remaining_cores - CASE_TOTAL[idx]))
+        wave_cores=$((wave_cores + CASE_TOTAL[idx]))
+        wave_cases=$((wave_cases + 1))
+    done
+
+    if (( wave_cases == 0 )); then
+        bad_idx="-1"
+        for i in "${!CASE_STATE[@]}"; do
+            if (( CASE_STATE[i] == 0 )); then
+                bad_idx="$i"
+                break
+            fi
+        done
+
+        if (( bad_idx < 0 )); then
+            echo "[WARN] Scheduler has no pending cases although remaining_cases=$remaining_cases. Ending loop."
+            break
+        fi
+
+        t="${CASE_TASKS[bad_idx]}"
+        c="${CASE_CPT[bad_idx]}"
+        r="${CASE_REPEAT[bad_idx]}"
+        total_cores="${CASE_TOTAL[bad_idx]}"
+
+        echo "[WARN] No runnable case fits capacity. Skipping tasks=$t cpus_per_task=$c repeat=$r cores=$total_cores"
+        echo "$t,$c,$total_cores,$r,0.000000,1,$t,skipped_scheduler,NA,nan,nan,nan,nan,nan,nan,0,$(basename \"$COBAYA_CONFIG\")" >> "$RAW_CSV"
+        CASE_STATE[bad_idx]=3
+        remaining_cases=$((remaining_cases - 1))
+
+        if [[ "$SCHEDULER_STRICT" == "1" ]]; then
+            echo "[ERROR] Strict mode enabled (SCHEDULER_STRICT=1); aborting after scheduler skip."
+            exit 1
+        fi
+        continue
     fi
 
-    for ((r=1; r<=N_REPEATS; r++)); do
-      cfg_run_dir="$OUT_DIR/tasks${t}_c${c}_r${r}"
-      mkdir -p "$cfg_run_dir"
+    if (( wave_cores > NODE_CORE_CAPACITY )); then
+        echo "[WARN] Oversubscription detected in scheduler: wave_cores=$wave_cores capacity=$NODE_CORE_CAPACITY"
+        for idx in "${wave_indexes[@]}"; do
+            t="${CASE_TASKS[idx]}"
+            c="${CASE_CPT[idx]}"
+            r="${CASE_REPEAT[idx]}"
+            total_cores="${CASE_TOTAL[idx]}"
+            echo "$t,$c,$total_cores,$r,0.000000,1,$t,skipped_oversubscription,NA,nan,nan,nan,nan,nan,nan,0,$(basename \"$COBAYA_CONFIG\")" >> "$RAW_CSV"
+            CASE_STATE[idx]=3
+            remaining_cases=$((remaining_cases - 1))
+        done
 
-      tmp_cfg="$TMP_CFG_DIR/spa_tasks${t}_c${c}_r${r}.yml"
-      prepare_cfg "$COBAYA_CONFIG" "$tmp_cfg" "$cfg_run_dir/chain"
+        if [[ "$SCHEDULER_STRICT" == "1" ]]; then
+            echo "[ERROR] Strict mode enabled (SCHEDULER_STRICT=1); aborting after oversubscription detection."
+            exit 1
+        fi
+        continue
+    fi
 
-      result=$(run_timed_quiet srun --nodes=1 --ntasks="$t" --mpi=pmi2 --exclusive --cpus-per-task="$c" --cpu-bind=threads \
-        singularity exec -B "$BIND_PATH" -B "$SCRATCH_BIND" "$SIF_PATH" \
-        cobaya-run "$tmp_cfg" --allow-changes)
+    echo "[WAVE] id=$wave_id cases=$wave_cases used_cores=$wave_cores idle_cores=$remaining_cores"
 
-      elapsed="${result%,*}"
-      code="${result#*,}"
-      metrics=$(collect_cobaya_metrics "$cfg_run_dir/chain")
+    wave_pid_pairs=()
+    for idx in "${wave_indexes[@]}"; do
+        t="${CASE_TASKS[idx]}"
+        c="${CASE_CPT[idx]}"
+        r="${CASE_REPEAT[idx]}"
 
-      echo "$t,$c,$total_cores,$r,$elapsed,1,$t,ran,$code,$metrics,$(basename "$COBAYA_CONFIG")" >> "$RAW_CSV"
-      echo "[COBAYA] tasks=$t cpus_per_task=$c cores=$total_cores repeat=$r wall=${elapsed}s exit=$code metrics=[$metrics]"
+        cfg_run_dir="$OUT_DIR/tasks${t}_c${c}_r${r}"
+        mkdir -p "$cfg_run_dir"
+
+        tmp_cfg="$TMP_CFG_DIR/spa_tasks${t}_c${c}_r${r}.yml"
+        run_log="$LOG_DIR/tasks${t}_c${c}_r${r}.log"
+        result_file="$LOG_DIR/tasks${t}_c${c}_r${r}.result"
+
+        CASE_RUN_DIR[idx]="$cfg_run_dir"
+        CASE_TMP_CFG[idx]="$tmp_cfg"
+        CASE_RUN_LOG[idx]="$run_log"
+        CASE_RESULT_FILE[idx]="$result_file"
+
+        prepare_cfg "$COBAYA_CONFIG" "$tmp_cfg" "$cfg_run_dir/chain"
+
+        (
+            run_timed_logged "$run_log" srun --nodes=1 --ntasks="$t" --mpi=pmi2 --exclusive --cpus-per-task="$c" --cpu-bind=threads \
+                --time="${SRUN_STEP_TIMEOUT_MINUTES}" \
+                singularity exec -B "$BIND_PATH" -B "$SCRATCH_BIND" "$SIF_PATH" \
+                cobaya-run "$tmp_cfg" > "$result_file"
+        ) &
+        wave_pid_pairs+=("$!:$idx")
     done
-  done
 
+    for pair in "${wave_pid_pairs[@]}"; do
+        pid="${pair%%:*}"
+        idx="${pair##*:}"
+        wait "$pid"
+
+        t="${CASE_TASKS[idx]}"
+        c="${CASE_CPT[idx]}"
+        r="${CASE_REPEAT[idx]}"
+        total_cores="${CASE_TOTAL[idx]}"
+        cfg_run_dir="${CASE_RUN_DIR[idx]}"
+        run_log="${CASE_RUN_LOG[idx]}"
+        result_file="${CASE_RESULT_FILE[idx]}"
+
+        if [[ ! -s "$result_file" ]]; then
+            elapsed="0.000000"
+            code="99"
+        else
+            result_line=$(cat "$result_file")
+            elapsed="${result_line%,*}"
+            code="${result_line#*,}"
+        fi
+
+        metrics=$(collect_cobaya_metrics "$cfg_run_dir/chain")
+        echo "$t,$c,$total_cores,$r,$elapsed,1,$t,ran,$code,$metrics,$(basename "$COBAYA_CONFIG")" >> "$RAW_CSV"
+        echo "[COBAYA] tasks=$t cpus_per_task=$c cores=$total_cores repeat=$r wall=${elapsed}s exit=$code metrics=[$metrics] log=$run_log"
+
+        if [[ "$code" != "0" ]]; then
+            echo "[WARN] Failed run tasks=$t cpus_per_task=$c repeat=$r. Last 60 log lines:"
+            tail -n 60 "$run_log"
+        fi
+
+        CASE_STATE[idx]=2
+        remaining_cases=$((remaining_cases - 1))
+    done
 done
 
 run_container_python - "$RAW_CSV" "$SUMMARY_CSV" "$STRONG_CSV" "$WEAK_CSV" <<'PY'
@@ -535,6 +767,68 @@ echo "[INFO] Summary CSV: $SUMMARY_CSV"
 echo "[INFO] Strong CSV:  $STRONG_CSV"
 echo "[INFO] Weak CSV:    $WEAK_CSV"
 echo "[INFO] Result dir:  $RESULT_DIR"
+
+# Print rerun hints for failed or skipped matrix points.
+run_container_python - "$RAW_CSV" <<'PY'
+import csv
+import sys
+
+raw_path = sys.argv[1]
+
+rerun_pairs = []
+seen = set()
+rows_total = 0
+rows_bad = 0
+
+def needs_rerun(row):
+    status = (row.get("status") or "").strip()
+    if status.startswith("skipped_"):
+        return True
+    try:
+        return int(row.get("exit_code", "1")) != 0
+    except Exception:
+        return True
+
+with open(raw_path, newline="") as f:
+    reader = csv.DictReader(f)
+    for row in reader:
+        rows_total += 1
+        if not needs_rerun(row):
+            continue
+        rows_bad += 1
+        try:
+            t = int(row.get("tasks", ""))
+            c = int(row.get("cpus_per_task", ""))
+        except Exception:
+            continue
+        key = (t, c)
+        if key not in seen:
+            seen.add(key)
+            rerun_pairs.append(key)
+
+print("[RERUN] ================================================")
+print(f"[RERUN] Raw rows scanned: {rows_total}")
+print(f"[RERUN] Rows needing rerun (failed/skipped): {rows_bad}")
+
+if not rerun_pairs:
+    print("[RERUN] No failed/skipped matrix points detected.")
+    print("[RERUN] =================================================")
+    sys.exit(0)
+
+rerun_pairs.sort(key=lambda x: (x[0], x[1]))
+tasks_unique = sorted({t for t, _ in rerun_pairs})
+cpt_unique = sorted({c for _, c in rerun_pairs}, reverse=True)
+pair_str = " ".join([f"{t}x{c}" for t, c in rerun_pairs])
+
+print("[RERUN] Missing/failed pairs (tasks x cpus_per_task):")
+print(f"[RERUN]   {pair_str}")
+print("[RERUN] Suggested targeted rerun exports:")
+print(f"[RERUN]   export TASKS_LIST='{' '.join(map(str, tasks_unique))}'")
+print(f"[RERUN]   export CPUS_PER_TASK_LIST='{' '.join(map(str, cpt_unique))}'")
+print("[RERUN] Note: these are supersets over (tasks, cpus_per_task) pairs.")
+print("[RERUN]       For exact pair-only reruns, use TASKS_CPT_PAIRS from script extension if added.")
+print("[RERUN] =================================================")
+PY
 
 # Energy accounting from SLURM
 sacct -j "$SLURM_JOB_ID" -o jobid,jobname,partition,account,state,consumedenergyraw
