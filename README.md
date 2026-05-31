@@ -64,8 +64,84 @@ The Zenodo repositories contain
 
 The $`\Lambda`$CDM baseline is available on [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.20474825.svg)](https://doi.org/10.5281/zenodo.20474825).
 
-The interacting model with the hyperbolic potential starting from initial conditions (non-tracking solution) is available on .
+The interacting model with the hyperbolic potential starting from initial conditions (non-tracking solution) is available on [`Zenodo`](TODO).
 
+The folder structure on Zenodo is as follows:
+```
+.
+├── Run1_PP+DESI
+│   ├── PP+DESI.yaml
+│   └── chains
+│       ├── chains.*.txt
+│       ├── chains.checkpoint
+│       ├── chains.covmat
+│       ├── chains.progress
+│       ├── chains.bestfit
+│       └── chains.bestfit.txt
+├── Run2_CMB-SPA
+│   ├── CMB-SPA.yaml
+│   └── chains
+│       ├── chains.*.txt
+│       ├── chains.checkpoint
+│       ├── chains.covmat
+│       ├── chains.progress
+│       ├── chains.bestfit
+│       └── chains.bestfit.txt
+├── Run3_CMB-SPA+PP+DESI
+│   ├── CMB-SPA+PP+DESI.yaml
+│   └── chains
+│       ├── chains.*.txt
+│       ├── chains.checkpoint
+│       ├── chains.covmat
+│       ├── chains.progress
+│       ├── chains.bestfit
+│       └── chains.bestfit.txt
+├── Run4_PPS+DESI
+│   ├── PPS+DESI.yaml
+│   └── chains
+│       ├── chains.*.txt
+│       ├── chains.checkpoint
+│       ├── chains.covmat
+│       ├── chains.progress
+│       ├── chains.bestfit
+│       └── chains.bestfit.txt
+├── Run5_CMB-SPA+PPS+DESI
+│   ├── CMB-SPA+PPS+DESI.yaml
+│   └── chains
+│       ├── chains.*.txt
+│       ├── chains.checkpoint
+│       ├── chains.covmat
+│       ├── chains.progress
+│       ├── chains.bestfit
+│       └── chains.bestfit.txt
+├── Run6_Planck
+│   ├── Planck.yaml
+│   └── chains
+│       ├── chains.*.txt
+│       ├── chains.checkpoint
+│       ├── chains.covmat
+│       ├── chains.progress
+│       ├── chains.bestfit
+│       └── chains.bestfit.txt
+├── Run7_Planck+PP+DESI
+│   ├── Planck+PP+DESI.yaml
+│   └── chains
+│       ├── chains.*.txt
+│       ├── chains.checkpoint
+│       ├── chains.covmat
+│       ├── chains.progress
+│       ├── chains.bestfit
+│       └── chains.bestfit.txt
+└── Run8_Planck+PPS+DESI
+│   ├── Planck+PPS+DESI.yaml
+│   └── chains
+│       ├── chains.*.txt
+│       ├── chains.checkpoint
+│       ├── chains.covmat
+│       ├── chains.progress
+│       ├── chains.bestfit
+│       └── chains.bestfit.txt
+```
 
 These files allow you to fully reproduce my findings:
 - The configuration-files recreate the exact MCMC-pipeline, choosing the likelihoods, starting parameters/priors, and run configuration.
@@ -74,17 +150,17 @@ These files allow you to fully reproduce my findings:
 
 The following naming scheme is applied to these files: 
 ```
-        Sampler                 _    Likelihoods                            _    Type of Dark Energy                _    Dark Energy Conditions                           .    file-type
+        Sampler                 _    Likelihoods                      _    Type of Dark Energy                _    Dark Energy Conditions                           .    file-type
 cobaya  < mcmc | polychord >    _    < CMB | SPA | PP | S | DESI >    _    < LCDM | hyperbolic | DoubleExp >  _    < InitCond | tracking | coupled | uncoupled >    .    < txt | bestfit | covmat | yml >
 ```
 The [types of dark energy](https://github.com/kabeleh/iDM/wiki/New-User-Input-Parameters#scalar-field) are explained in the [Wiki](https://github.com/kabeleh/iDM/wiki), as well as the [coupling](https://github.com/kabeleh/iDM/wiki/Coupling) the [initial conditions](https://github.com/kabeleh/iDM/wiki/Attractor-Solutions).
 
 The data sets are the following:
-- CMB: Planck 2018 (low TT|EE, marginalised high TT|TE|EE, lensed)
-- SPA: SPT-3G + ACT DR6 + Planck (low TT)
-- PP: Pantheon+
-- DESI: DESI DR2
-- S: SH0ES
+- `CMB`: Planck 2018 (low TT|EE, marginalised high TT|TE|EE, lensed)
+- `SPA`: SPT-3G + ACT DR6 + Planck (low TT)
+- `PP`: Pantheon+
+- `DESI`: DESI DR2
+- `S`: SH0ES
 
 ## Mathematica
 The Mathematica notebooks contain the derivation of the governing equations, equations of motions, the potentials and their derivatives, as well as additional tests for swampland-compatibility.
@@ -103,7 +179,7 @@ I used various little helper scripts to reduce human error, following the credo 
 - `PostProcessing\data_postprocessing_getDist.py`: This file loads the chains and best-fit data and creates the plots using [`GetDist`](https://getdist.readthedocs.io/en/latest/) and LaTeX tables for the chosen parameters.
 - `PostProcessing\EnergyConsumption.py`: Computations use energy. Each of my SLURM scripts ends with fetching the used energy of the run in Joule. This script collects all *.out files, looks for the table at the end of the ouput, and sums the energy usage. Luckily, the computations were hydro-powered and therefore carbon-neutral.
 - `PostProcessing\getNumberOfDataPoints.py`: To compute the Bayesian Information Criterion (BIC) the number of data points per likelihood is required. To get the actual number used at runtime, this script can be interrupted in debugger mode. Different likelihoods store the data points in different ways, which made it necessary to retrieve this number by hand.
-- `omega_table.py`: Collects $\Omega$ values at $z=0$ for the hyperbolic tangent and $\Lambda$CDM models across different likelihood combinations and writes a LaTeX table.
+- `omega_table.py`: Collects $\Omega$ values at $z=0$ for the hyperbolic tangent and $`\Lambda`$CDM models across different likelihood combinations and writes a LaTeX table.
 - `posterior_background_heatmaps.py`: Creates heatmaps of the cosmic evolution of various parameters by sampling through the MCMC chains of accepted parameter combinations and calling CLASS for this sample.
 
 
@@ -115,9 +191,9 @@ The thesis template is an adaptation of [TeXtured](https://github.com/jdujava/Te
 
 # FAIR Data Statement
 Our research complies with FAIR data principles:
-- **F**indable: All data is explained and made available on this `GitHub` repository or [`Zenodo`](TODO). The naming schemes are explained in this `README`. Keywords are used for Search Engine Optimisation and clear reference.
+- **F**indable: All data is explained and made available on this `GitHub` repository or Zenodo [[$`\Lambda`$CDM](https://doi.org/10.5281/zenodo.20474825)][[iDM](TODO)]. The naming schemes and folder structures are explained in this `README`. Keywords are used for Search Engine Optimisation and clear reference.
 - **A**ccessible:
-  - All data is available on this GitHub repository, except for the Markov chains, which are available on [Zenodo](TODO). Furthermore, the thesis is available on [arXiv](TODO) and on the Maynooth University Research Archive Library ([MURAL](TODO))
+  - All data is available on this GitHub repository, except for the Markov chains, which are available on Zenodo. Furthermore, the thesis is available on [arXiv](TODO) and on the Maynooth University Research Archive Library ([MURAL](TODO))
   - Plots use [scientific colourmaps](https://www.fabiocrameri.ch/colourmaps/) to increase readability for colour-vision deficient and colour-blind people, as well as on black-and-white printouts.
 - **I**nteroperable:
   - The thesis' `LaTeX` code can be used with any `LaTeX` engine. If none is available, a PDF output is provided on [arXiv](TODO), [MURAL](TODO), as well as here on `GitHub`.
@@ -133,9 +209,20 @@ Our research complies with FAIR data principles:
  
 # AI Statement
 No LLM has been used to write my thesis, to design my research, or to derive the equations. The `GitHub Copilot Chat` has been used in `VS Code` to write the `Python` helper scripts and `git` commit messages. 
+
+# Acknowledgments
+K. L. acknowledges support as a recipient of the John and Pat Hume Scholarship,
+from
+the Friedrich Naumann Foundation for Freedom,
+the Bundesministerium für Forschung, Technologie und Raumfahrt,
+and the Swiss Study Foundation.
+
+The simulations were performed on the Luxembourg national supercomputer MeluXina and on the EuroHPC supercomputer LUMI.
+The authors gratefully acknowledge the LuxProvide and Irish Centre for High-End Computing (ICHEC) support.
+Furthermore, we acknowledge the EuroHPC Joint Undertaking for awarding this project access to the EuroHPC supercomputer LUMI, hosted by CSC (Finland) and the LUMI consortium through a EuroHPC Regular Access call.
  
 # Carbon Footprint
-Most computations have been performed on a hydro-powered supercomputer. The energy consumptions for all other involved devices is offset at [climeworks](https://climeworks.com/checkout/referral/AqO8j10d). Therefore, I consider my PhD as _probably_ carbon-neutral.
+LUMI and MeluXina operatore carbon-neutral. The energy consumptions for all other involved devices is offset at [climeworks](https://climeworks.com/checkout/referral/AqO8j10d). Therefore, I consider my PhD as _probably_ carbon-neutral.
 
 # Collaboration
 Please reach out to me if you would like to collaborate on a similar project, or if you find bugs in my code!
