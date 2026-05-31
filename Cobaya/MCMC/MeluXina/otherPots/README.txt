@@ -1,0 +1,1 @@
+A set of YAML files was produces to run the same analysis for different potentials, which are already implemented in CLASS. Due to time constraints, these sets were not used to derive full MCMC chains.

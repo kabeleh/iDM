@@ -1,0 +1,1 @@
+Initially, we thought tracking solutions would exist and be preferable, since tracking solutions have two parameters less to sample, since the initial phi and phi_prime are fixed by the tracking solution.

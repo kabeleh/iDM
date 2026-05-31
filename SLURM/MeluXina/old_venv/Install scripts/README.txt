@@ -1,0 +1,1 @@
+To setup and install the software, we used SLURM scripts on MeluXina, which are contained in this folder.

@@ -1,0 +1,1 @@
+CosmoVerse asked for a specific form of S8, which was wrong, since they wanted to divide by sigma8 instead of multiplying by it.

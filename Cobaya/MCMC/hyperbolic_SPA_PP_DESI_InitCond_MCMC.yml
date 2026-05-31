@@ -218,7 +218,7 @@ params:
     ref:
       dist: norm
       loc: -2.806936
-      scale: 1.5
+      scale: 0.15
     drop: true
     latex: \chi_\mathrm{ini}
   cdm_c:
@@ -228,7 +228,7 @@ params:
     ref:
       dist: norm
       loc: -11.220619
-      scale: 3
+      scale: 0.3
     latex: c_\mathrm{DM}
   scf_c1:
     derived: 'lambda chi_ini: 1.037467682923965e-07 / (1 - np.tanh(chi_ini)) if chi_ini
@@ -242,7 +242,7 @@ params:
     ref:
       dist: norm
       loc: -5.029705
-      scale: 3
+      scale: 0.3
     drop: true
     latex: c_2
   scf_c3:

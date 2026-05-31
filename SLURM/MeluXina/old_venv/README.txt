@@ -1,0 +1,1 @@
+During our initial setup and testing, we realised that a different python venv might provide some benefits. To not break the existing venv, we setup a new environment (which was later replaced by a third environment and after switching from MeluXina to LUMI, by a conda container).

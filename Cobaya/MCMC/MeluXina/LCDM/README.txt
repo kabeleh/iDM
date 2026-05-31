@@ -1,0 +1,1 @@
+To fix the incorret S8-formula, some post-processing was run on the already converges LCDM chains. Since S8 is a derived parameter, this can be done after the chains are converged.
