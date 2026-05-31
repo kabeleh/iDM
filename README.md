@@ -54,13 +54,18 @@ Please note the extensive [Wiki Page](https://github.com/kabeleh/iDM/wiki) that 
 If you want to use this code, please cite [CLASS II: Approximation schemes](http://arxiv.org/abs/1104.2933) as well as `my thesis`.[^4]
 
 ## Cobaya
-The Markov chain Monte Carlo (MCMC) runs to find the best-fit parameters of the model and compare it to $`\Lambda`$CDM were performed using [`Cobaya`](https://cobaya.readthedocs.io/en/latest/) v3.6.1 by Jesus Torrado and Antony Lewis. To assess our work, the full pipeline is openly available, with the MCMC products stored on [`Zenodo`](TODO).
+The Markov chain Monte Carlo (MCMC) runs to find the best-fit parameters of the model and compare it to $`\Lambda`$CDM were performed using [`Cobaya`](https://cobaya.readthedocs.io/en/latest/) v3.6.1 by Jesus Torrado and Antony Lewis. To assess our work, the full pipeline is openly available, with the MCMC products stored on Zenodo.
 
-The [`Zenodo`](TODO) repository contains
+The Zenodo repositories contain
 - Cobaya configuration-files (YAML)
 - best-fit values from `--minimize` runs
 - covariance matrices
 - the full chains
+
+The $`\Lambda`$CDM baseline is available on [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.20474825.svg)](https://doi.org/10.5281/zenodo.20474825).
+
+The interacting model with the hyperbolic potential starting from initial conditions (non-tracking solution) is available on .
+
 
 These files allow you to fully reproduce my findings:
 - The configuration-files recreate the exact MCMC-pipeline, choosing the likelihoods, starting parameters/priors, and run configuration.
