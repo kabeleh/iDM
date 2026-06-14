@@ -881,9 +881,12 @@ OBSERVATIONAL_REFERENCES: dict[str, dict[str, Any]] = {
         "label": r"$H_0$ SH0ES 2025",
     },
     "S8": {
-        "mean": 0.776,
-        "sigma": 0.031,
-        "label": r"$S_8$ KiDS-1000 2023",
+        # "mean": 0.776,
+        # "sigma": 0.031,
+        # "label": r"$S_8$ KiDS-1000 2023",
+        "mean": 0.815,
+        "sigma": 0.021,
+        "label": r"$S_8$ KiDS-Legacy",  # https://arxiv.org/abs/2503.19441
     },
 }
 
@@ -943,7 +946,7 @@ ROOTS: list[str] = [
     # "hyperbolic_SPA_InitCond_MCMC",
     "hyperbolic_PP_D_InitCond_MCMC",
     "hyperbolic_PP_S_D_InitCond_MCMC",
-    "hyperbolic_Planck_InitCond_MCMC.post.Swamp",
+    "hyperbolic_Planck_InitCond_MCMC",
     "hyperbolic_Planck_PP_DESI_InitCond_Swamp_MCMC",
     "hyperbolic_Planck_PPS_DESI_InitCond_Swamp_MCMC",
 ]
