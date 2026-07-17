@@ -64,7 +64,7 @@ The Zenodo repositories contain
 
 The $`\Lambda`$CDM baseline is available on [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.20474825.svg)](https://doi.org/10.5281/zenodo.20474825).
 
-The interacting model with the hyperbolic potential starting from initial conditions (non-tracking solution) is available on [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.21417680.svg)](https://doi.org/10.5281/zenodo.21417680)
+The interacting model with the hyperbolic potential starting from initial conditions (non-tracking solution) is available on [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.21417680.svg)](https://doi.org/10.5281/zenodo.21417680).
 
 The folder structure on Zenodo is as follows:
 ```
