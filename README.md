@@ -19,7 +19,7 @@
 - Author: Kay Lehnert
 - Related Publications: 
     - [Hitchhiker's Guide to the Swampland: The Cosmologist's Handbook to the string-theoretical Swampland Programme](https://arxiv.org/abs/2509.02632)
-    - [PhD Thesis](url.com)
+    - [PhD Thesis](TODO)
 
 This repository contains the [`CLASS`](https://github.com/lesgourg/class_public) source code used for the cosmological simulations, the [`Cobaya`](https://cobaya.readthedocs.io/en/latest/) configuration files for the Markov chain Monte Carlo runs, and the [Mathematica](https://www.wolfram.com/mathematica/) notebooks with the derivations of the relevant equations for a swampland-inspired model of dark energy in the form of quintessence as a scalar field that is interacting with dynamical dark matter. The motivation, theory behind, and mathematical details of the model are explained in my PhD thesis [^4]. For the technical implementation of the mathematical equations into `CLASS`, please refer to the extensive [GitHub Wiki](https://github.com/kabeleh/iDM/wiki).
 
@@ -64,7 +64,7 @@ The Zenodo repositories contain
 
 The $`\Lambda`$CDM baseline is available on [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.20474825.svg)](https://doi.org/10.5281/zenodo.20474825).
 
-The interacting model with the hyperbolic potential starting from initial conditions (non-tracking solution) is available on [`Zenodo`](TODO).
+The interacting model with the hyperbolic potential starting from initial conditions (non-tracking solution) is available on [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.21417680.svg)](https://doi.org/10.5281/zenodo.21417680)
 
 The folder structure on Zenodo is as follows:
 ```
@@ -191,7 +191,7 @@ The thesis template is an adaptation of [TeXtured](https://github.com/jdujava/Te
 
 # FAIR Data Statement
 Our research complies with FAIR data principles:
-- **F**indable: All data is explained and made available on this `GitHub` repository or Zenodo [[$`\Lambda`$CDM](https://doi.org/10.5281/zenodo.20474825)][[iDM](TODO)]. The naming schemes and folder structures are explained in this `README`. Keywords are used for Search Engine Optimisation and clear reference.
+- **F**indable: All data is explained and made available on this `GitHub` repository or Zenodo [[$`\Lambda`$CDM](https://doi.org/10.5281/zenodo.20474825)][[iDM](https://doi.org/10.5281/zenodo.21417680)]. The naming schemes and folder structures are explained in this `README`. Keywords are used for Search Engine Optimisation and clear reference.
 - **A**ccessible:
   - All data is available on this GitHub repository, except for the Markov chains, which are available on Zenodo. Furthermore, the thesis is available on [arXiv](TODO) and on the Maynooth University Research Archive Library ([MURAL](TODO))
   - Plots use [scientific colourmaps](https://www.fabiocrameri.ch/colourmaps/) to increase readability for colour-vision deficient and colour-blind people, as well as on black-and-white printouts.
