@@ -21,7 +21,7 @@ _REPO_ROOT = Path(__file__).resolve().parent.parent
 _PLOTS_DIR = _REPO_ROOT / "PostProcessing" / "Plots"
 _BFP_SCRIPT = _REPO_ROOT / "PostProcessing" / "BestFitPlot.py"
 
-_CHAINS = Path("/home/kl/kDrive/Sci/PhD/Research/HDM/MCMC_chains")
+_ARCHIVE_HYP = Path("/home/kl/kDrive/Sci/PhD/Research/HDM/MCMC_archive/Hyperbolic")
 _ARCHIVE = Path("/home/kl/kDrive/Sci/PhD/Research/HDM/MCMC_archive/LCDM")
 
 # ---------------------------------------------------------------------------
@@ -30,38 +30,60 @@ _ARCHIVE = Path("/home/kl/kDrive/Sci/PhD/Research/HDM/MCMC_archive/LCDM")
 COMBINATIONS = [
     {
         "label": "Planck",
-        "hyp": _CHAINS / "hyperbolic_Planck_InitCond_MCMC.post.Swamp.bestfit",
+        "hyp": _ARCHIVE_HYP / "Planck" / "hyperbolic_Planck_InitCond_MCMC.bestfit",
         "lcdm": _ARCHIVE / "Planck" / "cobaya_mcmc_fast_CMB_LCDM.bestfit",
     },
     {
         "label": "Planck + PP + DESI",
-        "hyp": _CHAINS / "hyperbolic_Planck_PP_DESI_InitCond_Swamp_MCMC.bestfit",
+        "hyp": _ARCHIVE_HYP / "Planck_PantheonPlus" / "hyperbolic_Planck_PP_DESI_InitCond_Swamp_MCMC.bestfit",
         "lcdm": _ARCHIVE
         / "Planck_PantheonPlus"
         / "cobaya_mcmc_fast_CMB_LCDM.post.PP.bestfit",
     },
     {
         "label": "Planck + PP + SH0ES + DESI",
-        "hyp": _CHAINS / "hyperbolic_Planck_PPS_DESI_InitCond_Swamp_MCMC.bestfit",
+        "hyp": _ARCHIVE_HYP / "Planck_PantheonPlus_SH0ES" / "hyperbolic_Planck_PPS_DESI_InitCond_Swamp_MCMC.bestfit",
         "lcdm": _ARCHIVE
         / "Planck_PantheonPlus_SH0ES"
         / "cobaya_mcmc_fast_CMB_LCDM.post.PPS.bestfit",
     },
     {
         "label": "PP + DESI",
-        "hyp": _CHAINS / "hyperbolic_PP_D_InitCond_MCMC.bestfit",
+        "hyp": _ARCHIVE_HYP / "PantheonPlus" / "hyperbolic_PP_D_InitCond_MCMC.bestfit",
         "lcdm": _ARCHIVE
         / "PantheonPlus"
         / "cobaya_polychord_CV_PP_DESI_LCDM.post.S8.bestfit",
     },
     {
         "label": "PP + SH0ES + DESI",
-        "hyp": _CHAINS / "hyperbolic_PP_S_D_InitCond_MCMC.bestfit",
+        "hyp": _ARCHIVE_HYP / "PantheonPlus_SH0ES" / "hyperbolic_PP_S_D_InitCond_MCMC.bestfit",
         "lcdm": _ARCHIVE
         / "PantheonPlus_SH0ES"
         / "cobaya_mcmc_CV_PP_S_DESI_LCDM.post.S8.bestfit",
     },
 ]
+
+# ---------------------------------------------------------------------------
+# Startup validation: ensure all bestfit files exist
+# ---------------------------------------------------------------------------
+
+def _validate_combinations_files() -> None:
+    """Validate that all bestfit files (hyp and lcdm) in COMBINATIONS exist."""
+    missing = []
+    for combo in COMBINATIONS:
+        label = combo["label"]
+        hyp_path = combo["hyp"]
+        lcdm_path = combo["lcdm"]
+
+        if not hyp_path.exists():
+            missing.append(f"  [{label}] Hyp:  {hyp_path}")
+        if not lcdm_path.exists():
+            missing.append(f"  [{label}] LCDM: {lcdm_path}")
+
+    if missing:
+        msg = "The following bestfit files are missing:\n" + "\n".join(missing)
+        raise FileNotFoundError(msg)
+
 
 _FLOAT_RE = re.compile(r"\b(\d+\.\d+)\b")
 
@@ -274,6 +296,9 @@ def parse_arguments() -> argparse.Namespace:
 def main() -> None:
     args = parse_arguments()
     output_dir = Path(args.output_dir)
+
+    # Validate all bestfit files exist before doing any work
+    _validate_combinations_files()
 
     print("=" * 72)
     print("Omega_0 Table Generator")

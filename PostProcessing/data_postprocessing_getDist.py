@@ -827,15 +827,13 @@ def preload_all_chains(
 
 # Resolve paths relative to this script so both Linux and macOS layouts work.
 #   <HDM>/MCMC_archive/
-#   <HDM>/MCMC_chains/
 _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 _CLASS_PUBLIC_DIR = os.path.dirname(_SCRIPT_DIR)
 HDM_DIR: str = os.path.dirname(_CLASS_PUBLIC_DIR)
 
-# Keep a single chain root directory and resolve each root with per-chain
-# precedence: MCMC_archive first, then MCMC_chains.
+# Keep a single chain root directory; only MCMC_archive is searched for chains.
 CHAIN_DIR: str = HDM_DIR
-_CHAIN_SEARCH_SUBDIRS: tuple[str, ...] = ("MCMC_archive", "MCMC_chains")
+_CHAIN_SEARCH_SUBDIRS: tuple[str, ...] = ("MCMC_archive",)
 
 
 def _ordered_chain_search_dirs(chain_dir: str) -> list[str]:
@@ -946,6 +944,18 @@ ROOTS: list[str] = [
     # "hyperbolic_SPA_InitCond_MCMC",
     "hyperbolic_PP_D_InitCond_MCMC",
     "hyperbolic_PP_S_D_InitCond_MCMC",
+    "hyperbolic_Planck_InitCond_MCMC",
+    "hyperbolic_Planck_PP_DESI_InitCond_Swamp_MCMC",
+    "hyperbolic_Planck_PPS_DESI_InitCond_Swamp_MCMC",
+]
+
+# Roots whose likelihood combination includes CMB data. Used for the H0-S8
+# "CMB zoom" companion plot (thesis fig. 4.14): with only these tightly
+# constrained posteriors, GetDist auto-ranges to a much smaller H0/S8 window.
+CMB_ROOTS: list[str] = [
+    "cobaya_mcmc_fast_CMB_LCDM",
+    "cobaya_mcmc_fast_CMB_LCDM.post.PP",
+    "cobaya_mcmc_fast_CMB_LCDM.post.PPS",
     "hyperbolic_Planck_InitCond_MCMC",
     "hyperbolic_Planck_PP_DESI_InitCond_Swamp_MCMC",
     "hyperbolic_Planck_PPS_DESI_InitCond_Swamp_MCMC",
@@ -1117,7 +1127,11 @@ def resolve_chain_root(root: str, chain_dir: str = CHAIN_DIR) -> str:
         matches = _collect_chain_matches(patterns, chain_dir)
 
         if not matches:
-            return root
+            raise FileNotFoundError(
+                f"Could not resolve chain root '{root}': no matching chain files "
+                f"found under chain_dir '{chain_dir}' "
+                f"(searched directories: {_ordered_chain_search_dirs(chain_dir)})."
+            )
 
         unique_roots = _unique_roots_from_matches(matches, chain_dir)
         resolved = _prefer_best_root(root, unique_roots)
@@ -1146,8 +1160,11 @@ def resolve_chain_root(root: str, chain_dir: str = CHAIN_DIR) -> str:
     matches = _collect_chain_matches(patterns, chain_dir)
 
     if not matches:
-        _ROOT_PATH_CACHE[root] = root
-        return root
+        raise FileNotFoundError(
+            f"Could not resolve chain root '{root}': no matching chain files "
+            f"found under chain_dir '{chain_dir}' "
+            f"(searched directories: {_ordered_chain_search_dirs(chain_dir)})."
+        )
 
     unique_roots = _unique_roots_from_matches(matches, chain_dir)
     resolved = _prefer_best_root(root, unique_roots)
@@ -1491,6 +1508,78 @@ def _estimate_h0_s8_1sigma_area(samples: Any) -> float:
     return float(widths["H0"] * widths["S8"])
 
 
+def _place_figure_legend_below(
+    fig: Any,
+    handles: Sequence[Any],
+    labels: Sequence[str],
+    *,
+    ncol: int = 2,
+    gap_in: float = 0.15,
+    pad_in: float = 0.08,
+    **legend_kwargs: Any,
+) -> Any:
+    """Place a single figure-level legend in new canvas space below the plot.
+
+    The canvas is extended downward by exactly the legend height (plus a
+    small gap/pad) and the existing axes keep their absolute positions and
+    sizes, so the panel geometry above — e.g. getdist's square, attached
+    triangle panels — is completely unaffected by the legend.
+    """
+    fig.canvas.draw()
+    legend = fig.legend(
+        handles,
+        labels,
+        loc="lower center",
+        bbox_to_anchor=(0.5, 0.0),
+        bbox_transform=fig.transFigure,
+        ncol=ncol,
+        **legend_kwargs,
+    )
+    fig.canvas.draw()
+    renderer = fig.canvas.get_renderer()
+    bbox = legend.get_window_extent(renderer=renderer)
+
+    # Guard against long labels colliding across columns: if the multi-column
+    # legend is wider than the figure, fall back to a single column.
+    if ncol > 1 and bbox.width / fig.dpi > fig.get_size_inches()[0] * 0.98:
+        legend.remove()
+        legend = fig.legend(
+            handles,
+            labels,
+            loc="lower center",
+            bbox_to_anchor=(0.5, 0.0),
+            bbox_transform=fig.transFigure,
+            ncol=1,
+            **legend_kwargs,
+        )
+        fig.canvas.draw()
+        renderer = fig.canvas.get_renderer()
+        bbox = legend.get_window_extent(renderer=renderer)
+
+    legend_h_in = bbox.height / fig.dpi
+    w_in, h_in = fig.get_size_inches()
+    extra_in = legend_h_in + gap_in + pad_in
+    new_h_in = h_in + extra_in
+
+    # Remember the axes layout in the ORIGINAL figure fractions, then enlarge
+    # the canvas and re-place every axes so its absolute (inch) geometry is
+    # preserved and shifted up above the new legend strip.
+    positions = [(ax, ax.get_position()) for ax in fig.axes]
+    fig.set_size_inches(w_in, new_h_in, forward=True)
+    for ax, pos in positions:
+        ax.set_position(
+            [
+                pos.x0,
+                (pos.y0 * h_in + extra_in) / new_h_in,
+                pos.width,
+                pos.height * h_in / new_h_in,
+            ]
+        )
+    legend.set_bbox_to_anchor((0.5, pad_in / new_h_in), transform=fig.transFigure)
+    fig.canvas.draw()
+    return legend
+
+
 def make_triangle_plot(
     params: Sequence[str],
     annotations: Callable[[Any], list[Patch]] | None = None,
@@ -1498,6 +1587,8 @@ def make_triangle_plot(
     title: str | None = None,
     fill_2d: bool = True,
     size_scale: float = 1.0,
+    legend_position: str = "quadrant",
+    roots: Sequence[str] | None = None,
 ) -> Any:
     """
     Create a triangle plot for the given parameters.
@@ -1518,6 +1609,14 @@ def make_triangle_plot(
         If None, default labels from the chain files are used.
     title : str, optional
         Title for the figure.
+    legend_position : str, optional
+        "quadrant" (default): for 2-parameter triangles, place the legend in
+        the empty upper-right quadrant and grow the figure until it fits
+        (legacy behavior, byte-identical to before this option existed).
+        "below": place a single figure-level legend below the full plot and
+        grow the figure height downward until it fits.
+    roots : sequence of str, optional
+        Chain roots to include. Defaults to the global ROOTS list.
 
     Returns
     -------
@@ -1533,7 +1632,7 @@ def make_triangle_plot(
     # Load samples, drop roots with none of the requested params,
     # and keep only params present in all remaining roots.
     samples_by_root: list[tuple[str, str, Any]] = []
-    for root in ROOTS:
+    for root in (ROOTS if roots is None else roots):
         samples = get_samples_for_root(root, CHAIN_DIR, ANALYSIS_SETTINGS)
         if samples is None:
             continue
@@ -1653,9 +1752,35 @@ def make_triangle_plot(
         if legend:
             legend.remove()
 
+    if len(available_params) == 2 and legend_position == "below":
+        # Same horizontal layout as the quadrant mode — getdist's native
+        # square, attached triangle panels are left untouched; the legend
+        # gets its own canvas strip added below by the helper.
+        fig.subplots_adjust(left=0.1, right=0.96)
+        # Keep text readable, matching the quadrant layout (set before the
+        # legend is measured so tick-label extents are final).
+        for ax in fig.axes:
+            try:
+                ax.xaxis.label.set_size(12.5)
+                ax.yaxis.label.set_size(12.5)
+                ax.tick_params(axis="both", which="major", labelsize=11.5)
+                ax.tick_params(axis="both", which="minor", labelsize=11.0)
+            except Exception:
+                continue
+        _place_figure_legend_below(
+            fig,
+            all_handles,
+            all_labels,
+            ncol=2,
+            frameon=True,
+            fontsize=12.0,
+            borderaxespad=0.0,
+            labelspacing=0.4,
+            handlelength=2.4,
+        )
     # For 2-parameter triangles, reserve the empty upper-right quadrant for legend
     # to avoid overlap with the lower-right contour panel in exports.
-    if len(available_params) == 2:
+    elif len(available_params) == 2:
         fig.subplots_adjust(left=0.1, right=0.96)
         top_left_ax = g.subplots[0, 0]
         lower_right_ax = g.subplots[1, 1]
@@ -1829,25 +1954,20 @@ def make_1d_distribution_plot(
             )
         )
 
-    # Reserve space on the right for a single-column legend outside the axes.
-    fig.subplots_adjust(left=0.12, right=0.65, top=0.96, bottom=0.12)
+    # Let the axes use the full canvas; the legend gets its own canvas strip
+    # added below the axes by the helper (no bottom reservation needed).
+    fig.subplots_adjust(left=0.12, right=0.96, top=0.96, bottom=0.12)
 
-    # Finalize figure layout to get accurate axis bounding box coordinates.
-    fig.canvas.draw()
-
-    # Position legend at the upper-right corner of the plot, close to the border.
-    ax = fig.axes[0]
-    ax_bbox = ax.get_position()
-
-    fig.legend(
+    _place_figure_legend_below(
+        fig,
         chain_handles,
         [str(h.get_label()) for h in chain_handles],
-        loc="upper left",
-        bbox_to_anchor=(ax_bbox.x1 + 0.01, ax_bbox.y1 + 0.018),
-        bbox_transform=fig.transFigure,
+        ncol=2,
+        # The axes' own bottom margin (xlabel space) already separates the
+        # legend visually; no extra gap needed.
+        gap_in=0.0,
         frameon=True,
         fontsize=10.5,
-        ncol=1,
     )
 
     if title:
@@ -2149,6 +2269,35 @@ else:
                 text.set_style("normal")
                 text.set_weight("normal")
 
+        # CMB zoom companion (thesis fig. 4.14): same plot restricted to the
+        # likelihood combinations that include CMB data. The much tighter
+        # posteriors make GetDist auto-range to a small H0/S8 window.
+        _log_prefixed("plot1", "Generating H0-S8 CMB-zoom triangle plot...")
+        g1cmb = make_triangle_plot(
+            params_cosmology,
+            annotations=annotate_H0_S8,
+            title=None,
+            size_scale=1.22,
+            roots=CMB_ROOTS,
+        )
+        if CLI_ARGS.strict_export:
+            pdf_path = os.path.join(
+                strict_export_dir, "plot_H0_S8_Planck_LCDM_hyperbolic_CMB.pdf"
+            )
+            pgf_path = os.path.join(
+                strict_export_dir, "plot_H0_S8_Planck_LCDM_hyperbolic_CMB.pgf"
+            )
+            save_strict_plex_figure(g1cmb.fig, pdf_path, pgf_path)
+            print(f"Strict export saved: {pdf_path}")
+            print(f"Strict export saved: {pgf_path}")
+
+        if g1cmb.fig.legends:
+            for text in g1cmb.fig.legends[0].get_texts():
+                text.set_style("normal")
+                text.set_weight("normal")
+
+        _show_figure_nonblocking(g1cmb.fig, "Plot 1 (CMB zoom)")
+
         _show_figure_nonblocking(g1.fig, "Plot 1")
 
     if CLI_ARGS.only_plot is not None and generate_plot2:
@@ -2164,6 +2313,7 @@ else:
                 param_labels=scf_labels,
                 title=None,
                 fill_2d=True,
+                legend_position="below",
             )
 
             # Strict IBM Plex Math export for thesis:

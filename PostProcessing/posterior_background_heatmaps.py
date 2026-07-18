@@ -409,7 +409,7 @@ _FIELDS_TO_CACHE: tuple[str, ...] = (
 DEFAULT_ROOTS: tuple[str, ...] = (
     "hyperbolic_PP_D_InitCond_MCMC",
     "hyperbolic_PP_S_D_InitCond_MCMC",
-    "hyperbolic_Planck_InitCond_MCMC.post.Swamp",
+    "hyperbolic_Planck_InitCond_MCMC",
     "hyperbolic_Planck_PP_DESI_InitCond_Swamp_MCMC",
     "hyperbolic_Planck_PPS_DESI_InitCond_Swamp_MCMC",
 )
@@ -909,10 +909,8 @@ def _hdm_root() -> Path:
 
 
 def _ordered_chain_search_dirs(hdm_root: Path) -> list[Path]:
-    candidates = [hdm_root / "MCMC_archive", hdm_root / "MCMC_chains"]
+    candidates = [hdm_root / "MCMC_archive"]
     existing = [p for p in candidates if p.is_dir()]
-    if hdm_root.is_dir():
-        existing.append(hdm_root)
     return existing
 
 
@@ -1895,7 +1893,11 @@ def _output_quantity_name(quantity: str) -> str:
 
 
 def _output_base_path(output_dir: Path, root: str, quantity_name: str) -> Path:
-    return output_dir / f"{_sanitize_label(root)}_heatmap_{quantity_name}"
+    # Roots resolved inside MCMC_archive carry dataset subdirectories
+    # (e.g. "Hyperbolic/Planck/<root>"); output files must use the bare root
+    # name so they match what the thesis wrappers reference.
+    root_name = root.rsplit("/", 1)[-1]
+    return output_dir / f"{_sanitize_label(root_name)}_heatmap_{quantity_name}"
 
 
 def _save_figure_bundle(fig: Figure, base_path: Path) -> None:
@@ -3128,26 +3130,61 @@ def _save_legend_figure(
     handles: list[Any],
     preset: str,
     output_dir: Path,
+    ncol: int | None = None,
 ) -> None:
     """Save legend as standalone figure(s) for inclusion in LaTeX layouts.
+
+    The canvas is sized to hug the legend content exactly (measured after a
+    forced draw), so the saved PDF/PGF page carries no surrounding
+    whitespace. This matters because PGF export does not honor
+    bbox_inches="tight" reliably, so we avoid relying on it entirely.
 
     Args:
         handles: List of matplotlib legend handles (Patch, Line2D, etc.)
         preset: Preset name (phi, eos, omega, swampland, swgc)
         output_dir: Directory to save legend files
+        ncol: Number of legend columns. Defaults to max(1, len(handles) // 3).
     """
+    if ncol is None:
+        ncol = max(1, len(handles) // 3)
+
+    pad_in = 0.02
+
     fig, ax = plt.subplots(figsize=(6.0, 1.0))
     ax.axis("off")
-    ax.legend(
+    legend = ax.legend(
         handles=handles,
         loc="center",
-        ncol=max(1, len(handles) // 3),
+        ncol=ncol,
         frameon=False,
         fontsize=11,
         handlelength=2.2,
     )
     fig.patch.set_facecolor(_HIGH_CONTRAST_PALETTE["white"])
-    fig.tight_layout(pad=0.2)
+
+    # Force a draw so the legend's extent is known, then size the canvas to
+    # hug it exactly (plus a small pad), and re-place the legend to fill
+    # the resized figure.
+    fig.canvas.draw()
+    renderer = fig.canvas.get_renderer()
+    bbox_px = legend.get_window_extent(renderer=renderer)
+    dpi = fig.dpi
+    width_in = bbox_px.width / dpi + 2 * pad_in
+    height_in = bbox_px.height / dpi + 2 * pad_in
+    fig.set_size_inches(width_in, height_in)
+
+    legend.remove()
+    legend = ax.legend(
+        handles=handles,
+        loc="center",
+        bbox_to_anchor=(0.0, 0.0, 1.0, 1.0),
+        bbox_transform=fig.transFigure,
+        ncol=ncol,
+        frameon=False,
+        fontsize=11,
+        handlelength=2.2,
+    )
+    fig.canvas.draw()
 
     base_name = f"legend_{preset}"
     png_path = output_dir / f"{base_name}.png"
@@ -3158,15 +3195,13 @@ def _save_legend_figure(
         fig.savefig(
             str(png_path),
             dpi=150,
-            bbox_inches="tight",
             facecolor=_HIGH_CONTRAST_PALETTE["white"],
         )
         fig.savefig(
             str(pdf_path),
-            bbox_inches="tight",
             facecolor=_HIGH_CONTRAST_PALETTE["white"],
         )
-        fig.savefig(str(pgf_path), bbox_inches="tight")
+        fig.savefig(str(pgf_path))
         print(f"  Saved legend: {png_path.name}, {pdf_path.name}, {pgf_path.name}")
     finally:
         plt.close(fig)
@@ -3358,7 +3393,9 @@ def _save_requested_legends_once(quantities: list[str], output_dir: Path) -> Non
         elif preset == "eos":
             _save_legend_figure(_get_eos_legend_handles(), preset, output_dir)
         elif preset == "omega":
-            _save_legend_figure(_get_omega_legend_handles(), preset, output_dir)
+            _save_legend_figure(
+                _get_omega_legend_handles(), preset, output_dir, ncol=1
+            )
         elif preset == "swampland":
             _save_legend_figure(_get_dsc_legend_handles(), preset, output_dir)
         elif preset == "swgc":

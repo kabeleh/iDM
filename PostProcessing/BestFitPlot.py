@@ -290,7 +290,8 @@ def _cache_matches_source_provenance(
     cached: Any,
     source_path: str,
 ) -> bool:
-    """Return True when cached provenance matches the current source file."""
+    """Return True when cached provenance matches the current source file's
+    content fingerprint (mtime/size/head-hash), not path."""
     p = Path(source_path)
     if not p.exists():
         return False
@@ -306,7 +307,6 @@ def _cache_matches_source_provenance(
 
     try:
         expected = _build_source_provenance(str(p))
-        cached_file = str(cached["source_file"][0])
         cached_mtime_ns = int(cached["source_mtime_ns"][0])
         cached_size = int(cached["source_size_bytes"][0])
         cached_hash = str(cached["source_head_hash"][0])
@@ -314,8 +314,7 @@ def _cache_matches_source_provenance(
         return False
 
     return (
-        os.path.abspath(cached_file) == os.path.abspath(expected["source_file"])
-        and cached_mtime_ns == expected["source_mtime_ns"]
+        cached_mtime_ns == expected["source_mtime_ns"]
         and cached_size == expected["source_size_bytes"]
         and cached_hash == expected["source_head_hash"]
     )
