@@ -18,13 +18,12 @@ Verifies against thesis .tex files in --check mode.
 
 import argparse
 import hashlib
-import os
 import re
 import shutil
 import sys
 from pathlib import Path
 from dataclasses import dataclass
-from typing import Optional, Dict, List, Set, Tuple
+from typing import Optional, List, Set, Tuple
 
 
 # ============================================================================
@@ -405,16 +404,13 @@ def check_references() -> List[str]:
         # Check if both .pdf and .pgf exist in staging tree
         found_pdf = False
         found_pgf = False
-        found_path = None
 
         for subdir in STAGING_ROOT.rglob("*"):
             if subdir.is_file():
                 if subdir.name == f"{ref}.pdf":
                     found_pdf = True
-                    found_path = subdir
                 elif subdir.name == f"{ref}.pgf":
                     found_pgf = True
-                    found_path = subdir
 
         if not found_pdf or not found_pgf:
             missing.append(ref)
@@ -530,14 +526,14 @@ def print_summary(stats: StagingStats, command: str = ""):
     print(f"Debris:      {stats.debris}")
 
     if stats.debris_list:
-        print(f"\nDebris files (ignored):")
+        print("\nDebris files (ignored):")
         for name in sorted(stats.debris_list)[:10]:
             print(f"  - {name}")
         if len(stats.debris_list) > 10:
             print(f"  ... and {len(stats.debris_list) - 10} more")
 
     if stats.unmatched:
-        print(f"\nUNMATCHED files (routing gap):")
+        print("\nUNMATCHED files (routing gap):")
         for name in sorted(stats.unmatched):
             print(f"  - {name}")
 
@@ -596,7 +592,7 @@ def main():
         print("Step 3: Checking staging tree against thesis references...")
         missing = check_references()
         if missing:
-            print(f"\nMISSING references (expected to exist as both .pdf and .pgf):")
+            print("\nMISSING references (expected to exist as both .pdf and .pgf):")
             for ref in missing[:20]:
                 print(f"  - {ref}")
             if len(missing) > 20:
